@@ -1,17 +1,17 @@
-// src/font.zig
-// @nsible Standard 8x8 Bitmap Font (IBM VGA Compatible)
+// src/glyphs.zig
+// @nsible Standard 8x8 Bitmap Font (IBM VGA Compatible + Gāo Zhuǎ Extensions)
 
 pub const WIDTH = 8;
 pub const HEIGHT = 8;
 
 // Helper to get the bitmap for a char
 pub fn getBitmap(c: u8) [8]u8 {
-    if (c < 32 or c > 126) return font_data[0]; // Return space/box for unknown
+    // Bounds check extended to include 127 (高) and 128 (爪)
+    if (c < 32 or c > 128) return font_data[0]; 
     return font_data[c - 32];
 }
 
-// 8x8 Bitmaps for ASCII 32 (Space) through 126 (~)
-// Each byte represents one row of the character.
+// 8x8 Bitmaps for ASCII 32 (Space) through 128 (爪)
 const font_data = [_][8]u8{
     .{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // 32 Space
     .{0x18, 0x3C, 0x3C, 0x18, 0x18, 0x00, 0x18, 0x00}, // 33 !
@@ -108,4 +108,6 @@ const font_data = [_][8]u8{
     .{0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18}, // 124 |
     .{0x70, 0x18, 0x18, 0x0E, 0x18, 0x18, 0x70, 0x00}, // 125 }
     .{0x76, 0xDC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // 126 ~
+    .{0x08, 0x7F, 0x08, 0x3E, 0x22, 0x3E, 0x22, 0x3E}, // 127 高 (Gāo) - Tower
+    .{0x30, 0x50, 0x50, 0x48, 0x44, 0x42, 0x21, 0x0E}, // 128 爪 (Zhuǎ) - Claw
 };
