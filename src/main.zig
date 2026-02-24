@@ -63,7 +63,7 @@ fn clear(color: u32) void {
 
 // Render the Dynamic URI Bar (Bottom-Up)
 fn drawUriBar(input_buf: []const u8, input_len: usize) void {
-    const prefix = "@://v0.5.os/state/retina:active/";
+    const prefix = "@://v0.7.osx/state/hal_dsl:active/";
     const char_w = 8;
     const line_h = 10;
     const padding = 6;
@@ -147,8 +147,8 @@ pub fn main() !void {
     const exit_key = ".!XX-.";
 
     // Eye Position
-    const eye_x = 900;
-    const eye_y = 50;
+    const eye_x = 987;
+    const eye_y = 8;
 
     // 5. THE LOOP
     while (true) {
@@ -212,7 +212,7 @@ pub fn main() !void {
 
             // [!] DRAW FRAME (WATCH)
             clear(0x00000000);
-            print(20, 50, "SYSTEM: \x7F \x80", 0x00DC143C);
+            print(8, 8, "SYSTEM: \x7F \x80", 0x00DC143C);
             drawUriBar(journal[0..journal_len], journal_len);
             drawChar(eye_x, eye_y, '<', 0x00FFFFFF);
             drawChar(eye_x + 16, eye_y, 'o', 0x00FFFFFF); // Open

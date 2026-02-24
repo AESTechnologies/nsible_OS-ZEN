@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# [ @NSIBLE IGNITION ]
+
+# 1. BUILD
+# Silent build. Only speak on error.
+zig build
+
+if [ $? -eq 0 ]; then
+    # 2. SUDO PRE-CHECK
+    # Ask for auth now to keep the UI clean
+    sudo -v 
+    
+    # 3. EXECUTE (Raw Mode)
+    stty raw -echo
+    sudo ./zig-out/bin/nsible_os
+    stty sane
+    
+    # 4. CLEANUP
+    echo -e "\n[ @NSIBLE: HALTED ]"
+else
+    echo -e "\n[ BUILD: FAILED ]"
+fi
