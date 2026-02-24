@@ -3,6 +3,7 @@ const linux = std.os.linux;
 const font = @import("glyphs.zig");
 const nerve = @import("nerve.zig");   // [.:] MOTOR
 const percept = @import("percept.zig"); // [<] SENSOR
+const cortex = @import("cortex.zig");   // [^] BRAIN
 
 // --- HARDWARE CONFIGURATION ---
 const WIDTH: usize = 1024;
@@ -67,59 +68,46 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     const line_h = 10;
     const padding = 6;
     
-    // 1. Calculate Text Flow to determine Bar Height
+    // 1. Calculate Text Flow
     var cursor_x: usize = 10;
     var lines: usize = 1;
     
-    // Measure Prefix
     cursor_x += prefix.len * char_w;
     
-    // Measure Input
     var i: usize = 0;
     while (i < input_len) : (i += 1) {
         cursor_x += char_w;
         if (cursor_x >= WIDTH - 10) {
             lines += 1;
-            cursor_x = 10 + char_w; // Reset + 1 char
+            cursor_x = 10 + char_w;
         }
     }
     
     const bar_height = (lines * line_h) + (padding * 2);
-    
-    // 2. Calculate Start Y (Bottom Anchor)
-    // If bar_height > HEIGHT, we clamp (or scroll, but clamp for now)
     const start_y = if (bar_height < HEIGHT) HEIGHT - bar_height else 0;
     
-    // 3. Draw The Bar Background (Crimson)
+    // 2. Draw Bar (Crimson)
     drawRect(0, start_y, WIDTH, bar_height, 0x00DC143C);
     
-    // 4. Draw The Text (Deep Black) inside the Bar
+    // 3. Draw Text (Black)
     cursor_x = 10;
     var cursor_y: usize = start_y + padding;
     
-    // Draw Prefix
     for (prefix) |char| {
         drawChar(cursor_x, cursor_y, char, 0x00000000);
         cursor_x += char_w;
-        if (cursor_x >= WIDTH - 10) {
-            cursor_x = 10;
-            cursor_y += line_h;
-        }
+        if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; }
     }
     
-    // Draw Input
     i = 0;
     while (i < input_len) : (i += 1) {
         const char = input_buf[i];
         drawChar(cursor_x, cursor_y, char, 0x00000000);
         cursor_x += char_w;
-        if (cursor_x >= WIDTH - 10) {
-            cursor_x = 10;
-            cursor_y += line_h;
-        }
+        if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; }
     }
     
-    // Draw Cursor Block (Blinking Effect handled by loop logic, this is static pos)
+    // Static Cursor Block
     drawChar(cursor_x, cursor_y, 0xDB, 0x00000000); 
 }
 
@@ -153,70 +141,81 @@ pub fn main() !void {
     // 4. STORAGE
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
+    
+    // GZL Exit Buffer (Keeping as secondary safety)
     var seq_buf: [6]u8 = .{0, 0, 0, 0, 0, 0};
     const exit_key = ".!XX-.";
 
-    // Eye Position (Top Right)
+    // Eye Position
     const eye_x = 900;
     const eye_y = 50;
 
     // 5. THE LOOP
     while (true) {
-        // [!] RENDER FRAME (Refresh every cycle or only on input? Input driven + blink loop)
-        // For simplicity in this structure, we redraw on input or timeout. 
-        // But to make blink work, we loop.
-        
-        // SENSE (Non-blocking check would be ideal for smooth anim, 
-        // but 'percept.sense' is currently blocking/raw. 
-        // We will assume blocking for typing, then animate.)
-        
         if (percept.sense()) |byte| {
             
-            // [!] JOURNALING
-            if (journal_len < 4096) {
-                if (byte == 127 or byte == 8) {
-                    if (journal_len > 0) journal_len -= 1;
-                } else {
+            // [!] PROCESS INPUT
+            if (byte == '\n' or byte == '\r') {
+                // [Enter] -> CORTEX DISPATCH
+                const cmd_slice = journal[0..journal_len];
+                const response = cortex.dispatch(cmd_slice);
+                
+                // Reset Buffer immediately
+                journal_len = 0;
+                
+                // EXECUTE RESPONSE
+                switch (response.action) {
+                    .CLEAR => {
+                        // Just redraw blank frame
+                    },
+                    .EXIT => {
+                        break;
+                    },
+                    .PRINT => {
+                        // Inject response into buffer so user sees it
+                        for (response.text) |c| {
+                            if (journal_len < 4096) {
+                                journal[journal_len] = c;
+                                journal_len += 1;
+                            }
+                        }
+                    },
+                    .NONE => {}
+                }
+
+            } else if (byte == 127 or byte == 8) {
+                // Backspace
+                if (journal_len > 0) journal_len -= 1;
+            } else {
+                // Typing
+                if (journal_len < 4096) {
                     journal[journal_len] = byte;
                     journal_len += 1;
                 }
             }
 
-            // [!] SEQUENCE CHECK
+            // [!] SEQUENCE CHECK (Hardware Exit)
             var i: usize = 0;
             while (i < 5) : (i += 1) { seq_buf[i] = seq_buf[i+1]; }
             seq_buf[5] = byte;
             if (std.mem.eql(u8, &seq_buf, exit_key)) break;
 
-            // [!] DRAW FRAME: BLINK STATE
+            // [!] DRAW FRAME (BLINK)
             clear(0x00000000);
-            
-            // 1. Hard-Point Identity (Top Left, Red)
-            // Using \x7F (高) and \x80 (爪)
             print(20, 50, "SYSTEM: \x7F \x80", 0x00DC143C);
-
-            // 2. Draw Bar (Bottom Up)
             drawUriBar(journal[0..journal_len], journal_len);
-
-            // 3. Draw Eye (Red Blink)
             drawChar(eye_x, eye_y, '<', 0x00DC143C);
-            drawChar(eye_x + 16, eye_y, '-', 0x00DC143C);
+            drawChar(eye_x + 16, eye_y, '-', 0x00DC143C); // Blink
 
-            // Hold Blink
             var delay: usize = 0;
             while (delay < 3000000) : (delay += 1) { asm volatile("pause"); }
 
-            // [!] DRAW FRAME: WATCH STATE
-            // We redraw to restore white eye immediately
-            // (In a real game loop we'd just update state, but this works for direct framebuffer)
-            
+            // [!] DRAW FRAME (WATCH)
             clear(0x00000000);
             print(20, 50, "SYSTEM: \x7F \x80", 0x00DC143C);
             drawUriBar(journal[0..journal_len], journal_len);
-            
-            // Draw Eye (White Open)
             drawChar(eye_x, eye_y, '<', 0x00FFFFFF);
-            drawChar(eye_x + 16, eye_y, 'o', 0x00FFFFFF);
+            drawChar(eye_x + 16, eye_y, 'o', 0x00FFFFFF); // Open
         }
     }
     
