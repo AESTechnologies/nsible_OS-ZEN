@@ -2,8 +2,9 @@ const std = @import("std");
 const linux = std.os.linux;
 const font = @import("glyphs.zig");
 const nerve = @import("nerve.zig");   
-const codex = @import("codex.zig");   // [ARCH] CODEX
+const codex = @import("codex.zig");
 const cortex = @import("cortex.zig"); 
+const chronos = @import("chronos.zig");
 
 // --- HARDWARE CONFIGURATION ---
 const WIDTH: usize = 1024;
@@ -16,6 +17,13 @@ pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
 }
 
 var fb_pixels: []u32 = undefined;
+// THE BACKBUFFER: Eliminates refresh-flicker
+var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
+
+// --- THE VOID (42.13 MB GHOST HARDDRIVE) ---
+const VOID_SIZE = 42_130_000;
+var void_buffer: [VOID_SIZE]u8 = undefined;
+var void_head: usize = 0;
 
 // --- GRAPHICS ENGINE ---
 
@@ -30,14 +38,13 @@ fn drawChar(px: usize, py: usize, char: u8, color: u32) void {
                 const screen_y = py + y;
                 if (screen_x < WIDTH and screen_y < HEIGHT) {
                     const index = screen_y * WIDTH + screen_x;
-                    fb_pixels[index] = color;
+                    back_buffer[index] = color;
                 }
             }
         }
     }
 }
 
-// Draw a filled rectangle
 fn drawRect(x: usize, y: usize, w: usize, h: usize, color: u32) void {
     var dy: usize = 0;
     while (dy < h) : (dy += 1) {
@@ -46,20 +53,18 @@ fn drawRect(x: usize, y: usize, w: usize, h: usize, color: u32) void {
             const sx = x + dx;
             const sy = y + dy;
             if (sx < WIDTH and sy < HEIGHT) {
-                fb_pixels[sy * WIDTH + sx] = color;
+                back_buffer[sy * WIDTH + sx] = color;
             }
         }
     }
 }
 
-// Clear screen to a specific color
 fn clear(color: u32) void {
-    for (fb_pixels) |*pixel| {
+    for (&back_buffer) |*pixel| {
         pixel.* = color;
     }
 }
 
-// Print text
 fn print(x: usize, y: usize, text: []const u8, color: u32) void {
     var cx = x;
     for (text) |char| {
@@ -71,12 +76,11 @@ fn print(x: usize, y: usize, text: []const u8, color: u32) void {
 // --- UI COMPONENTS ---
 
 fn drawUriBar(input_buf: []const u8, input_len: usize) void {
-    const prefix = "@://v0.7.osx/state/hal_dsl:active/";
+    const prefix = "@://v0.8.osx/state/hal_dsl:active/";
     const char_w = 8;
     const line_h = 10;
     const padding = 6;
     
-    // 1. Calculate Text Flow
     var cursor_x: usize = 10;
     var lines: usize = 1;
     cursor_x += prefix.len * char_w;
@@ -93,13 +97,10 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     const bar_height = (lines * line_h) + (padding * 2);
     const start_y = if (bar_height < HEIGHT) HEIGHT - bar_height else 0;
     
-    // 2. Draw Bar (Crimson)
     drawRect(0, start_y, WIDTH, bar_height, 0x00DC143C);
     
-    // 3. Draw Text (Black)
     cursor_x = 10;
     var cursor_y: usize = start_y + padding;
-    
     for (prefix) |char| {
         drawChar(cursor_x, cursor_y, char, 0x00000000);
         cursor_x += char_w;
@@ -114,62 +115,68 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
         if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; }
     }
     
-    // Static Cursor Block
     drawChar(cursor_x, cursor_y, 0xDB, 0x00000000);
+}
+
+// Helper to save data to the Void Buffer
+fn saveToVoid(data: []const u8) void {
+    if (void_head + data.len + 2 >= VOID_SIZE) {
+        void_head = 0; 
+    }
+    const sep = " :: ";
+    @memcpy(void_buffer[void_head..void_head+4], sep);
+    void_head += 4;
+    @memcpy(void_buffer[void_head..void_head+data.len], data);
+    void_head += data.len;
 }
 
 // « ENTRY POINT
 pub fn main() !void {
-    // 1. MOUNT
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
     _ = linux.syscall5(.mount, @intFromPtr("sysfs"), @intFromPtr("/sys"), @intFromPtr("sysfs"), 0, 0);
     _ = linux.syscall5(.mount, @intFromPtr("devtmpfs"), @intFromPtr("/dev"), @intFromPtr("devtmpfs"), 0, 0);
-
-    // 2. FRAMEBUFFER
+    
     const fd_res = linux.syscall3(.open, @intFromPtr("/dev/fb0"), 2, 0);
     const fb_fd: i32 = @bitCast(@as(u32, @truncate(fd_res)));
-    if (fb_fd < 0) { while (true) { codex.zen(100_000); } }
+    
+    if (fb_fd < 0) { while (true) { codex.zen(0.00004); } }
 
-    // 3. MAP
     const map_len = WIDTH * HEIGHT * 4;
     const map_res = linux.syscall6(.mmap2, 0, map_len, 3, 1, @as(usize, @bitCast(fb_fd)), 0);
     const fb_ptr = @as([*]u32, @ptrFromInt(map_res));
     fb_pixels = fb_ptr[0..(WIDTH * HEIGHT)];
 
-    // 4. ALIGN FREQUENCY
     nerve.init();
     codex.tuneIn();
-
-    // 5. STORAGE & STATE
+    
+    const net_fd = codex.bindUmbilical(); 
+    
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
     var seq_buf: [6]u8 = .{0, 0, 0, 0, 0, 0};
     const exit_key = ".!XX-.";
 
-    // Eye Position
-    const eye_x = 987;
-    const eye_y = 8;
+    //[!]UPDATED: Moved to TopRight (Bezel Layer) to clear the Black Space
+    const pulse_x = 962;
+    const pulse_y = 6;
     
     var blink_timer: usize = 0;
-    var is_blinking: bool = false;
+    var is_high_cycle: bool = true;
     var dirty: bool = true;
-
-    // 6. THE ETERNAL LOOP
+    
     while (true) {
-        // [A] TRANSCIEVE (Input)
-        if (codex.transcieve()) |byte| {
+        if (codex.transcieve(net_fd)) |byte| {
             dirty = true;
-
-            // [!] PROCESS INPUT
+            
             if (byte == '\n' or byte == '\r') {
                 const cmd_slice = journal[0..journal_len];
                 const response = cortex.dispatch(cmd_slice);
-                journal_len = 0;
                 
                 switch (response.action) {
                     .CLEAR => {}, 
                     .EXIT => break,
                     .PRINT => {
+                        journal_len = 0; 
                         for (response.text) |c| {
                             if (journal_len < 4096) {
                                 journal[journal_len] = c;
@@ -177,7 +184,12 @@ pub fn main() !void {
                             }
                         }
                     },
-                    .NONE => {}
+                    .NONE => {
+                        if (journal_len > 0) {
+                            saveToVoid(cmd_slice);
+                        }
+                        journal_len = 0;
+                    }
                 }
             } else if (byte == 127 or byte == 8) {
                 if (journal_len > 0) journal_len -= 1;
@@ -188,63 +200,50 @@ pub fn main() !void {
                 }
             }
 
-            // [!] SEQUENCE CHECK
             var i: usize = 0;
             while (i < 5) : (i += 1) { seq_buf[i] = seq_buf[i+1]; }
             seq_buf[5] = byte;
             if (std.mem.eql(u8, &seq_buf, exit_key)) break;
         }
 
-        // [B] AUTONOMIC FUNCTIONS (Blink)
         blink_timer += 1;
-        
-        if (blink_timer > 50) {
-            is_blinking = true;
-            dirty = true;
-        }
-        
-        if (blink_timer > 52) {
-            is_blinking = false;
+        if (blink_timer > 35) {
+            is_high_cycle = !is_high_cycle;
             blink_timer = 0;
             dirty = true;
         }
 
-        // [C] RENDER (Only if Dirty)
         if (dirty) {
             clear(0x00000000);
             
-            // Draw Status Bar
             var bar_x: usize = 0;
             while (bar_x < WIDTH) : (bar_x += 1) {
                 var bar_y: usize = 0;
                 while (bar_y < 20) : (bar_y += 1) {
-                    fb_pixels[bar_y * WIDTH + bar_x] = 0x00DC143C;
+                    back_buffer[bar_y * WIDTH + bar_x] = 0x00DC143C;
                 }
             }
  
-            // Print Header
-            print(10, 6, "@NSIBLE OS // v0.7 // VOID_LINK: ACTIVE", 0x00FFFFFF);
+            print(10, 6, "@NSIBLE OS // v0.8 // VOID_LINK: LISTENING (4213)", 0x00FFFFFF);
             
-            // Draw Main Body (Status)
-            // FIXED: We now render the High Claw glyphs (127, 128) regardless of blinking.
-            print(20, 50, "SYSTEM: \x7F \x80", 0x00DC143C);
+            // [!] FIXED: Explicit type 'u32' for runtime if/else
+            const pulse_color: u32 = if (journal_len > 0) 0x00DC143C else 0x00C0C0C0;
+
+            // [!] UPDATED: Rendering logic for TopRight alignment
+            // Text Label
+            print(pulse_x, pulse_y, ":|", 0x00DC143C); //Optimized into an @nsible link format
+
+            //The Glyph (127=High, 128=Claw)
+            const glyph = if (is_high_cycle) @as(u8, 127) else @as(u8, 128);
+            drawChar(pulse_x + 32, pulse_y, glyph, pulse_color); // Adjusted offset (+32)
 
             drawUriBar(journal[0..journal_len], journal_len);
             
-            // Draw Eye
-            if (is_blinking) {
-                drawChar(eye_x, eye_y, '<', 0x00DC143C);
-                drawChar(eye_x + 16, eye_y, '-', 0x00DC143C);
-            } else {
-                drawChar(eye_x, eye_y, '<', 0x00FFFFFF);
-                drawChar(eye_x + 16, eye_y, 'o', 0x00FFFFFF);
-            }
-            
+            @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
             dirty = false;
         }
         
-        // [D] ZEN (wait++)
-        codex.zen(10_000);
+        codex.zen(0.000004);
     }
     
     _ = linux.syscall1(.exit, 0);

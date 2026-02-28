@@ -3,57 +3,105 @@ const linux = std.os.linux;
 
 // .-*-. ARCH: CODEX (Sovereign I/O) .-*-.
 
-// [CONSTANTS] : TERMINOLOGICAL MAPPING
-pub const CODEX    = 0x5401; // TCGETS (Read the current laws/state)
-pub const CODES    = 0x5402; // TCSETS (Write the new codes/state)
-pub const VOIDSCAN = 0x0001; // POLLIN (Scan for input signal)
-pub const XCODE    = 0x000A; // Mask for Removal (ECHO | ICANON)
+// [CONSTANTS]
+pub const CODEX    = 0x5401; // TCGETS
+pub const CODES    = 0x5402; // TCSETS
+pub const VOIDSCAN = 0x0001; // POLLIN
+pub const XCODE    = 0x000A; // Mask
 
-// [STRUCTS] : ABI COMPLIANCE (32-bit x86)
-// We define this locally to avoid std.os version conflicts on Musl/Atom
-const KernelTime = extern struct {
-    tv_sec: isize,
-    tv_nsec: isize,
+// NETWORK CONSTANTS
+const AF_INET = 2;
+const SOCK_STREAM = 1;
+const IPPROTO_TCP = 6;
+const INADDR_ANY = 0;
+const PORT: u16 = 4213;
+
+// 1 Cycle = 42.13 Minutes = 2527.8 Seconds
+const CYCLE_SECONDS: f64 = 2527.8;
+
+// [STRUCTS]
+const HardwareTick = extern struct {
+    base_ticks: isize,
+    nano_ticks: isize,
+};
+
+const SockAddr = extern struct {
+    family: u16,
+    port: u16,
+    addr: u32,
+    zero: [8]u8,
 };
 
 // [OPERATIONS]
 
-/// TUNEIN: Align the frequency.
-/// Captures the current CODEX, applies XCODE filters, and asserts CODES.
+/// TUNEIN: Align the frequency (Terminal Mode).
 pub fn tuneIn() void {
     var state: linux.termios = undefined;
-    
-    // 1. READ CODEX (Get State)
     if (linux.syscall3(.ioctl, 0, CODEX, @intFromPtr(&state)) != 0) return;
-
-    // 2. APPLY XCODE (Filter/Mask)
-    // FIX: Cast packed struct to u32 for bitwise NOT/AND operations
     var lflag_int: u32 = @bitCast(state.lflag);
     lflag_int &= ~(@as(u32, XCODE));
     state.lflag = @bitCast(lflag_int);
-    
-    // 3. ASSERT CODES (Set State)
     _ = linux.syscall3(.ioctl, 0, CODES, @intFromPtr(&state));
 }
 
-/// TRANSCIEVE: The active signal loop.
-/// Scans the void. If signal found, returns atomic unit (u8).
-pub fn transcieve() ?u8 {
-    // 1. VOIDSCAN (Poll)
-    var fds = [1]linux.pollfd{
-        .{ .fd = 0, .events = VOIDSCAN, .revents = 0 },
+/// BIND UMBILICAL: Open the Network Bridge (Port 4213).
+pub fn bindUmbilical() i32 {
+    // 1. Socket
+    const fd_res = linux.syscall3(.socket, AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    const sockfd: i32 = @bitCast(@as(u32, @truncate(fd_res)));
+    if (sockfd < 0) return -1;
+
+    // 2. Bind
+    // [!] FIXED: Use intrinsic byte swap for safety
+    const port_be: u16 = @byteSwap(PORT); 
+    
+    var addr = SockAddr{
+        .family = AF_INET,
+        .port = port_be,
+        .addr = INADDR_ANY,
+        .zero = [_]u8{0} ** 8,
     };
 
-    // Timeout = 0 (Immediate / Non-Blocking)
-    const result = linux.syscall3(.poll, @intFromPtr(&fds), 1, 0);
+    if (linux.syscall3(.bind, @as(usize, @bitCast(sockfd)), @intFromPtr(&addr), @sizeOf(SockAddr)) != 0) {
+        return -1;
+    }
 
-    // 2. CHECK SIGNAL
+    // 3. Listen
+    _ = linux.syscall2(.listen, @as(usize, @bitCast(sockfd)), 1);
+    
+    return sockfd;
+}
+
+/// TRANSCIEVE: Scan Keyboard (0) AND Network (net_fd).
+pub fn transcieve(net_fd: i32) ?u8 {
+    var fds = [2]linux.pollfd{
+        .{ .fd = 0, .events = VOIDSCAN, .revents = 0 },      // Keyboard
+        .{ .fd = net_fd, .events = VOIDSCAN, .revents = 0 }, // Umbilical
+    };
+    
+    // Poll for event
+    const result = linux.syscall3(.poll, @intFromPtr(&fds), 2, 0);
+    
     if (@as(usize, @bitCast(result)) > 0) {
+        // CHECK KEYBOARD
         if ((fds[0].revents & VOIDSCAN) != 0) {
             var buffer: [1]u8 = undefined;
-            // READ
             const read_res = linux.syscall3(.read, 0, @intFromPtr(&buffer), 1);
             if (@as(usize, @bitCast(read_res)) == 1) {
+                return buffer[0];
+            }
+        }
+        
+        // CHECK NETWORK
+        if (net_fd > 0 and (fds[1].revents & VOIDSCAN) != 0) {
+            // [!] FIXED: Switched to .accept4 (usually present on x86/musl when .accept is not)
+            const client_res = linux.syscall4(.accept4, @as(usize, @bitCast(net_fd)), 0, 0, 0);
+            const client_fd: i32 = @bitCast(@as(u32, @truncate(client_res)));
+            
+            if (client_fd >= 0) {
+                var buffer: [1]u8 = undefined;
+                _ = linux.syscall3(.read, @as(usize, @bitCast(client_fd)), @intFromPtr(&buffer), 1);
+                _ = linux.syscall1(.close, @as(usize, @bitCast(client_fd))); // Hang up immediately
                 return buffer[0];
             }
         }
@@ -61,13 +109,17 @@ pub fn transcieve() ?u8 {
     return null;
 }
 
-/// ZEN: The wait state (wait++).
-/// micros: Microseconds to hold the cycle.
-pub fn zen(micros: u64) void {
-    var req = KernelTime{
-        .tv_sec = @intCast(micros / 1_000_000),
-        .tv_nsec = @intCast((micros % 1_000_000) * 1000),
+/// ZEN: The wait state (Cycle Delta).
+pub fn zen(cycle_delta: f64) void {
+    const total_sec = cycle_delta * CYCLE_SECONDS;
+    const sec = @as(isize, @intFromFloat(total_sec));
+    const frac = total_sec - @as(f64, @floatFromInt(sec));
+    const nsec = @as(isize, @intFromFloat(frac * 1_000_000_000.0));
+
+    var req = HardwareTick{
+        .base_ticks = sec,
+        .nano_ticks = nsec,
     };
-    var rem = KernelTime{ .tv_sec = 0, .tv_nsec = 0 };
+    var rem = HardwareTick{ .base_ticks = 0, .nano_ticks = 0 };
     _ = linux.syscall2(.nanosleep, @intFromPtr(&req), @intFromPtr(&rem));
 }
