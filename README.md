@@ -1,6 +1,5 @@
 # @nsible OS
 
-
 ## Mission
 A metabolic, high-performance operating system kernel written in Zig (0.15.2). 
 Designed for direct hardware control, sovereign data ingestion, and zero-dependency execution.
@@ -11,32 +10,30 @@ It is not a browser; it is a **Data Metabolism Engine**.
 * **Target:** x86_64-linux-musl (Host-as-Bootloader)
 * **Graphics:** Direct `/dev/fb0` Framebuffer Access (Crimson Engine)
 * **Umbilical:** `HUNTER` Module (Curl Subprocess / Raw Pipe)
-* **Memory:** `SCRIBE` Module (Persistent GZL-O History)
+* **Memory:** `SCRIBE` Module (Immediate GZL-O Inscription)
 
-### **v0.9.4 // TIMELINE: ACTIVE**
-> *"The Void remembers."*
+### **v0.9.6 // WAKING STATE: ACTIVE**
+> *"The Void remembers. The machine wakes."*
 
-**@nsible** has evolved from a static interface into a **Persistent Sovereign Environment**.
-* **Hunter:** Web ingestion engine capable of capturing raw HTML/Text streams (`hunt <url>`).
-* **Timeline:** A visual, interactive history stack rendering on the right rail.
-* **Scribe:** Disk-based persistence. The timeline survives reboots (`nsible_history.gzl`).
-* **Reflex:** Low-level signal injection (`.!XX-.`) bypassing the cortical parser.
+**@nsible** has evolved into a **Persistent Sovereign Environment**. It no longer resets; it resumes.
+* **Waking State:** The system auto-fetches the last known timeline entry on boot.
+* **Immediate Inscription:** History is written to disk (`nsible_history.gzl`) instantly upon creation. Crash-proof persistence.
 
-## **Current State: v0.9.4 (The Sovereign Stack)**
+## **Current State: v0.9.6 (The Sovereign Stack)**
 
 The system operates in **Host Mode**, leveraging the Linux kernel as a biological scaffold while maintaining sovereign user-space logic.
 
 ### **// HUNTER (Metabolism)**
 * **The Umbilical:** Pipes external data (Web) directly into the Void buffer.
-* **Mastication:** Captures raw streams for internal GZL-O parsing (Phase 3).
+* **Mastication:** Captures raw streams for internal GZL-O parsing.
 * **Navigation:** `v` / `^` scroll commands mapped to physical **Arrow Keys**.
 
-### **// TIMELINE (Memory)**
+### **// TIMELINE (Visual Physics)**
 * **The Red Stack:** History is visualized as a stack of Crimson tabs on the right rail.
-* **Flex/Warp UI:**
+* **Flex/Warp Engine:**
   * **Flex:** Selected tab expands (`+8px`) and glows White (Focus).
-  * **Warp:** Unselected tabs contract based on Philotic Weight (Gravity).
-  * **Pulse:** Active fetches burn Amber.
+  * **Warp:** Unselected tabs contract based on **Philotic Weight** (Frequency of access).
+  * **Pulse:** Active fetches burn Amber before locking to Crimson.
 * **Traversal:** **Left/Right Arrows** navigate through time (History).
 
 ### **// REFLEX (Nervous System)**
@@ -45,16 +42,13 @@ The system operates in **Host Mode**, leveraging the Linux kernel as a biologica
 
 ## Commands
 * `hunt <url>` : Fetch external data (e.g., `hunt dailyzen.com`).
-* `exit` : Graceful shutdown (Saves History).
+* `exit` : Graceful shutdown.
 * `clear` : Wipe the Void buffer.
-* **Arrows** : Scroll (Up/Down) / Time Travel (Left/Right).
-* `.!XX-.` : **HARD KILL SIGNAL.**
+* **Up/Down** : Scroll Content.
+* **Left/Right** : Traverse Time (Timeline History).
+* `.!XX-.` : **HARD KILL SIGNAL (Reflex).**
 
 ## Build & Run
 ```bash
 zig build
 sudo ./zig-out/bin/nsible_os
-```
-*Note: Must be run from a TTY (Ctrl+Alt+F3) to bypass X11/Wayland compositors.*
-## License
-MIT
