@@ -1,13 +1,11 @@
 const std = @import("std");
 const linux = std.os.linux;
+const codex = @import("codex.zig");
 
 const TimeVal = extern struct {
     sec: isize,
     usec: isize,
 };
-
-// 1 Cycle = 42.13 Minutes = 2527.8 Seconds
-const CYCLE_SECONDS: f64 = 2527.8;
 
 pub fn getCycleString(buf: []u8) []const u8 {
     var tv = TimeVal{ .sec = 0, .usec = 0 };
@@ -21,10 +19,10 @@ pub fn getCycleString(buf: []u8) []const u8 {
     
     // [2] Daily Cycle Count
     const sec_today = @mod(epoch_sec, 86400);
-    const cycle_count = @as(usize, @intFromFloat(@as(f64, @floatFromInt(sec_today)) / CYCLE_SECONDS));
+    const cycle_count = @as(usize, @intFromFloat(@as(f64, @floatFromInt(sec_today)) / codex.CYCLE_S));
     
     // [3] Cycle Float (00.0 to 42.1)
-    const remainder_sec = @as(f64, @floatFromInt(sec_today)) - (@as(f64, @floatFromInt(cycle_count)) * CYCLE_SECONDS);
+    const remainder_sec = @as(f64, @floatFromInt(sec_today)) - (@as(f64, @floatFromInt(cycle_count)) * codex.CYCLE_S);
     const cycle_float = remainder_sec / 60.0;
 
     // Output formatted to strict 0.0 decimal precision

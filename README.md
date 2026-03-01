@@ -19,8 +19,11 @@ It is not a browser; it is a **Data Metabolism Engine**.
 * **Waking State:** The system auto-fetches the last known timeline entry on boot.
 * **Immediate Inscription:** History is written to disk (`nsible_history.gzl`) instantly upon creation. Crash-proof persistence.
 
-## **Current State: v0.9.6 (The Sovereign Stack)**
-
+## **Current State: v0.9.7 (The Refactored Core)**
+* **refactor(core):** ACK cleanup codex/chronos
+* **Centralized Time Law:** records CYCLE_S consolidation
+* **Implemented GZL ident:** new cortex command.
+* **Build Repairs & Ver Tags** necessary house work. ++zen();
 The system operates in **Host Mode**, leveraging the Linux kernel as a biological scaffold while maintaining sovereign user-space logic.
 
 ### **// HUNTER (Metabolism)**
