@@ -5,19 +5,18 @@ const nerve = @import("nerve.zig");
 const codex = @import("codex.zig");
 const cortex = @import("cortex.zig"); 
 const chronos = @import("chronos.zig");
+const hunter = @import("hunter.zig");
 
 // --- HARDWARE CONFIGURATION ---
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
 
-// .-*-. HARD CONSTRAINT: Panic Handler .-*-.
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
     _ = msg;
     while (true) {}
 }
 
 var fb_pixels: []u32 = undefined;
-// THE BACKBUFFER: Eliminates refresh-flicker
 var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
 
 // --- THE VOID (42.13 MB GHOST HARDDRIVE) ---
@@ -25,8 +24,7 @@ const VOID_SIZE = 42_130_000;
 var void_buffer: [VOID_SIZE]u8 = undefined;
 var void_head: usize = 0;
 
-// --- GRAPHICS ENGINE ---
-
+// --- GRAPHICS CORE ---
 fn drawChar(px: usize, py: usize, char: u8, color: u32) void {
     const bitmap = font.getBitmap(char);
     var y: usize = 0;
@@ -60,9 +58,7 @@ fn drawRect(x: usize, y: usize, w: usize, h: usize, color: u32) void {
 }
 
 fn clear(color: u32) void {
-    for (&back_buffer) |*pixel| {
-        pixel.* = color;
-    }
+    for (&back_buffer) |*pixel| { pixel.* = color; }
 }
 
 fn print(x: usize, y: usize, text: []const u8, color: u32) void {
@@ -73,10 +69,8 @@ fn print(x: usize, y: usize, text: []const u8, color: u32) void {
     }
 }
 
-// --- UI COMPONENTS ---
-
 fn drawUriBar(input_buf: []const u8, input_len: usize) void {
-    const prefix = "@://v0.8.osx/state/hal_dsl:active/";
+    const prefix = "@://v0.9.3.flex/active/";
     const char_w = 8;
     const line_h = 10;
     const padding = 6;
@@ -88,10 +82,7 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     var i: usize = 0;
     while (i < input_len) : (i += 1) {
         cursor_x += char_w;
-        if (cursor_x >= WIDTH - 10) {
-            lines += 1;
-            cursor_x = 10 + char_w;
-        }
+        if (cursor_x >= WIDTH - 10) { lines += 1; cursor_x = 10 + char_w; }
     }
     
     const bar_height = (lines * line_h) + (padding * 2);
@@ -118,11 +109,8 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     drawChar(cursor_x, cursor_y, 0xDB, 0x00000000);
 }
 
-// Helper to save data to the Void Buffer
 fn saveToVoid(data: []const u8) void {
-    if (void_head + data.len + 2 >= VOID_SIZE) {
-        void_head = 0; 
-    }
+    if (void_head + data.len + 2 >= VOID_SIZE) { void_head = 0; }
     const sep = " :: ";
     @memcpy(void_buffer[void_head..void_head+4], sep);
     void_head += 4;
@@ -138,7 +126,6 @@ pub fn main() !void {
     
     const fd_res = linux.syscall3(.open, @intFromPtr("/dev/fb0"), 2, 0);
     const fb_fd: i32 = @bitCast(@as(u32, @truncate(fd_res)));
-    
     if (fb_fd < 0) { while (true) { codex.zen(0.00004); } }
 
     const map_len = WIDTH * HEIGHT * 4;
@@ -148,16 +135,26 @@ pub fn main() !void {
 
     nerve.init();
     codex.tuneIn();
-    
     const net_fd = codex.bindUmbilical(); 
+
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
     
+    var sys_hunter = hunter.Hunter.init(allocator);
+    defer sys_hunter.deinit();
+
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
+    
+    // INPUT SEQUENCE BUFFER
+    var esc_seq: [4]u8 = .{0, 0, 0, 0}; 
+    var esc_len: usize = 0;
+
+    // REFLEX BUFFER
     var seq_buf: [6]u8 = .{0, 0, 0, 0, 0, 0};
     const exit_key = ".!XX-.";
 
-    //[!]UPDATED: Moved to TopRight (Bezel Layer) to clear the Black Space
-    const pulse_x = 962;
+    const pulse_x = 962; 
     const pulse_y = 6;
     
     var blink_timer: usize = 0;
@@ -168,42 +165,82 @@ pub fn main() !void {
         if (codex.transcieve(net_fd)) |byte| {
             dirty = true;
             
-            if (byte == '\n' or byte == '\r') {
-                const cmd_slice = journal[0..journal_len];
-                const response = cortex.dispatch(cmd_slice);
-                
-                switch (response.action) {
-                    .CLEAR => {}, 
-                    .EXIT => break,
-                    .PRINT => {
-                        journal_len = 0; 
-                        for (response.text) |c| {
-                            if (journal_len < 4096) {
-                                journal[journal_len] = c;
-                                journal_len += 1;
-                            }
-                        }
-                    },
-                    .NONE => {
-                        if (journal_len > 0) {
-                            saveToVoid(cmd_slice);
-                        }
-                        journal_len = 0;
-                    }
-                }
-            } else if (byte == 127 or byte == 8) {
-                if (journal_len > 0) journal_len -= 1;
-            } else {
-                if (journal_len < 4096) {
-                    journal[journal_len] = byte;
-                    journal_len += 1;
-                }
-            }
-
-            var i: usize = 0;
-            while (i < 5) : (i += 1) { seq_buf[i] = seq_buf[i+1]; }
+            // 1. REFLEX (Highest Priority)
+            var k: usize = 0;
+            while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
             seq_buf[5] = byte;
             if (std.mem.eql(u8, &seq_buf, exit_key)) break;
+
+            // 2. MOTOR (Input Mapping)
+            if (byte == 27) { 
+                esc_len = 1; esc_seq[0] = byte;
+            } else if (esc_len == 1 and byte == '[') {
+                esc_len = 2; esc_seq[1] = byte;
+            } else if (esc_len == 2) {
+                if (byte >= '0' and byte <= '9') {
+                    esc_len = 3; esc_seq[2] = byte;
+                } else {
+                    if (byte == 'A') { // UP (Scroll View)
+                        if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1;
+                    } else if (byte == 'B') { // DOWN (Scroll View)
+                        sys_hunter.scroll_y += 1;
+                    } else if (byte == 'C') { // RIGHT (Next History)
+                         sys_hunter.navigateHistory(1) catch {};
+                    } else if (byte == 'D') { // LEFT (Prev History)
+                         sys_hunter.navigateHistory(-1) catch {};
+                    }
+                    esc_len = 0; 
+                }
+            } else if (esc_len == 3) {
+                if (byte == '~') {
+                    const digit = esc_seq[2];
+                    if (digit == '5') { // PAGE UP
+                        if (sys_hunter.scroll_y >= 15) { sys_hunter.scroll_y -= 15; } else { sys_hunter.scroll_y = 0; }
+                    } else if (digit == '6') { // PAGE DOWN
+                        sys_hunter.scroll_y += 15;
+                    }
+                }
+                esc_len = 0;
+            } else {
+                // 3. THOUGHT (Cortex)
+                esc_len = 0;
+                
+                if (byte == '\n' or byte == '\r') {
+                    const cmd_slice = journal[0..journal_len];
+                    const response = cortex.dispatch(cmd_slice);
+                    
+                    switch (response.action) {
+                        .CLEAR => {}, 
+                        .EXIT => break,
+                        .PRINT => {
+                            journal_len = 0; 
+                            for (response.text) |c| {
+                                if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; }
+                            }
+                        },
+                        .HUNT => {
+                            if (std.mem.eql(u8, response.text, "v")) {
+                                sys_hunter.scroll_y += 1;
+                            } else if (std.mem.eql(u8, response.text, "^")) {
+                                if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1;
+                            } else {
+                                var target = response.text;
+                                if (std.mem.startsWith(u8, target, "hunt ")) target = target[5..];
+                                sys_hunter.hunt(target) catch { sys_hunter.status = "FETCH_ERR"; };
+                            }
+                            journal_len = 0;
+                        },
+                        .NONE => {
+                            if (journal_len > 0) saveToVoid(cmd_slice);
+                            journal_len = 0;
+                        }
+                    }
+                } else if (byte == 127 or byte == 8) {
+                    if (journal_len > 0) journal_len -= 1;
+                } else {
+                    if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
+                }
+            }
         }
 
         blink_timer += 1;
@@ -219,23 +256,20 @@ pub fn main() !void {
             var bar_x: usize = 0;
             while (bar_x < WIDTH) : (bar_x += 1) {
                 var bar_y: usize = 0;
-                while (bar_y < 20) : (bar_y += 1) {
-                    back_buffer[bar_y * WIDTH + bar_x] = 0x00DC143C;
-                }
+                while (bar_y < 20) : (bar_y += 1) { back_buffer[bar_y * WIDTH + bar_x] = 0x00DC143C; }
             }
- 
-            print(10, 6, "@NSIBLE OS // v0.8 // VOID_LINK: LISTENING (4213)", 0x00FFFFFF);
+            print(10, 6, "@NSIBLE OS // v0.9.3 // FLEX: ACTIVE", 0x00FFFFFF);
             
-            // [!] FIXED: Explicit type 'u32' for runtime if/else
             const pulse_color: u32 = if (journal_len > 0) 0x00DC143C else 0x00C0C0C0;
-
-            // [!] UPDATED: Rendering logic for TopRight alignment
-            // Text Label
-            print(pulse_x, pulse_y, ":|", 0x00DC143C); //Optimized into an @nsible link format
-
-            //The Glyph (127=High, 128=Claw)
+            print(pulse_x, pulse_y, ":|", 0x00DC143C);
             const glyph = if (is_high_cycle) @as(u8, 127) else @as(u8, 128);
-            drawChar(pulse_x + 32, pulse_y, glyph, pulse_color); // Adjusted offset (+32)
+            drawChar(pulse_x + 24, pulse_y, glyph, pulse_color);
+
+            if (sys_hunter.active) {
+                sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
+            } else {
+                print(20, 50, "TIMELINE READY. WAITING FOR SIGNAL.", 0x00555555);
+            }
 
             drawUriBar(journal[0..journal_len], journal_len);
             
