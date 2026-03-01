@@ -162,6 +162,9 @@ pub fn main() !void {
     var dirty: bool = true;
     
     while (true) {
+        // [!] HEARTBEAT: Check for async data
+        try sys_hunter.tick();
+
         if (codex.transcieve(net_fd)) |byte| {
             dirty = true;
             
