@@ -1,10 +1,20 @@
 const std = @import("std");
 const font = @import("glyphs.zig");
- 
-// [!] RAZOR COMPLIANCE
+
+// [!] SOVEREIGN TYPES
 const StringList = std.ArrayListUnmanaged([]u8);
 const PhiloteMap = std.StringHashMapUnmanaged(u32);
- 
+
+// [!] THREAD CONTEXT
+// A secure capsule to pass data between the Main Thread and the Shadow Thread.
+const FetchJob = struct {
+    allocator: std.mem.Allocator,
+    url: []u8,
+    result_payload: ?[]u8, // The data comes back here
+    is_complete: bool,     // Flag for the main thread
+    success: bool,
+};
+
 pub const Hunter = struct {
     allocator: std.mem.Allocator,
     history: StringList,
@@ -15,7 +25,11 @@ pub const Hunter = struct {
     scroll_y: usize,
     active: bool,
     philote_map: PhiloteMap,
- 
+    
+    // ASYNC STATE
+    current_job: ?*FetchJob, // Pointer to active job
+    thread_handle: ?std.Thread,
+
     pub fn init(allocator: std.mem.Allocator) Hunter {
         var self = Hunter{
             .allocator = allocator,
@@ -27,128 +41,140 @@ pub const Hunter = struct {
             .scroll_y = 0,
             .active = false,
             .philote_map = .{},
+            .current_job = null,
+            .thread_handle = null,
         };
-        
-        // 1. Load Memory
         self.loadHistory() catch {}; 
         
-        // 2. WAKING STATE (Fix for Invisible Tabs on Boot)
-        // If we have history, immediately 'navigate' to the current index (0 delta).
-        // This triggers the fetch, sets active=true, and renders the tabs.
+        // Waking State: Auto-fetch last known if exists
         if (self.history.items.len > 0) {
             self.navigateHistory(0) catch {};
         }
- 
         return self;
     }
- 
+
     pub fn deinit(self: *Hunter) void {
-        self.saveHistory() catch {}; 
+        if (self.thread_handle) |t| t.detach(); // Cut the cord
         
+        self.saveHistory() catch {}; 
         self.history.deinit(self.allocator);
         for (self.display_lines.items) |line| self.allocator.free(line);
         self.display_lines.deinit(self.allocator);
         self.philote_map.deinit(self.allocator);
         if (self.url.len > 0) self.allocator.free(self.url);
     }
- 
-    // --- HISTORY I/O ---
-    
-    fn saveHistory(self: *Hunter) !void {
-        const file = try std.fs.cwd().createFile("nsible_history.gzl", .{});
-        defer file.close();
-        
-        for (self.history.items) |entry| {
-            try file.writeAll(entry);
-            try file.writeAll("\n");
+
+    // --- HEARTBEAT (Call this every frame) ---
+    pub fn tick(self: *Hunter) !void {
+        if (self.current_job) |job| {
+            if (job.is_complete) {
+                // JOB FINISHED: Integrate the data
+                if (job.success and job.result_payload != null) {
+                    const body = job.result_payload.?;
+                    defer self.allocator.free(body); 
+                    try self.parseContent(body);
+                    self.status = "LOCKED";
+                } else {
+                    self.status = "NO_SIGNAL";
+                }
+                
+                // Cleanup
+                if (self.thread_handle) |t| t.detach();
+                self.thread_handle = null;
+                self.allocator.free(job.url);
+                self.allocator.destroy(job);
+                self.current_job = null;
+            } 
         }
     }
- 
-    fn loadHistory(self: *Hunter) !void {
-        const file = std.fs.cwd().openFile("nsible_history.gzl", .{}) catch return;
-        defer file.close();
+
+    // --- EXECUTION (Async) ---
+    fn executeFetch(self: *Hunter, target: []const u8) !void {
+        self.active = true;
+        self.status = "FETCHING..."; // Amber Alert
+        self.scroll_y = 0;
+
+        // 1. Update Weights
+        const gop = try self.philote_map.getOrPut(self.allocator, target);
+        if (!gop.found_existing) gop.value_ptr.* = 0;
+        gop.value_ptr.* += 1;
+
+        // 2. Clear UI Immediately
+        for (self.display_lines.items) |line| self.allocator.free(line);
+        self.display_lines.clearRetainingCapacity();
+
+        // 3. Debounce: Kill previous job if still running
+        if (self.current_job) |old_job| {
+             if (self.thread_handle) |t| t.detach();
+             self.current_job = null; 
+        }
+
+        // 4. Spawn Shadow Thread
+        const job = try self.allocator.create(FetchJob);
+        job.* = .{
+            .allocator = self.allocator,
+            .url = try self.allocator.dupe(u8, target),
+            .result_payload = null,
+            .is_complete = false,
+            .success = false,
+        };
+        self.current_job = job;
+
+        self.thread_handle = try std.Thread.spawn(.{}, backgroundHunt, .{job});
         
-        const max_size = 1024 * 1024; 
-        const content = file.readToEndAlloc(self.allocator, max_size) catch return;
-        defer self.allocator.free(content);
+        if (self.url.len > 0) self.allocator.free(self.url);
+        self.url = try self.allocator.dupe(u8, target);
+    }
+
+    // --- SHADOW FUNCTION (Runs in Background) ---
+    fn backgroundHunt(job: *FetchJob) void {
+        const argv = [_][]const u8{ "curl", "-L", "-s", "-k", job.url };
         
-        var iter = std.mem.splitScalar(u8, content, '\n');
-        while (iter.next()) |line| {
-            const clean = std.mem.trim(u8, line, "\r");
-            if (clean.len > 0) {
-                try self.history.append(self.allocator, try self.allocator.dupe(u8, clean));
+        var child = std.process.Child.init(&argv, job.allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Ignore;
+        
+        if (child.spawn()) |_| {
+            // Limit buffer to 2MB to prevent memory bombs
+            if (child.stdout) |stdout| {
+                if (stdout.readToEndAlloc(job.allocator, 1024 * 1024 * 2)) |body| {
+                    _ = child.wait() catch {};
+                    job.result_payload = body;
+                    job.success = true;
+                } else |_| { job.success = false; }
             }
-        }
+        } else |_| { job.success = false; }
         
-        if (self.history.items.len > 0) {
-            self.history_index = self.history.items.len - 1;
-        }
+        job.is_complete = true; // Signal Main Thread
     }
- 
+
+    // --- NAVIGATION ---
     pub fn navigateHistory(self: *Hunter, direction: i32) !void {
         if (self.history.items.len == 0) return;
- 
+
         if (direction < 0) { 
             if (self.history_index > 0) self.history_index -= 1;
         } else if (direction > 0) { 
             if (self.history_index < self.history.items.len - 1) self.history_index += 1;
         }
-        // direction == 0 just refreshes current index
- 
-        const target = self.history.items[self.history_index];
-        try self.executeFetch(target);
+        
+        self.saveHistory() catch {};
+        try self.executeFetch(self.history.items[self.history_index]);
     }
- 
-    // --- EXECUTION ---
+    
     pub fn hunt(self: *Hunter, target: []const u8) !void {
         try self.history.append(self.allocator, try self.allocator.dupe(u8, target));
         self.history_index = self.history.items.len - 1;
-        
-        // Immediate Inscription
         self.saveHistory() catch {};
- 
         try self.executeFetch(target);
     }
- 
-    fn executeFetch(self: *Hunter, target: []const u8) !void {
-        self.active = true;
-        self.status = "FETCHING..."; 
-        self.scroll_y = 0;
- 
-        const gop = try self.philote_map.getOrPut(self.allocator, target);
-        if (!gop.found_existing) gop.value_ptr.* = 0;
-        gop.value_ptr.* += 1;
- 
-        for (self.display_lines.items) |line| self.allocator.free(line);
-        self.display_lines.clearRetainingCapacity();
- 
-        const argv = [_][]const u8{ "curl", "-L", "-s", "-k", target };
-        var child = std.process.Child.init(&argv, self.allocator);
-        child.stdout_behavior = .Pipe;
-        child.stderr_behavior = .Ignore;
-        
-        try child.spawn();
-        
-        const limit = 1024 * 1024;
-        if (child.stdout) |stdout| {
-            const body = try stdout.readToEndAlloc(self.allocator, limit);
-            defer self.allocator.free(body);
-            _ = try child.wait();
-            try self.parseContent(body);
-            self.status = "LOCKED";
-        } else {
-            self.status = "NO_STREAM";
-        }
-        
-        if (self.url.len > 0) self.allocator.free(self.url);
-        self.url = try self.allocator.dupe(u8, target);
-    }
- 
+
+    // --- PARSING ---
     fn parseContent(self: *Hunter, raw: []const u8) !void {
         var start: usize = 0;
         var i: usize = 0;
         const width_limit = 110;
- 
+
         while (i < raw.len) {
             if (raw[i] == '\n' or (i - start) >= width_limit) {
                 const line = raw[start..i];
@@ -162,20 +188,45 @@ pub const Hunter = struct {
              try self.display_lines.append(self.allocator, try self.allocator.dupe(u8, raw[start..]));
         }
     }
- 
-    // --- RENDER (VISUAL FLEX) ---
+
+    // --- PERSISTENCE ---
+    fn saveHistory(self: *Hunter) !void {
+        const file = try std.fs.cwd().createFile("nsible_history.gzl", .{});
+        defer file.close();
+        for (self.history.items) |entry| {
+            try file.writeAll(entry);
+            try file.writeAll("\n");
+        }
+    }
+
+    fn loadHistory(self: *Hunter) !void {
+        const file = std.fs.cwd().openFile("nsible_history.gzl", .{}) catch return;
+        defer file.close();
+        const content = file.readToEndAlloc(self.allocator, 1024 * 1024) catch return;
+        defer self.allocator.free(content);
+        var iter = std.mem.splitScalar(u8, content, '\n');
+        while (iter.next()) |line| {
+            const clean = std.mem.trim(u8, line, "\r");
+            if (clean.len > 0) {
+                try self.history.append(self.allocator, try self.allocator.dupe(u8, clean));
+            }
+        }
+        if (self.history.items.len > 0) self.history_index = self.history.items.len - 1;
+    }
+
+    // --- RENDER ---
     pub fn render(self: *Hunter, buffer: []u32, width: usize, height: usize) void {
         const start_y = 20; 
         const end_y = height - 20;
         const line_h = 10;
         const max_lines = (end_y - start_y) / line_h;
- 
-        // A. CONTENT
+
+        // A. Content
         var row: usize = 0;
         const view_slice = if (self.display_lines.items.len > self.scroll_y) 
                            self.display_lines.items[self.scroll_y..] 
                            else self.display_lines.items[0..0];
- 
+
         for (view_slice) |text| {
             if (row >= max_lines) break;
             const py = start_y + (row * line_h);
@@ -189,35 +240,28 @@ pub const Hunter = struct {
             }
             row += 1;
         }
- 
-        // B. TIMELINE (FLEX & WARP)
+
+        // B. Timeline (Flex/Warp)
         const timeline_x = width - 20;
         var t_y: usize = start_y;
         
         for (self.history.items, 0..) |h_url, idx| {
             if (t_y >= end_y) break;
             
-            // 1. Base Weight (Philotic)
             var weight_px: usize = 3; 
             if (self.philote_map.get(h_url)) |w| { weight_px += (w * 2); }
             
-            // 2. State Logic
             var color: u32 = 0x00DC143C; 
-            
             if (idx == self.history_index) {
-                // SELECTED STATE: FLEX
-                weight_px += 8; 
-                
+                weight_px += 8; // Flex
                 if (std.mem.eql(u8, self.status, "FETCHING...")) {
-                    color = 0x00FFBF00; // Amber
+                    color = 0x00FFBF00; // Amber Pulse
                 } else {
-                    color = 0x00FFFFFF; // White
+                    color = 0x00FFFFFF; // White Lock
                 }
             }
-            
             if (weight_px > 40) weight_px = 40;
- 
-            // 3. Draw Tab
+
             var dy: usize = 0;
             while (dy < 8) : (dy += 1) { 
                 var dx: usize = 0;
@@ -231,18 +275,17 @@ pub const Hunter = struct {
             }
             t_y += 10;
         }
- 
-        // C. STATUS
-        const status_txt = self.status;
+
+        // C. Status
         var sx: usize = width - 120;
         const sy: usize = height - 15;
-        for (status_txt) |c| {
+        for (self.status) |c| {
              drawCharToBuf(buffer, width, height, sx, sy, c, 0x00DC143C);
              sx += 8;
         }
     }
 };
- 
+
 fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8, color: u32) void {
     const bitmap = font.getBitmap(char);
     var y: usize = 0;
