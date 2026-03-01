@@ -1,23 +1,78 @@
-#!/bin/bash
-
-# [ @NSIBLE IGNITION ]
-
-# 1. BUILD
-# Silent build. Only speak on error.
-zig build
-
-if [ $? -eq 0 ]; then
-    # 2. SUDO PRE-CHECK
-    # Ask for auth now to keep the UI clean
-    sudo -v 
+#!/bin/sh
+ 
+# [ SOVEREIGN ENTRY ]
+# Usage: ./nsible [sync]
+ 
+if [ "$1" = "sync" ]; then
+    echo "[ @NSIBLE :: UMBILICAL SYNC ]"
+ 
+    # 1. CHECK FOR LOCAL DIVERGENCE (Dirty State)
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "[ ! ] LOCAL DIVERGENCE DETECTED"
+        echo "      Files on this vessel have been modified."
+        echo ""
+        echo "      [I]NTEGRATE : Pull cloud updates, keep local changes (remains dirty)."
+        echo "      [S]AVE      : Commit local changes & Push to Zen (resolves conflict)."
+        echo "      [O]VERWRITE : Discard local changes & Force-Sync to Zen."
+        echo "      [C]ANCEL"
+        echo ""
+        printf "      :: SELECT PROTOCOL > "
+        read -r choice
+        
+        case "$choice" in 
+            i|I)
+                echo "[ STASHING LOCAL MODS... ]"
+                git stash
+                echo "[ PULLING FROM VOID... ]"
+                git pull --no-edit origin zen
+                echo "[ RE-APPLYING LOCAL MODS... ]"
+                git stash pop
+                ;;
+            s|S)
+                echo "[ COMMITTING LOCAL STATE... ]"
+                git add .
+                printf "      :: ENTER COMMIT MESSAGE > "
+                read -r msg
+                git commit -m "vessel(acer): $msg"
+                echo "[ PUSHING TO ZEN... ]"
+                git push origin zen
+                ;;
+            o|O)
+                echo "[ FLUSHING LOCAL STATE... ]"
+                git fetch origin zen
+                git reset --hard origin/zen
+                ;;
+            *)
+                echo "[ SYNC ABORTED ]"
+                exit 1
+                ;;
+        esac
+    else
+        # Clean state, standard pull
+        git pull --no-edit origin zen
+    fi
     
-    # 3. EXECUTE (Raw Mode)
-    stty raw -echo
+    # 2. COMPILE
+    if [ $? -eq 0 ]; then
+        echo "[ COMPILING KERNEL... ]"
+        zig build
+        
+        if [ $? -eq 0 ]; then
+            echo "[ REBIRTH ]"
+            # Success: Fall through to launch
+        else
+            echo "[ ! ] BUILD FAILED. ABORTING."
+            exit 1
+        fi
+    else
+        echo "[ ! ] SYNC FAILED."
+        exit 1
+    fi
+fi
+ 
+# [ LAUNCH SEQUENCE ]
+if [ -f "./zig-out/bin/nsible_os" ]; then
     sudo ./zig-out/bin/nsible_os
-    stty sane
-    
-    # 4. CLEANUP
-    echo -e "\n[ @NSIBLE: HALTED ]"
 else
-    echo -e "\n[ BUILD: FAILED ]"
+    echo "[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST."
 fi
