@@ -70,7 +70,7 @@ fn print(x: usize, y: usize, text: []const u8, color: u32) void {
 }
 
 fn drawUriBar(input_buf: []const u8, input_len: usize) void {
-    const prefix = "@://v0.9.3.flex/active/";
+    const prefix = "@://0.9.6/x8_64-li-mu/";
     const char_w = 8;
     const line_h = 10;
     const padding = 6;
@@ -258,7 +258,7 @@ pub fn main() !void {
                 var bar_y: usize = 0;
                 while (bar_y < 20) : (bar_y += 1) { back_buffer[bar_y * WIDTH + bar_x] = 0x00DC143C; }
             }
-            print(10, 6, "@NSIBLE OS // v0.9.3 // FLEX: ACTIVE", 0x00FFFFFF);
+            print(10, 6, "@NSIBLE OS // v0.9.6 // dataDESK:archX ", 0x00FFFFFF);
             
             const pulse_color: u32 = if (journal_len > 0) 0x00DC143C else 0x00C0C0C0;
             print(pulse_x, pulse_y, ":|", 0x00DC143C);
@@ -268,7 +268,7 @@ pub fn main() !void {
             if (sys_hunter.active) {
                 sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
             } else {
-                print(20, 50, "TIMELINE READY. WAITING FOR SIGNAL.", 0x00555555);
+                print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555);
             }
 
             drawUriBar(journal[0..journal_len], journal_len);
