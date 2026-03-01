@@ -1,4 +1,4 @@
-# @nsible OS
+# @nsible OS by Æ§ Tech
 
 ## Mission
 A metabolic, high-performance operating system kernel written in Zig (0.15.2). 
