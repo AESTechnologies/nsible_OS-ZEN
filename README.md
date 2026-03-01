@@ -1,40 +1,54 @@
 # @nsible OS
 
+
 ## Mission
-A bare-metal, high-performance operating system kernel written in Zig. 
-Designed for direct hardware control, zero-dependency execution, and immediate TTY graphical interfaces.
+A metabolic, high-performance operating system kernel written in Zig (0.15.2). 
+Designed for direct hardware control, sovereign data ingestion, and zero-dependency execution.
+It is not a browser; it is a **Data Metabolism Engine**.
 
 ## Architecture
 * **Kernel:** Zig Native (No LibC, No Assembly Shim)
-* **Target:** x86_64-linux-musl (Host-as-Bootloader) / Raw Metal (Future)
-* **Graphics:** Direct /dev/fb0 Framebuffer Access (Crimson Engine)
-* **Text:** Custom 8x8 Bitmap Glyph Engine (No Freetype)
+* **Target:** x86_64-linux-musl (Host-as-Bootloader)
+* **Graphics:** Direct `/dev/fb0` Framebuffer Access (Crimson Engine)
+* **Umbilical:** `HUNTER` Module (Curl Subprocess / Raw Pipe)
+* **Memory:** `SCRIBE` Module (Persistent GZL-O History)
 
-### **v0.7 // RETINA: ACTIVE**
-> *"Gravity is reversed. The system rises."*
+### **v0.9.4 // TIMELINE: ACTIVE**
+> *"The Void remembers."*
 
-**@nsible** has transitioned from a static terminal to a living host-environment.
-* **Visuals:** Gravity-Inverted UI (Bottom-Up Flow).
-* **Core:** Cortex v1 Command Processor (`cycle`, `clear`, `exit`).
-* **Identity:** `高爪` (High Talon) Hard-Point Identity.
-* **Ignition:** Single-stroke entry via `./nsible`.
+**@nsible** has evolved from a static interface into a **Persistent Sovereign Environment**.
+* **Hunter:** Web ingestion engine capable of capturing raw HTML/Text streams (`hunt <url>`).
+* **Timeline:** A visual, interactive history stack rendering on the right rail.
+* **Scribe:** Disk-based persistence. The timeline survives reboots (`nsible_history.gzl`).
+* **Reflex:** Low-level signal injection (`.!XX-.`) bypassing the cortical parser.
 
-## **Current State: v0.7 (Ghost in the Shell)**
+## **Current State: v0.9.4 (The Sovereign Stack)**
 
 The system operates in **Host Mode**, leveraging the Linux kernel as a biological scaffold while maintaining sovereign user-space logic.
 
-### **// RETINA (UI)**
-* **Gravity Inversion:** The interface anchors to the bottom (`y=600`) and expands upward, distinct from traditional top-down terminals.
-* **Crimson/Void:** Strict `@NSIBLE-RED` (0x00DC143C) on Deep Black (0x00000000).
-* **The Watcher:** Reactive "Eye" glyph (`< o` / `< -`) tracking input states.
+### **// HUNTER (Metabolism)**
+* **The Umbilical:** Pipes external data (Web) directly into the Void buffer.
+* **Mastication:** Captures raw streams for internal GZL-O parsing (Phase 3).
+* **Navigation:** `v` / `^` scroll commands mapped to physical **Arrow Keys**.
 
-### **// CORTEX (Logic)**
-* **CycleTime:** Non-Gregorian temporal tracking (`1 cycle = 42.13 min`).
-* **Command Dispatch:** Internal parser for system control, divorced from `bash`.
+### **// TIMELINE (Memory)**
+* **The Red Stack:** History is visualized as a stack of Crimson tabs on the right rail.
+* **Flex/Warp UI:**
+  * **Flex:** Selected tab expands (`+8px`) and glows White (Focus).
+  * **Warp:** Unselected tabs contract based on Philotic Weight (Gravity).
+  * **Pulse:** Active fetches burn Amber.
+* **Traversal:** **Left/Right Arrows** navigate through time (History).
 
-### **// IGNITION**
-* **Key:** `./nsible`
-* **Function:** Automated build-and-boot sequence. Compiles `src/*.zig` and injects the binary into a raw TTY in a single stroke.
+### **// REFLEX (Nervous System)**
+* **Live Signal:** The kernel listens for micro-sequences (`.!XX-.`) at the top of the input loop for immediate, non-blocking execution.
+* **GZL-O:** Direct hardware interrupt logic separate from the text parser.
+
+## Commands
+* `hunt <url>` : Fetch external data (e.g., `hunt dailyzen.com`).
+* `exit` : Graceful shutdown (Saves History).
+* `clear` : Wipe the Void buffer.
+* **Arrows** : Scroll (Up/Down) / Time Travel (Left/Right).
+* `.!XX-.` : **HARD KILL SIGNAL.**
 
 ## Build & Run
 ```bash
