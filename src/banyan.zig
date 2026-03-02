@@ -163,7 +163,7 @@ pub const Banyan = struct {
                 in_space = false;
             }
         }
-        return out.toOwnedSlice();
+        return out.toOwnedSlice(allocator);
     }
 
     // [ RENDER ] :: The Focus Logic
