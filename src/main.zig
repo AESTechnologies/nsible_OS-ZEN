@@ -51,8 +51,13 @@ pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize)
         const newline = "\n";
         _ = linux.syscall3(.write, 2, @intFromPtr(newline), newline.len);
 
-        // 4. Dump Stack Trace (Writes to the now-redirected STDERR)
-        std.debug.maybeDumpStackTrace(trace, ret_addr);
+        // 4. Dump Stack Trace (Corrected API)
+        if (trace) |t| {
+            std.debug.dumpStackTrace(t.*);
+        } else {
+            // Fallback if no trace provided, try capturing current
+            std.debug.dumpCurrentStackTrace(ret_addr);
+        }
 
         // 5. Close
         _ = linux.syscall1(.close, @as(usize, @bitCast(fd)));
@@ -181,7 +186,6 @@ pub fn main() !void {
 
     // [!] MEMORY ARCHITECTURE: THE VOID (Static)
     // We use the 42.13MB static buffer as a FixedBufferAllocator.
-    // This is crash-proof on the Atom N270 (no sbrk/mmap growth).
     var fba = std.heap.FixedBufferAllocator.init(&void_buffer);
     const allocator = fba.allocator();
 
