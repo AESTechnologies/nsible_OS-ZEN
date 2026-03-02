@@ -7,13 +7,19 @@ const cortex = @import("cortex.zig");
 const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
 
+// --- UNIVERSAL CONSTANTS ---
+const SYSTEM_NAME = "@NSIBLE OS";
+const VERSION     = "v0.10.0 // Banyan"; // [!] CENTRALIZED VERSION
+const HOST_ID     = "dataDESK:archX";
+const URI_PREFIX  = "@://0.10.0/x8_64-li-mu/"; // [!] UPDATED
+
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
 
 var fb_pixels: []u32 = undefined;
 var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
 
-// CORE DRAWING PRIMITIVES
+// CORE DRAWING
 fn drawChar(px: usize, py: usize, char: u8, color: u32) void {
     const bitmap = font.getBitmap(char);
     var y: usize = 0;
@@ -50,15 +56,25 @@ fn print(x: usize, y: usize, text: []const u8, color: u32) void {
     for (text) |char| { drawChar(cx, y, char, color); cx += 8; }
 }
 
+fn drawHeader() void {
+    // Top Bar Background
+    drawRect(0, 0, WIDTH, 20, 0x00DC143C);
+    
+    // Construct Header String
+    var buf: [128]u8 = undefined;
+    const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, HOST_ID}) catch "HEADER_ERR";
+    
+    print(10, 6, header, 0x00FFFFFF);
+}
+
 fn drawUriBar(input_buf: []const u8, input_len: usize) void {
-    const prefix = "@://0.9.7/x8_64-li-mu/";
     const char_w = 8;
     const line_h = 10;
     const padding = 6;
     
     var cursor_x: usize = 10;
     var lines: usize = 1;
-    cursor_x += prefix.len * char_w;
+    cursor_x += URI_PREFIX.len * char_w;
     
     var i: usize = 0;
     while (i < input_len) : (i += 1) {
@@ -73,7 +89,12 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     
     cursor_x = 10;
     var cursor_y: usize = start_y + padding;
-    for (prefix) |char| { drawChar(cursor_x, cursor_y, char, 0x00000000); cursor_x += char_w; if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } }
+    
+    for (URI_PREFIX) |char| { 
+        drawChar(cursor_x, cursor_y, char, 0x00000000); 
+        cursor_x += char_w; 
+        if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } 
+    }
     
     i = 0;
     while (i < input_len) : (i += 1) {
@@ -111,10 +132,8 @@ pub fn main() !void {
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
     
-    // INPUT STATE
     var esc_seq: [8]u8 = undefined; 
     var esc_len: usize = 0;
-
     var seq_buf: [6]u8 = .{0} ** 6;
     
     var blink_timer: usize = 0;
@@ -127,35 +146,32 @@ pub fn main() !void {
         if (codex.transcieve(net_fd)) |byte| {
             dirty = true;
             
-            // 1. REFLEX (GZL HOTKEYS)
-            // Shift buffer left
+            // 1. REFLEX (GZL)
             var k: usize = 0;
             while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
             seq_buf[5] = byte;
             
-            // Check Patterns
             if (std.mem.eql(u8, &seq_buf, ".!XX-.")) std.process.exit(0);
+            // GZL Lens Controls
             if (std.mem.eql(u8, &seq_buf, ".![-.")) { sys_hunter.lens.shiftScope(1); esc_len = 0; }
             if (std.mem.eql(u8, &seq_buf, ".!]-.")) { sys_hunter.lens.shiftScope(-1); esc_len = 0; }
 
-            // 2. ANSI PARSER (MOTOR)
-            if (byte == 27) { // ESC
-                esc_len = 1; 
-                esc_seq[0] = byte;
+            // 2. ANSI (MOTOR)
+            if (byte == 27) { 
+                esc_len = 1; esc_seq[0] = byte;
             } else if (esc_len > 0) {
                 if (esc_len < 8) {
                     esc_seq[esc_len] = byte;
                     esc_len += 1;
                     
-                    // Detect Complete Sequences
+                    // Detect Arrows
                     if (esc_len == 3 and esc_seq[1] == '[') {
-                        // ARROWS: ^[[A ^[[B
                         if (byte == 'A') { if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1; esc_len = 0; }
                         else if (byte == 'B') { sys_hunter.scroll_y += 1; esc_len = 0; }
                         else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; esc_len = 0; }
                         else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; esc_len = 0; }
                     } else if (byte == '~') {
-                        // PAGES: ^[[5~ ^[[6~
+                        // Detect PgUp/Dn (5~, 6~)
                         if (esc_len >= 4 and esc_seq[1] == '[') {
                             const digit = esc_seq[2];
                             if (digit == '5') { // PgUp
@@ -166,11 +182,9 @@ pub fn main() !void {
                         }
                         esc_len = 0;
                     }
-                } else {
-                    esc_len = 0; // Reset on overflow
-                }
+                } else { esc_len = 0; }
             } 
-            // 3. TYPING (CORTEX)
+            // 3. CORTEX (TYPING)
             else {
                  if (byte == '\n' or byte == '\r') {
                     const cmd_slice = journal[0..journal_len];
@@ -180,6 +194,15 @@ pub fn main() !void {
                         .CLEAR => {}, 
                         .EXIT => std.process.exit(0),
                         .SHED => { sys_hunter.shed(); journal_len = 0; },
+                        .SCOPE_IN => { sys_hunter.lens.shiftScope(1); journal_len = 0; },
+                        .SCOPE_OUT => { sys_hunter.lens.shiftScope(-1); journal_len = 0; },
+                        // Pass TEXT from cortex if present, else use full buffer? 
+                        // Cortex dispatch handles splitting for memo
+                        .MEMO => { 
+                            const txt = if (response.text.len > 0) response.text else cmd_slice;
+                            sys_hunter.createMemo(txt) catch {}; 
+                            journal_len = 0; 
+                        },
                         .PRINT => {
                             journal_len = 0; 
                             for (response.text) |c| {
@@ -214,12 +237,7 @@ pub fn main() !void {
         if (dirty) {
             clear(0x00000000);
             
-            var bar_x: usize = 0;
-            while (bar_x < WIDTH) : (bar_x += 1) {
-                var bar_y: usize = 0;
-                while (bar_y < 20) : (bar_y += 1) { back_buffer[bar_y * WIDTH + bar_x] = 0x00DC143C; }
-            }
-            print(10, 6, "@NSIBLE OS // v0.9.7 // dataDESK:archX ", 0x00FFFFFF);
+            drawHeader(); // [!] NEW HEADER FUNCTION
             
             if (sys_hunter.active) {
                 sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
