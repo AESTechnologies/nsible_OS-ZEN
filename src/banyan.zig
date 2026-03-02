@@ -20,32 +20,30 @@ pub const HarvestType = enum {
 // --- ATOMIC UNIT ---
 pub const Leaf = struct {
     text: []u8,
-    type: HarvestType,
+    h_type: HarvestType, // [!] FIXED: Renamed to avoid Zig 'type' keyword
     layer: u8, // 1=Zen, 2=Matrix, 3=Root
     is_newline: bool,
 };
 
 pub const Banyan = struct {
     allocator: std.mem.Allocator,
-    leaves: std.ArrayList(Leaf),
+    leaves: std.ArrayListUnmanaged(Leaf), // [!] FIXED: Unmanaged memory structure
     focus_depth: u8, // 1=ZEN, 2=MATRIX, 3=ROOT
 
     pub fn init(allocator: std.mem.Allocator) Banyan {
         return .{
             .allocator = allocator,
-            .leaves = std.ArrayList(Leaf).init(allocator),
+            .leaves = .{}, // Clean Sovereign Init
             .focus_depth = 1, // Start in Zen Mode
         };
     }
 
     pub fn deinit(self: *Banyan) void {
         for (self.leaves.items) |*leaf| self.allocator.free(leaf.text);
-        self.leaves.deinit();
+        self.leaves.deinit(self.allocator); // [!] Passed allocator for Unmanaged
     }
 
     // [ SCOPE CONTROL ] :: GZL HotListen
-    // scope_in (.![-.) -> Descend (Increase Depth)
-    // scope_out (.!]-.) -> Ascend (Decrease Depth)
     pub fn shiftScope(self: *Banyan, direction: i8) void {
         if (direction > 0) {
             if (self.focus_depth < 3) self.focus_depth += 1;
@@ -87,25 +85,25 @@ pub const Banyan = struct {
             else if (in_tag and c == '>') {
                 // FLUSH TAG (Matrix/Root Layer)
                 var layer: u8 = 2; // Default Matrix
-                var type: HarvestType = .STRUCT;
+                var h_type: HarvestType = .STRUCT; // [!] FIXED: Use h_type
 
                 if (in_script or in_style) {
                     layer = 3; // Root
-                    type = .SCRIPT;
+                    h_type = .SCRIPT;
                 } else if (std.mem.indexOf(u8, raw[start..i+1], "href=") != null) {
                     layer = 2; // Structure (Link container)
-                    type = .LINK; 
+                    h_type = .LINK; 
                 } else if (std.mem.indexOf(u8, raw[start..i+1], "src=") != null) {
                     layer = 2;
-                    type = .MEDIA;
+                    h_type = .MEDIA;
                 }
 
-                try self.addLeaf(raw[start..i+1], type, layer, false);
+                try self.addLeaf(raw[start..i+1], h_type, layer, false);
                 
                 // Block Elements -> Newline Logic
                 const tag_content = raw[start..i+1];
                 if (contains(tag_content, "div") or contains(tag_content, "/p>") or contains(tag_content, "br") or contains(tag_content, "li")) {
-                     try self.addLeaf("", .STRUCT, 1, true); // Visual Newline (Layer 1 so it always renders)
+                     try self.addLeaf("", .STRUCT, 1, true); // Visual Newline
                 }
 
                 start = i + 1;
@@ -129,7 +127,7 @@ pub const Banyan = struct {
         }
     }
 
-    fn addLeaf(self: *Banyan, text: []const u8, type: HarvestType, layer: u8, is_newline: bool) !void {
+    fn addLeaf(self: *Banyan, text: []const u8, h_type: HarvestType, layer: u8, is_newline: bool) !void {
         if (text.len == 0 and !is_newline) return;
         
         // Clean text only if it's visible data (Layer 1)
@@ -141,11 +139,11 @@ pub const Banyan = struct {
 
         const leaf = Leaf{
             .text = try self.allocator.dupe(u8, clean_text),
-            .type = type,
+            .h_type = h_type,
             .layer = layer,
             .is_newline = is_newline,
         };
-        try self.leaves.append(leaf);
+        try self.leaves.append(self.allocator, leaf); // [!] Passed allocator here
     }
     
     fn contains(haystack: []const u8, needle: []const u8) bool {
@@ -188,10 +186,10 @@ pub const Banyan = struct {
             } else if (self.focus_depth == 2) {
                 // MATRIX MODE: Show tags
                 if (leaf.layer == 2) color = COL_TAG;
-                if (leaf.type == .LINK) color = COL_LINK; // Links always pop in Matrix
+                if (leaf.h_type == .LINK) color = COL_LINK; // Links always pop in Matrix
             } else {
                 // ZEN MODE: Pure Text
-                if (leaf.type == .LINK) color = COL_LINK;
+                if (leaf.h_type == .LINK) color = COL_LINK;
             }
 
             // 5. DRAW
