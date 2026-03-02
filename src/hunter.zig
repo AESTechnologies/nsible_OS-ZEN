@@ -1,19 +1,18 @@
 const std = @import("std");
 const font = @import("glyphs.zig");
+const banyan = @import("banyan.zig"); // [!] THE LENS
 
 // [!] SOVEREIGN TYPES
 const StringList = std.ArrayListUnmanaged([]u8);
 const PhiloteMap = std.StringHashMapUnmanaged(u32);
-// [!] SYSTEM ALIASING (Masking Offensive Terminology)
 const ExternalAgent = std.process.Child;
 
 // [!] THREAD CONTEXT
-// A secure capsule to pass data between the Main Thread and the Shadow Flight.
 const FlightVector = struct {
     allocator: std.mem.Allocator,
     url: []u8,
-    result_payload: ?[]u8, // The data comes back here
-    is_complete: bool,     // Flag for the main thread
+    result_payload: ?[]u8, 
+    is_complete: bool,    
     success: bool,
 };
 
@@ -21,7 +20,7 @@ pub const Hunter = struct {
     allocator: std.mem.Allocator,
     history: StringList,
     history_index: usize, 
-    display_lines: StringList,
+    lens: banyan.Banyan, // [!] OPTIC CORE
     url: []u8,
     status: []const u8,
     scroll_y: usize,
@@ -29,7 +28,7 @@ pub const Hunter = struct {
     philote_map: PhiloteMap,
     
     // ASYNC STATE
-    current_vector: ?*FlightVector, // Pointer to active vector
+    current_vector: ?*FlightVector, 
     thread_handle: ?std.Thread,
 
     pub fn init(allocator: std.mem.Allocator) Hunter {
@@ -37,7 +36,7 @@ pub const Hunter = struct {
             .allocator = allocator,
             .history = .{},
             .history_index = 0,
-            .display_lines = .{},
+            .lens = banyan.Banyan.init(allocator),
             .url = allocator.dupe(u8, "WAITING") catch @panic("HUNTER_INIT_OOM"),
             .status = "IDLE",
             .scroll_y = 0,
@@ -48,7 +47,6 @@ pub const Hunter = struct {
         };
         self.loadHistory() catch {}; 
         
-        // Waking State: Auto-fetch last known if exists
         if (self.history.items.len > 0) {
             self.navigateHistory(0) catch {};
         }
@@ -56,21 +54,19 @@ pub const Hunter = struct {
     }
 
     pub fn deinit(self: *Hunter) void {
-        if (self.thread_handle) |t| t.detach(); // Release the thread
+        if (self.thread_handle) |t| t.detach(); 
         
         self.saveHistory() catch {}; 
         self.history.deinit(self.allocator);
-        for (self.display_lines.items) |line| self.allocator.free(line);
-        self.display_lines.deinit(self.allocator);
+        self.lens.deinit(); // Clean the Lens
         self.philote_map.deinit(self.allocator);
         if (self.url.len > 0) self.allocator.free(self.url);
     }
 
-    // --- HEARTBEAT (Call this every frame) ---
+    // --- HEARTBEAT ---
     pub fn tick(self: *Hunter) !void {
         if (self.current_vector) |vector| {
             if (vector.is_complete) {
-                // FLIGHT COMPLETE: Integrate the data
                 if (vector.success and vector.result_payload != null) {
                     const body = vector.result_payload.?;
                     defer self.allocator.free(body); 
@@ -80,7 +76,6 @@ pub const Hunter = struct {
                     self.status = "NO_SIGNAL";
                 }
                 
-                // Cleanup safely
                 if (self.thread_handle) |t| t.detach();
                 self.thread_handle = null;
                 self.allocator.free(vector.url);
@@ -93,26 +88,22 @@ pub const Hunter = struct {
     // --- EXECUTION (Async) ---
     fn executeFetch(self: *Hunter, target: []const u8) !void {
         self.active = true;
-        self.status = "FETCHING..."; // Signal: AMBER
+        self.status = "FETCHING..."; 
         self.scroll_y = 0;
 
-        // 1. Update Weights
         const gop = try self.philote_map.getOrPut(self.allocator, target);
         if (!gop.found_existing) gop.value_ptr.* = 0;
         gop.value_ptr.* += 1;
 
-        // 2. Clear UI Immediately
-        for (self.display_lines.items) |line| self.allocator.free(line);
-        self.display_lines.clearRetainingCapacity();
+        // Clear Lens Immediately
+        for (self.lens.leaves.items) |*leaf| self.allocator.free(leaf.text);
+        self.lens.leaves.clearRetainingCapacity();
 
-        // 3. Debounce: Release previous vector if still flying
-        // [!] We use `_` to discard the capture safely
         if (self.current_vector) |_| {
              if (self.thread_handle) |t| t.detach();
              self.current_vector = null; 
         }
 
-        // 4. Spawn Shadow Flight
         const vector = try self.allocator.create(FlightVector);
         vector.* = .{
             .allocator = self.allocator,
@@ -129,17 +120,15 @@ pub const Hunter = struct {
         self.url = try self.allocator.dupe(u8, target);
     }
 
-    // --- SHADOW FUNCTION (Runs in Background) ---
+    // --- SHADOW FUNCTION ---
     fn shadowFlight(vector: *FlightVector) void {
         const argv = [_][]const u8{ "curl", "-L", "-s", "-k", vector.url };
         
-        // 'agent' executes the external command
         var agent = ExternalAgent.init(&argv, vector.allocator);
         agent.stdout_behavior = .Pipe;
         agent.stderr_behavior = .Ignore;
         
         if (agent.spawn()) |_| {
-            // Limit buffer to 2MB to prevent memory bombs
             if (agent.stdout) |stdout| {
                 if (stdout.readToEndAlloc(vector.allocator, 1024 * 1024 * 2)) |body| {
                     _ = agent.wait() catch {};
@@ -149,7 +138,7 @@ pub const Hunter = struct {
             }
         } else |_| { vector.success = false; }
         
-        vector.is_complete = true; // Signal Main Thread
+        vector.is_complete = true; 
     }
 
     // --- NAVIGATION ---
@@ -175,22 +164,8 @@ pub const Hunter = struct {
 
     // --- PARSING ---
     fn parseContent(self: *Hunter, raw: []const u8) !void {
-        var start: usize = 0;
-        var i: usize = 0;
-        const width_limit = 110;
-
-        while (i < raw.len) {
-            if (raw[i] == '\n' or (i - start) >= width_limit) {
-                const line = raw[start..i];
-                const clean = std.mem.trim(u8, line, "\r");
-                try self.display_lines.append(self.allocator, try self.allocator.dupe(u8, clean));
-                start = i + 1;
-            }
-            i += 1;
-        }
-        if (start < raw.len) {
-             try self.display_lines.append(self.allocator, try self.allocator.dupe(u8, raw[start..]));
-        }
+        // [!] The Banyan Lens absorbs the truth directly
+        try self.lens.absorb(raw);
     }
 
     // --- PERSISTENCE ---
@@ -222,28 +197,9 @@ pub const Hunter = struct {
     pub fn render(self: *Hunter, buffer: []u32, width: usize, height: usize) void {
         const start_y = 20; 
         const end_y = height - 20;
-        const line_h = 10;
-        const max_lines = (end_y - start_y) / line_h;
 
-        // A. Content
-        var row: usize = 0;
-        const view_slice = if (self.display_lines.items.len > self.scroll_y) 
-                           self.display_lines.items[self.scroll_y..] 
-                           else self.display_lines.items[0..0];
-
-        for (view_slice) |text| {
-            if (row >= max_lines) break;
-            const py = start_y + (row * line_h);
-            var px: usize = 10;
-            for (text) |c| {
-                if (px >= width - 60) break; 
-                if (c == 27) continue; 
-                const color: u32 = if (c == '<' or c == '>') 0x00DC143C else 0x00AAAAAA; 
-                drawCharToBuf(buffer, width, height, px, py, c, color);
-                px += 8;
-            }
-            row += 1;
-        }
+        // A. Content (Delegated to the Optic Core)
+        self.lens.render(buffer, width, height, self.scroll_y);
 
         // B. Timeline (Flex/Warp)
         const timeline_x = width - 20;
@@ -280,10 +236,20 @@ pub const Hunter = struct {
             t_y += 10;
         }
 
-        // C. Status
-        var sx: usize = width - 120;
+        // C. Status & Focus Info
+        var sx: usize = width - 180;
         const sy: usize = height - 15;
-        for (self.status) |c| {
+        
+        var status_buf: [32]u8 = undefined;
+        const scope_str = switch (self.lens.focus_depth) {
+            1 => "[ZEN]",
+            2 => "[MATRIX]",
+            3 => "[ROOT]",
+            else => "[?]",
+        };
+        const final_status = std.fmt.bufPrint(&status_buf, "{s} {s}", .{self.status, scope_str}) catch self.status;
+
+        for (final_status) |c| {
              drawCharToBuf(buffer, width, height, sx, sy, c, 0x00DC143C);
              sx += 8;
         }
