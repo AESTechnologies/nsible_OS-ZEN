@@ -1,49 +1,39 @@
 const std = @import("std");
 const font = @import("glyphs.zig");
 
-// --- COLOR PALETTE (The Nsible Standard) ---
-const COL_TEXT_HIGH = 0x00AAAAAA; // Silver (Active)
-const COL_TEXT_DIM  = 0x00444444; // Dark Grey (Receded)
-const COL_TAG       = 0x00555555; // Dim Grey (Matrix Structure)
-const COL_LINK      = 0x00DC143C; // Crimson (Active Flow)
-const COL_ROOT      = 0x00FFBF00; // Brass (Machine Logic)
+const COL_TEXT_HIGH = 0x00AAAAAA; 
+const COL_TEXT_DIM  = 0x00444444; 
+const COL_TAG       = 0x00555555; 
+const COL_LINK      = 0x00DC143C; 
+const COL_ROOT      = 0x00FFBF00; 
 
-// --- HARVEST TYPES ---
-pub const HarvestType = enum {
-    TEXT,   // Pure Data
-    LINK,   // Hyperlink (href)
-    MEDIA,  // Image/Video (src)
-    SCRIPT, // Executable Logic
-    STRUCT, // Structural Tag
-};
+pub const HarvestType = enum { TEXT, LINK, MEDIA, SCRIPT, STRUCT };
 
-// --- ATOMIC UNIT ---
 pub const Leaf = struct {
     text: []u8,
-    h_type: HarvestType, // [!] FIXED: Renamed to avoid Zig 'type' keyword
-    layer: u8, // 1=Zen, 2=Matrix, 3=Root
+    h_type: HarvestType, 
+    layer: u8, 
     is_newline: bool,
 };
 
 pub const Banyan = struct {
     allocator: std.mem.Allocator,
-    leaves: std.ArrayListUnmanaged(Leaf), // [!] FIXED: Unmanaged memory structure
-    focus_depth: u8, // 1=ZEN, 2=MATRIX, 3=ROOT
+    leaves: std.ArrayListUnmanaged(Leaf), 
+    focus_depth: u8, 
 
     pub fn init(allocator: std.mem.Allocator) Banyan {
         return .{
             .allocator = allocator,
-            .leaves = .{}, // Clean Sovereign Init
-            .focus_depth = 1, // Start in Zen Mode
+            .leaves = .{}, 
+            .focus_depth = 1, 
         };
     }
 
     pub fn deinit(self: *Banyan) void {
         for (self.leaves.items) |*leaf| self.allocator.free(leaf.text);
-        self.leaves.deinit(self.allocator); // [!] Passed allocator for Unmanaged
+        self.leaves.deinit(self.allocator); 
     }
 
-    // [ SCOPE CONTROL ] :: GZL HotListen
     pub fn shiftScope(self: *Banyan, direction: i8) void {
         if (direction > 0) {
             if (self.focus_depth < 3) self.focus_depth += 1;
@@ -52,16 +42,12 @@ pub const Banyan = struct {
         }
     }
 
-    // [ ABSORB ] :: Break the stream into Leaves
     pub fn absorb(self: *Banyan, raw: []const u8) !void {
-        // Clear old leaves
         for (self.leaves.items) |*leaf| self.allocator.free(leaf.text);
         self.leaves.clearRetainingCapacity();
 
         var i: usize = 0;
         var start: usize = 0;
-        
-        // Parsing State
         var in_tag = false;
         var in_script = false;
         var in_style = false;
@@ -69,9 +55,7 @@ pub const Banyan = struct {
         while (i < raw.len) {
             const c = raw[i];
 
-            // 1. TAG START '<'
             if (!in_script and !in_style and c == '<') {
-                // FLUSH TEXT (Zen Layer)
                 if (i > start) {
                     try self.addLeaf(raw[start..i], .TEXT, 1, false);
                 }
@@ -81,17 +65,15 @@ pub const Banyan = struct {
                 if (std.mem.startsWith(u8, raw[i..], "<script")) in_script = true;
                 if (std.mem.startsWith(u8, raw[i..], "<style"))  in_style = true;
             }
-            // 2. TAG END '>'
             else if (in_tag and c == '>') {
-                // FLUSH TAG (Matrix/Root Layer)
-                var layer: u8 = 2; // Default Matrix
-                var h_type: HarvestType = .STRUCT; // [!] FIXED: Use h_type
+                var layer: u8 = 2; 
+                var h_type: HarvestType = .STRUCT; 
 
                 if (in_script or in_style) {
-                    layer = 3; // Root
+                    layer = 3; 
                     h_type = .SCRIPT;
                 } else if (std.mem.indexOf(u8, raw[start..i+1], "href=") != null) {
-                    layer = 2; // Structure (Link container)
+                    layer = 2; 
                     h_type = .LINK; 
                 } else if (std.mem.indexOf(u8, raw[start..i+1], "src=") != null) {
                     layer = 2;
@@ -100,19 +82,16 @@ pub const Banyan = struct {
 
                 try self.addLeaf(raw[start..i+1], h_type, layer, false);
                 
-                // Block Elements -> Newline Logic
-                const tag_content = raw[start..i+1];
-                if (contains(tag_content, "div") or contains(tag_content, "/p>") or contains(tag_content, "br") or contains(tag_content, "li")) {
-                     try self.addLeaf("", .STRUCT, 1, true); // Visual Newline
+                // Block Elements -> Inject Paragraph Breaks
+                if (isBlockTag(raw[start..i+1])) {
+                     try self.addLeaf("", .STRUCT, 1, true); 
                 }
 
                 start = i + 1;
                 in_tag = false;
             }
-            // 3. SCRIPT END DETECTION
             else if ((in_script or in_style) and !in_tag and c == '<') {
                 if (std.mem.startsWith(u8, raw[i..], "</script>") or std.mem.startsWith(u8, raw[i..], "</style>")) {
-                    // FLUSH HIDDEN CONTENT (Root Layer)
                     if (i > start) {
                         try self.addLeaf(raw[start..i], .SCRIPT, 3, false);
                     }
@@ -122,7 +101,6 @@ pub const Banyan = struct {
                     in_style = false;
                 }
             }
-            
             i += 1;
         }
     }
@@ -130,24 +108,62 @@ pub const Banyan = struct {
     fn addLeaf(self: *Banyan, text: []const u8, h_type: HarvestType, layer: u8, is_newline: bool) !void {
         if (text.len == 0 and !is_newline) return;
         
-        // Clean text only if it's visible data (Layer 1)
-        var clean_text = text;
+        var final_text: []u8 = undefined;
+
         if (layer == 1 and !is_newline) {
-             clean_text = std.mem.trim(u8, text, "\r\n\t ");
-             if (clean_text.len == 0) return;
+            // Text Layer: Compress Whitespace, keep words separated
+            const compressed = try compressWhitespace(self.allocator, text);
+            const clean = std.mem.trim(u8, compressed, " ");
+            if (clean.len == 0) {
+                self.allocator.free(compressed);
+                return;
+            }
+            final_text = try self.allocator.dupe(u8, clean);
+            self.allocator.free(compressed);
+        } else {
+            // Tags/Scripts Layer: Just copy, but we will handle internal \n in renderer
+            final_text = try self.allocator.dupe(u8, text);
         }
 
         const leaf = Leaf{
-            .text = try self.allocator.dupe(u8, clean_text),
+            .text = final_text,
             .h_type = h_type,
             .layer = layer,
             .is_newline = is_newline,
         };
-        try self.leaves.append(self.allocator, leaf); // [!] Passed allocator here
+        try self.leaves.append(self.allocator, leaf);
     }
     
-    fn contains(haystack: []const u8, needle: []const u8) bool {
-        return std.mem.indexOf(u8, haystack, needle) != null;
+    fn isBlockTag(tag: []const u8) bool {
+        var buf: [16]u8 = undefined;
+        const len = @min(tag.len, 16);
+        for (tag[0..len], 0..) |c, idx| buf[idx] = std.ascii.toLower(c);
+        const lower = buf[0..len];
+        return std.mem.indexOf(u8, lower, "<p") != null or
+               std.mem.indexOf(u8, lower, "</p") != null or
+               std.mem.indexOf(u8, lower, "<div") != null or
+               std.mem.indexOf(u8, lower, "</div") != null or
+               std.mem.indexOf(u8, lower, "<br") != null or
+               std.mem.indexOf(u8, lower, "<li") != null or
+               std.mem.indexOf(u8, lower, "<h1") != null or
+               std.mem.indexOf(u8, lower, "<h2") != null;
+    }
+
+    fn compressWhitespace(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
+        var out = try std.ArrayList(u8).initCapacity(allocator, input.len);
+        var in_space = false;
+        for (input) |c| {
+            if (c == ' ' or c == '\n' or c == '\r' or c == '\t') {
+                if (!in_space) {
+                    out.appendAssumeCapacity(' ');
+                    in_space = true;
+                }
+            } else {
+                out.appendAssumeCapacity(c);
+                in_space = false;
+            }
+        }
+        return out.toOwnedSlice();
     }
 
     // [ RENDER ] :: The Focus Logic
@@ -161,40 +177,42 @@ pub const Banyan = struct {
         var virtual_row: usize = 0;
 
         for (self.leaves.items) |leaf| {
-            // 1. FILTER: Is this leaf deeper than current focus?
             if (leaf.layer > self.focus_depth) continue;
 
-            // 2. NEWLINE LOGIC
             if (leaf.is_newline) {
                 virtual_row += 1;
                 cursor_x = 10;
                 continue;
             }
 
-            // 3. SCROLL CULLING
             if (virtual_row < scroll_y) continue;
             if (screen_row >= max_lines) break;
 
-            // 4. COLOR LOGIC (The "Focus Pull")
             var color: u32 = COL_TEXT_HIGH;
             
             if (self.focus_depth == 3) {
-                // ROOT MODE: Dim the text, highlight the roots
                 if (leaf.layer == 1) color = COL_TEXT_DIM;
                 if (leaf.layer == 3) color = COL_ROOT;
                 if (leaf.layer == 2) color = COL_TAG;
             } else if (self.focus_depth == 2) {
-                // MATRIX MODE: Show tags
                 if (leaf.layer == 2) color = COL_TAG;
-                if (leaf.h_type == .LINK) color = COL_LINK; // Links always pop in Matrix
+                if (leaf.h_type == .LINK) color = COL_LINK; 
             } else {
-                // ZEN MODE: Pure Text
                 if (leaf.h_type == .LINK) color = COL_LINK;
             }
 
-            // 5. DRAW
             const py = start_y + (screen_row * line_h);
             for (leaf.text) |c| {
+                // [!] CRITICAL FIX: Handle hard newlines inside Tags/Scripts
+                if (c == '\n') {
+                    screen_row += 1;
+                    virtual_row += 1;
+                    cursor_x = 10;
+                    if (screen_row >= max_lines) break;
+                    continue;
+                }
+                if (c == '\r' or c == '\t') continue; // Ignore pure carriage returns/tabs visually
+
                 if (cursor_x >= width - 20) {
                     screen_row += 1;
                     virtual_row += 1;
@@ -209,7 +227,6 @@ pub const Banyan = struct {
     }
 };
 
-// Internal Draw Helper
 fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8, color: u32) void {
     const bitmap = font.getBitmap(char);
     var y: usize = 0;
