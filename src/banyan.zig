@@ -7,7 +7,7 @@ const COL_TAG       = 0x00555555;
 const COL_LINK      = 0x00DC143C; 
 const COL_ROOT      = 0x00FFBF00; 
 
-pub const HarvestType = enum { TEXT, LINK, MEDIA, SCRIPT, STRUCT };
+pub const HarvestType = enum { TEXT, LINK, MEDIA, SCRIPT, STRUCT, BREAK };
 
 pub const Leaf = struct {
     text: []u8,
@@ -75,16 +75,19 @@ pub const Banyan = struct {
                 } else if (std.mem.indexOf(u8, raw[start..i+1], "href=") != null) {
                     layer = 2; 
                     h_type = .LINK; 
-                } else if (std.mem.indexOf(u8, raw[start..i+1], "src=") != null) {
-                    layer = 2;
-                    h_type = .MEDIA;
                 }
 
+                // Add the tag itself (hidden in Zen)
                 try self.addLeaf(raw[start..i+1], h_type, layer, false);
                 
-                // Block Elements -> Inject Paragraph Breaks
+                // [!] HARD BREAK LOGIC
+                // Force newlines after block closures to prevent Text Walls
                 if (isBlockTag(raw[start..i+1])) {
-                     try self.addLeaf("", .STRUCT, 1, true); 
+                     try self.addLeaf("", .BREAK, 1, true); 
+                     // Double break for paragraphs for better readability
+                     if (contains(raw[start..i+1], "p>")) {
+                         try self.addLeaf("", .BREAK, 1, true);
+                     }
                 }
 
                 start = i + 1;
@@ -111,17 +114,14 @@ pub const Banyan = struct {
         var final_text: []u8 = undefined;
 
         if (layer == 1 and !is_newline) {
-            // Text Layer: Compress Whitespace, keep words separated
+            // Text Layer: Compress but don't starve
             const compressed = try compressWhitespace(self.allocator, text);
-            const clean = std.mem.trim(u8, compressed, " ");
-            if (clean.len == 0) {
+            if (compressed.len == 0) {
                 self.allocator.free(compressed);
                 return;
             }
-            final_text = try self.allocator.dupe(u8, clean);
-            self.allocator.free(compressed);
+            final_text = compressed; // Already allocated
         } else {
-            // Tags/Scripts Layer: Just copy, but we will handle internal \n in renderer
             final_text = try self.allocator.dupe(u8, text);
         }
 
@@ -134,39 +134,42 @@ pub const Banyan = struct {
         try self.leaves.append(self.allocator, leaf);
     }
     
+    fn contains(haystack: []const u8, needle: []const u8) bool {
+        return std.mem.indexOf(u8, haystack, needle) != null;
+    }
+
     fn isBlockTag(tag: []const u8) bool {
-        var buf: [16]u8 = undefined;
-        const len = @min(tag.len, 16);
-        for (tag[0..len], 0..) |c, idx| buf[idx] = std.ascii.toLower(c);
-        const lower = buf[0..len];
-        return std.mem.indexOf(u8, lower, "<p") != null or
-               std.mem.indexOf(u8, lower, "</p") != null or
-               std.mem.indexOf(u8, lower, "<div") != null or
-               std.mem.indexOf(u8, lower, "</div") != null or
-               std.mem.indexOf(u8, lower, "<br") != null or
-               std.mem.indexOf(u8, lower, "<li") != null or
-               std.mem.indexOf(u8, lower, "<h1") != null or
-               std.mem.indexOf(u8, lower, "<h2") != null;
+        // Simple check for closing block tags or breaks
+        if (contains(tag, "<br")) return true;
+        if (contains(tag, "</p")) return true;
+        if (contains(tag, "</div")) return true;
+        if (contains(tag, "</li")) return true;
+        if (contains(tag, "</h")) return true;
+        return false;
     }
 
     fn compressWhitespace(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
         var out = try std.ArrayList(u8).initCapacity(allocator, input.len);
-        var in_space = false;
+        var last_was_space = false;
+        
         for (input) |c| {
-            if (c == ' ' or c == '\n' or c == '\r' or c == '\t') {
-                if (!in_space) {
+            // Convert all whitespace to space
+            const is_space = (c == ' ' or c == '\n' or c == '\r' or c == '\t');
+            
+            if (is_space) {
+                if (!last_was_space) {
                     out.appendAssumeCapacity(' ');
-                    in_space = true;
+                    last_was_space = true;
                 }
             } else {
                 out.appendAssumeCapacity(c);
-                in_space = false;
+                last_was_space = false;
             }
         }
         return out.toOwnedSlice(allocator);
     }
 
-    // [ RENDER ] :: The Focus Logic
+    // [ RENDER ] 
     pub fn render(self: *Banyan, buffer: []u32, width: usize, height: usize, scroll_y: usize) void {
         const start_y = 20;
         const line_h = 10;
@@ -189,37 +192,27 @@ pub const Banyan = struct {
             if (screen_row >= max_lines) break;
 
             var color: u32 = COL_TEXT_HIGH;
-            
+            // Mode Logic
             if (self.focus_depth == 3) {
-                if (leaf.layer == 1) color = COL_TEXT_DIM;
-                if (leaf.layer == 3) color = COL_ROOT;
-                if (leaf.layer == 2) color = COL_TAG;
+                 if (leaf.layer == 1) color = COL_TEXT_DIM;
+                 if (leaf.layer == 3) color = COL_ROOT;
+                 if (leaf.layer == 2) color = COL_TAG;
             } else if (self.focus_depth == 2) {
-                if (leaf.layer == 2) color = COL_TAG;
-                if (leaf.h_type == .LINK) color = COL_LINK; 
+                 if (leaf.layer == 2) color = COL_TAG;
+                 if (leaf.h_type == .LINK) color = COL_LINK;
             } else {
-                if (leaf.h_type == .LINK) color = COL_LINK;
+                 if (leaf.h_type == .LINK) color = COL_LINK;
             }
 
             const py = start_y + (screen_row * line_h);
+            
             for (leaf.text) |c| {
-                // [!] CRITICAL FIX: Handle hard newlines inside Tags/Scripts
-                if (c == '\n') {
-                    screen_row += 1;
-                    virtual_row += 1;
-                    cursor_x = 10;
-                    if (screen_row >= max_lines) break;
-                    continue;
-                }
-                if (c == '\r' or c == '\t') continue; // Ignore pure carriage returns/tabs visually
-
                 if (cursor_x >= width - 20) {
                     screen_row += 1;
                     virtual_row += 1;
                     cursor_x = 10;
                     if (screen_row >= max_lines) break;
                 }
-                
                 drawCharToBuf(buffer, width, height, cursor_x, py, c, color);
                 cursor_x += 8;
             }
