@@ -4,7 +4,7 @@ const font = @import("glyphs.zig");
 const nerve = @import("nerve.zig");   
 const codex = @import("codex.zig");
 const cortex = @import("cortex.zig"); 
-const chronos = @import("chronos.zig"); // Keeping import if needed later, but removing clock UI.
+const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
 
 // --- UNIVERSAL CONSTANTS ---
@@ -13,8 +13,14 @@ const VERSION     = "v0.10.1 // Banyan";
 const HOST_ID     = "dataDESK:archX";
 const URI_PREFIX  = "@://0.10.1/x8_64-li-mu/";
 
+// --- HARDWARE CONFIGURATION ---
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
+
+// --- THE VOID (42.13 MB STATIC HEAP) ---
+// .-*-. HARD CONSTRAINT: Sovereign Memory .-*-.
+const VOID_SIZE = 42_130_000;
+var void_buffer: [VOID_SIZE]u8 = undefined;
 
 var fb_pixels: []u32 = undefined;
 var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
@@ -59,8 +65,8 @@ fn print(x: usize, y: usize, text: []const u8, color: u32) void {
     }
 }
 
-// [!] RESTORED: High-Claw Indicator (No Clock)
-fn drawHeader(high_cycle: bool) void {
+// [!] HEADER: Includes High/Claw Heartbeat
+fn drawHeader(is_high: bool) void {
     // 1. Top Bar Background (Crimson)
     drawRect(0, 0, WIDTH, 20, 0x00DC143C);
 
@@ -69,10 +75,10 @@ fn drawHeader(high_cycle: bool) void {
     const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, HOST_ID}) catch "HEADER_ERR";
     print(10, 6, header, 0x00FFFFFF);
 
-    // 3. Right: High/Claw Heartbeat [958x6]
-    // Alternates between 高 (127) and 爪 (128) based on cycle state.
-    const indicator: u8 = if (high_cycle) 127 else 128;
-    drawChar(958, 6, indicator, 0x00FFFFFF);
+    // 3. Right: High/Claw Indicator [962x6]
+    // Alternates between 高 (127) and 爪 (128)
+    const glyph: u8 = if (is_high) 127 else 128;
+    drawChar(962, 6, glyph, 0x00FFFFFF);
 }
 
 fn drawUriBar(input_buf: []const u8, input_len: usize) void {
@@ -131,8 +137,11 @@ pub fn main() !void {
     codex.tuneIn();
     const net_fd = codex.bindUmbilical(); 
 
-    // [!] MEMORY OPTIMIZATION: Use C Allocator (Malloc)
-    const allocator = std.heap.c_allocator;
+    // [!] MEMORY ARCHITECTURE: THE VOID (Static)
+    // We use the 42.13MB static buffer as a FixedBufferAllocator.
+    // This is crash-proof on the Atom N270 (no sbrk/mmap growth).
+    var fba = std.heap.FixedBufferAllocator.init(&void_buffer);
+    const allocator = fba.allocator();
 
     var sys_hunter = hunter.Hunter.init(allocator);
     defer sys_hunter.deinit();
@@ -241,7 +250,7 @@ pub fn main() !void {
 
         if (dirty) {
             clear(0x00000000);
-            drawHeader(is_high_cycle); // [!] Passing State
+            drawHeader(is_high_cycle); // [!] HEARTBEAT PASSED
             
             if (sys_hunter.active) {
                 sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
