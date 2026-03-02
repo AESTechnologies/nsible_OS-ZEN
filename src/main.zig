@@ -146,13 +146,15 @@ pub fn main() !void {
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
     
-    // INPUT SEQUENCE BUFFER
-    var esc_seq: [4]u8 = .{0, 0, 0, 0}; 
+    // [!] EXPANDED INPUT SEQUENCE BUFFER (For complex ANSI Shift keys)
+    var esc_seq: [8]u8 = .{0} ** 8; 
     var esc_len: usize = 0;
 
-    // REFLEX BUFFER
+    // [!] EXPANDED REFLEX BUFFER (GZL HotListens)
     var seq_buf: [6]u8 = .{0, 0, 0, 0, 0, 0};
     const exit_key = ".!XX-.";
+    const scope_in_key = ".![-.";  // Descend to Substrate
+    const scope_out_key = ".!]-."; // Ascend to Surface
 
     const pulse_x = 962; 
     const pulse_y = 6;
@@ -172,7 +174,16 @@ pub fn main() !void {
             var k: usize = 0;
             while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
             seq_buf[5] = byte;
+            
             if (std.mem.eql(u8, &seq_buf, exit_key)) break;
+            if (std.mem.eql(u8, &seq_buf, scope_in_key)) {
+                sys_hunter.lens.shiftScope(1); // Descend
+                esc_len = 0;
+            }
+            if (std.mem.eql(u8, &seq_buf, scope_out_key)) {
+                sys_hunter.lens.shiftScope(-1); // Ascend
+                esc_len = 0;
+            }
 
             // 2. MOTOR (Input Mapping)
             if (byte == 27) { 
@@ -195,12 +206,32 @@ pub fn main() !void {
                     esc_len = 0; 
                 }
             } else if (esc_len == 3) {
-                if (byte == '~') {
+                if (byte == '~') { // Standard PgUp/PgDn termination
                     const digit = esc_seq[2];
                     if (digit == '5') { // PAGE UP
                         if (sys_hunter.scroll_y >= 15) { sys_hunter.scroll_y -= 15; } else { sys_hunter.scroll_y = 0; }
                     } else if (digit == '6') { // PAGE DOWN
                         sys_hunter.scroll_y += 15;
+                    }
+                    esc_len = 0;
+                } else if (byte == ';') { // Detect Extended Modifier Sequence (e.g. Shift)
+                    esc_len = 4; esc_seq[3] = byte;
+                } else {
+                    esc_len = 0;
+                }
+            } else if (esc_len == 4) {
+                if (byte == '2') { // '2' represents Shift modifier in ANSI
+                    esc_len = 5; esc_seq[4] = byte;
+                } else {
+                    esc_len = 0;
+                }
+            } else if (esc_len == 5) {
+                if (byte == '~') {
+                    const digit = esc_seq[2];
+                    if (digit == '5') { // Shift + PAGE UP
+                        sys_hunter.lens.shiftScope(-1); // Ascend
+                    } else if (digit == '6') { // Shift + PAGE DOWN
+                        sys_hunter.lens.shiftScope(1);  // Descend
                     }
                 }
                 esc_len = 0;
@@ -241,7 +272,10 @@ pub fn main() !void {
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else {
-                    if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
+                    // Prevent GZL keys from writing to journal stream
+                    if (journal_len < 4096 and byte >= 32 and byte <= 126) { 
+                        journal[journal_len] = byte; journal_len += 1; 
+                    }
                 }
             }
         }
