@@ -246,6 +246,10 @@ pub fn main() !void {
                     switch (response.action) {
                         .CLEAR => {}, 
                         .EXIT => break,
+                        .SHED => {
+                            sys_hunter.shed();
+                            journal_len = 0;
+                            },
                         .PRINT => {
                             journal_len = 0; 
                             for (response.text) |c| {
@@ -317,5 +321,5 @@ pub fn main() !void {
         codex.zen(0.000004);
     }
     
-    _ = linux.syscall1(.exit, 0);
+    std.process.exit(0)
 }
