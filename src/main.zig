@@ -321,5 +321,5 @@ pub fn main() !void {
         codex.zen(0.000004);
     }
     
-    std.process.exit(0)
+    std.process.exit(0);
 }
