@@ -17,31 +17,33 @@ const URI_PREFIX  = "@://0.10.1/x8_64-li-mu/";
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
 
-// --- THE VOID (42.13 MB STATIC HEAP) ---
-// .-*-. HARD CONSTRAINT: Sovereign Memory .-*-.
+// --- MEMORY ARCHITECTURE ---
+// [1] THE VOID (DMZ / Preservables)
+// 42.13 MB Static Heap for System State, History, and Memos.
 const VOID_SIZE = 42_130_000;
 var void_buffer: [VOID_SIZE]u8 = undefined;
+
+// [2] THE SAP (Volatile / Foreign Matter)
+// 88.00 MB Static Heap for Web Content and Banyan Rendering.
+// Wiped clean on every fetch to prevent contamination.
+const SAP_SIZE = 88_000_000;
+var sap_buffer: [SAP_SIZE]u8 = undefined;
 
 var fb_pixels: []u32 = undefined;
 var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
 
 // .-*-. BLACK BOX RECORDER (PANIC HANDLER) .-*-.
-// Redirects panic output to 'trail.tome' for post-mortem analysis.
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
-    // 1. Open 'trail.tome' (Syscall 5 on x86)
-    // Flags: O_WRONLY(1) | O_CREAT(64) | O_TRUNC(512) = 577
     const mode: usize = 0o666;
-    const flags: usize = 577; 
+    const flags: usize = 577; // O_WRONLY | O_CREAT | O_TRUNC
     const filename = "trail.tome";
 
     const fd_res = linux.syscall3(.open, @intFromPtr(filename), flags, mode);
     const fd: i32 = @bitCast(@as(u32, @truncate(fd_res)));
 
     if (fd >= 0) {
-        // 2. Redirect STDERR (2) to this file using dup2 (Syscall 63 on x86)
         _ = linux.syscall2(.dup2, @as(usize, @bitCast(fd)), 2);
-
-        // 3. Write Header manually
+        
         const header = "\n[ @NSIBLE FATAL EXCEPTION ]\n";
         _ = linux.syscall3(.write, 2, @intFromPtr(header), header.len);
         
@@ -51,19 +53,14 @@ pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize)
         const newline = "\n";
         _ = linux.syscall3(.write, 2, @intFromPtr(newline), newline.len);
 
-        // 4. Dump Stack Trace (Corrected API)
         if (trace) |t| {
             std.debug.dumpStackTrace(t.*);
         } else {
-            // Fallback if no trace provided, try capturing current
             std.debug.dumpCurrentStackTrace(ret_addr);
         }
-
-        // 5. Close
         _ = linux.syscall1(.close, @as(usize, @bitCast(fd)));
     }
 
-    // 6. Blink of Death (Visual Halt)
     var blink: bool = true;
     while (true) {
         var delay: usize = 0;
@@ -112,18 +109,11 @@ fn print(x: usize, y: usize, text: []const u8, color: u32) void {
     }
 }
 
-// [!] HEADER: Includes High/Claw Heartbeat
 fn drawHeader(is_high: bool) void {
-    // 1. Top Bar Background (Crimson)
     drawRect(0, 0, WIDTH, 20, 0x00DC143C);
-
-    // 2. Left: System Info
     var buf: [128]u8 = undefined;
     const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, HOST_ID}) catch "HEADER_ERR";
     print(10, 6, header, 0x00FFFFFF);
-
-    // 3. Right: High/Claw Indicator [962x6]
-    // Alternates between 高 (127) and 爪 (128)
     const glyph: u8 = if (is_high) 127 else 128;
     drawChar(962, 6, glyph, 0x00FFFFFF);
 }
@@ -132,7 +122,6 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     const char_w = 8;
     const line_h = 10;
     const padding = 6;
-    
     var cursor_x: usize = 10;
     var lines: usize = 1;
     cursor_x += URI_PREFIX.len * char_w;
@@ -145,12 +134,10 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     
     const bar_height = (lines * line_h) + (padding * 2);
     const start_y = if (bar_height < HEIGHT) HEIGHT - bar_height else 0;
-    
     drawRect(0, start_y, WIDTH, bar_height, 0x00DC143C);
     
     cursor_x = 10;
     var cursor_y: usize = start_y + padding;
-    
     for (URI_PREFIX) |char| { 
         drawChar(cursor_x, cursor_y, char, 0x00000000); 
         cursor_x += char_w;
@@ -174,7 +161,6 @@ pub fn main() !void {
     
     const fd_res = linux.syscall3(.open, @intFromPtr("/dev/fb0"), 2, 0);
     const fb_fd: i32 = @bitCast(@as(u32, @truncate(fd_res)));
-    
     const map_len = WIDTH * HEIGHT * 4;
     const map_res = linux.syscall6(.mmap2, 0, map_len, 3, 1, @as(usize, @bitCast(fb_fd)), 0);
     const fb_ptr = @as([*]u32, @ptrFromInt(map_res));
@@ -184,12 +170,17 @@ pub fn main() !void {
     codex.tuneIn();
     const net_fd = codex.bindUmbilical(); 
 
-    // [!] MEMORY ARCHITECTURE: THE VOID (Static)
-    // We use the 42.13MB static buffer as a FixedBufferAllocator.
-    var fba = std.heap.FixedBufferAllocator.init(&void_buffer);
-    const allocator = fba.allocator();
+    // [!] INSTANTIATE MEMORY PARTITIONS [!]
+    
+    // 1. The Void (Permanent / Preservables)
+    var void_fba = std.heap.FixedBufferAllocator.init(&void_buffer);
+    const void_allocator = void_fba.allocator();
 
-    var sys_hunter = hunter.Hunter.init(allocator);
+    // 2. The Sap (Volatile / Foreign Matter)
+    var sap_fba = std.heap.FixedBufferAllocator.init(&sap_buffer);
+    
+    // Initialize Hunter with Dual Lobes
+    var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
 
     var journal: [4096]u8 = undefined;
@@ -206,52 +197,40 @@ pub fn main() !void {
 
         if (codex.transcieve(net_fd)) |byte| {
             dirty = true;
-            // 1. REFLEX (GZL)
+            // 1. REFLEX
             var k: usize = 0;
             while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
             seq_buf[5] = byte;
-            
             if (std.mem.eql(u8, &seq_buf, ".!XX-.")) std.process.exit(0);
-            
-            // GZL Lens Controls
             if (std.mem.eql(u8, &seq_buf, ".![-.")) { sys_hunter.lens.shiftScope(1); esc_len = 0; }
             if (std.mem.eql(u8, &seq_buf, ".!]-.")) { sys_hunter.lens.shiftScope(-1); esc_len = 0; }
 
-            // 2. ANSI (MOTOR)
+            // 2. ANSI
             if (byte == 27) { 
-                esc_len = 1;
-                esc_seq[0] = byte;
+                esc_len = 1; esc_seq[0] = byte;
             } else if (esc_len > 0) {
                 if (esc_len < 8) {
-                    esc_seq[esc_len] = byte;
-                    esc_len += 1;
-                    
-                    // Detect Arrows
+                    esc_seq[esc_len] = byte; esc_len += 1;
                     if (esc_len == 3 and esc_seq[1] == '[') {
                         if (byte == 'A') { if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1; esc_len = 0; }
                         else if (byte == 'B') { sys_hunter.scroll_y += 1; esc_len = 0; }
                         else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; esc_len = 0; }
                         else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; esc_len = 0; }
                     } else if (byte == '~') {
-                        // Detect PgUp/Dn (5~, 6~)
-                        if (esc_len >= 4 and esc_seq[1] == '[') {
+                         if (esc_len >= 4 and esc_seq[1] == '[') {
                             const digit = esc_seq[2];
-                            if (digit == '5') { // PgUp
-                                if (sys_hunter.scroll_y >= 15) { sys_hunter.scroll_y -= 15; } else { sys_hunter.scroll_y = 0; }
-                            } else if (digit == '6') { // PgDn
-                                sys_hunter.scroll_y += 15;
-                            }
+                            if (digit == '5') { if (sys_hunter.scroll_y >= 15) sys_hunter.scroll_y -= 15 else sys_hunter.scroll_y = 0; }
+                            else if (digit == '6') { sys_hunter.scroll_y += 15; }
                         }
                         esc_len = 0;
                     }
                 } else { esc_len = 0; }
             } 
-            // 3. CORTEX (TYPING)
+            // 3. CORTEX
             else {
                  if (byte == '\n' or byte == '\r') {
                     const cmd_slice = journal[0..journal_len];
                     const response = cortex.dispatch(cmd_slice);
-                    
                     switch (response.action) {
                         .CLEAR => {}, 
                         .EXIT => std.process.exit(0),
@@ -260,8 +239,7 @@ pub fn main() !void {
                         .SCOPE_OUT => { sys_hunter.lens.shiftScope(-1); journal_len = 0; },
                         .MEMO => { 
                             const txt = if (response.text.len > 0) response.text else cmd_slice;
-                            sys_hunter.createMemo(txt) catch {}; 
-                            journal_len = 0; 
+                            sys_hunter.createMemo(txt) catch {}; journal_len = 0; 
                         },
                         .PRINT => {
                             journal_len = 0;
@@ -270,11 +248,9 @@ pub fn main() !void {
                             }
                         },
                         .HUNT => {
-                             if (std.mem.eql(u8, response.text, "v")) {
-                                sys_hunter.scroll_y += 1;
-                            } else if (std.mem.eql(u8, response.text, "^")) {
-                                if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1;
-                            } else {
+                             if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scroll_y += 1; }
+                             else if (std.mem.eql(u8, response.text, "^")) { if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1; }
+                             else {
                                 var target = response.text;
                                 if (std.mem.startsWith(u8, target, "hunt ")) target = target[5..];
                                 sys_hunter.hunt(target) catch { sys_hunter.status = "FETCH_ERR"; };
@@ -296,14 +272,9 @@ pub fn main() !void {
 
         if (dirty) {
             clear(0x00000000);
-            drawHeader(is_high_cycle); // [!] HEARTBEAT PASSED
-            
-            if (sys_hunter.active) {
-                sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
-            } else {
-                print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555);
-            }
-
+            drawHeader(is_high_cycle);
+            if (sys_hunter.active) { sys_hunter.render(&back_buffer, WIDTH, HEIGHT); } 
+            else { print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555); }
             drawUriBar(journal[0..journal_len], journal_len);
             @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
             dirty = false;
