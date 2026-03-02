@@ -161,6 +161,31 @@ pub const Hunter = struct {
         self.saveHistory() catch {};
         try self.executeFetch(target);
     }
+    // --- EXPULSION ---
+    pub fn shed(self: *Hunter) void {
+        if (self.history.items.len == 0) return;
+        
+        // Free the memory of the current URL
+        self.allocator.free(self.history.items[self.history_index]);
+        _ = self.history.orderedRemove(self.history_index);
+        
+        if (self.history.items.len == 0) {
+            // Nothing left
+            self.history_index = 0;
+            self.status = "IDLE";
+            for (self.lens.leaves.items) |*leaf| self.allocator.free(leaf.text);
+            self.lens.leaves.clearRetainingCapacity();
+            if (self.url.len > 0) self.allocator.free(self.url);
+            self.url = self.allocator.dupe(u8, "WAITING") catch return;
+        } else {
+            // Shift to previous tab
+            if (self.history_index >= self.history.items.len) {
+                self.history_index = self.history.items.len - 1;
+            }
+            self.navigateHistory(0) catch {};
+        }
+        self.saveHistory() catch {};
+    }
 
     // --- PARSING ---
     fn parseContent(self: *Hunter, raw: []const u8) !void {
