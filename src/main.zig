@@ -25,6 +25,48 @@ var void_buffer: [VOID_SIZE]u8 = undefined;
 var fb_pixels: []u32 = undefined;
 var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
 
+// .-*-. BLACK BOX RECORDER (PANIC HANDLER) .-*-.
+// Redirects panic output to 'trail.tome' for post-mortem analysis.
+pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
+    // 1. Open 'trail.tome' (Syscall 5 on x86)
+    // Flags: O_WRONLY(1) | O_CREAT(64) | O_TRUNC(512) = 577
+    const mode: usize = 0o666;
+    const flags: usize = 577; 
+    const filename = "trail.tome";
+
+    const fd_res = linux.syscall3(.open, @intFromPtr(filename), flags, mode);
+    const fd: i32 = @bitCast(@as(u32, @truncate(fd_res)));
+
+    if (fd >= 0) {
+        // 2. Redirect STDERR (2) to this file using dup2 (Syscall 63 on x86)
+        _ = linux.syscall2(.dup2, @as(usize, @bitCast(fd)), 2);
+
+        // 3. Write Header manually
+        const header = "\n[ @NSIBLE FATAL EXCEPTION ]\n";
+        _ = linux.syscall3(.write, 2, @intFromPtr(header), header.len);
+        
+        const msg_prefix = "Message: ";
+        _ = linux.syscall3(.write, 2, @intFromPtr(msg_prefix), msg_prefix.len);
+        _ = linux.syscall3(.write, 2, @intFromPtr(msg.ptr), msg.len);
+        const newline = "\n";
+        _ = linux.syscall3(.write, 2, @intFromPtr(newline), newline.len);
+
+        // 4. Dump Stack Trace (Writes to the now-redirected STDERR)
+        std.debug.maybeDumpStackTrace(trace, ret_addr);
+
+        // 5. Close
+        _ = linux.syscall1(.close, @as(usize, @bitCast(fd)));
+    }
+
+    // 6. Blink of Death (Visual Halt)
+    var blink: bool = true;
+    while (true) {
+        var delay: usize = 0;
+        while (delay < 5_000_000) : (delay += 1) { asm volatile ("pause"); }
+        blink = !blink;
+    }
+}
+
 // --- CORE DRAWING ---
 fn drawChar(px: usize, py: usize, char: u8, color: u32) void {
     const bitmap = font.getBitmap(char);
