@@ -281,7 +281,7 @@ fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8,
             if ((bitmap[y] & (@as(u8, 1) << @intCast(7 - x))) != 0) {
                 const screen_x = px + x;
                 const screen_y = py + y;
-                if (screen_x < w and screen_y < h) buffer[screen_y * w + screen_x] = color;
+                if (screen_x < w and screen_y < h) buf[screen_y * w + screen_x] = color;
             }
         }
     }
