@@ -4,14 +4,14 @@ const font = @import("glyphs.zig");
 const nerve = @import("nerve.zig");   
 const codex = @import("codex.zig");
 const cortex = @import("cortex.zig"); 
-const chronos = @import("chronos.zig");
+const chronos = @import("chronos.zig"); // Keeping import if needed later, but removing clock UI.
 const hunter = @import("hunter.zig");
 
 // --- UNIVERSAL CONSTANTS ---
 const SYSTEM_NAME = "@NSIBLE OS";
-const VERSION     = "v0.10.0 // Banyan"; // [!] CENTRALIZED VERSION
+const VERSION     = "v0.10.1 // Banyan";
 const HOST_ID     = "dataDESK:archX";
-const URI_PREFIX  = "@://0.10.0/x8_64-li-mu/"; // [!] UPDATED
+const URI_PREFIX  = "@://0.10.1/x8_64-li-mu/";
 
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
@@ -19,7 +19,7 @@ const HEIGHT: usize = 600;
 var fb_pixels: []u32 = undefined;
 var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
 
-// CORE DRAWING
+// --- CORE DRAWING ---
 fn drawChar(px: usize, py: usize, char: u8, color: u32) void {
     const bitmap = font.getBitmap(char);
     var y: usize = 0;
@@ -53,18 +53,26 @@ fn clear(color: u32) void {
 
 fn print(x: usize, y: usize, text: []const u8, color: u32) void {
     var cx = x;
-    for (text) |char| { drawChar(cx, y, char, color); cx += 8; }
+    for (text) |char| { 
+        drawChar(cx, y, char, color); 
+        cx += 8;
+    }
 }
 
-fn drawHeader() void {
-    // Top Bar Background
+// [!] RESTORED: High-Claw Indicator (No Clock)
+fn drawHeader(high_cycle: bool) void {
+    // 1. Top Bar Background (Crimson)
     drawRect(0, 0, WIDTH, 20, 0x00DC143C);
-    
-    // Construct Header String
+
+    // 2. Left: System Info
     var buf: [128]u8 = undefined;
     const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, HOST_ID}) catch "HEADER_ERR";
-    
     print(10, 6, header, 0x00FFFFFF);
+
+    // 3. Right: High/Claw Heartbeat [958x6]
+    // Alternates between 高 (127) and 爪 (128) based on cycle state.
+    const indicator: u8 = if (high_cycle) 127 else 128;
+    drawChar(958, 6, indicator, 0x00FFFFFF);
 }
 
 fn drawUriBar(input_buf: []const u8, input_len: usize) void {
@@ -75,7 +83,7 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     var cursor_x: usize = 10;
     var lines: usize = 1;
     cursor_x += URI_PREFIX.len * char_w;
-    
+
     var i: usize = 0;
     while (i < input_len) : (i += 1) {
         cursor_x += char_w;
@@ -92,7 +100,7 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     
     for (URI_PREFIX) |char| { 
         drawChar(cursor_x, cursor_y, char, 0x00000000); 
-        cursor_x += char_w; 
+        cursor_x += char_w;
         if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } 
     }
     
@@ -106,7 +114,7 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     drawChar(cursor_x, cursor_y, 0xDB, 0x00000000);
 }
 
-// MAIN ENTRY
+// --- MAIN ENTRY ---
 pub fn main() !void {
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
     _ = linux.syscall5(.mount, @intFromPtr("sysfs"), @intFromPtr("/sys"), @intFromPtr("sysfs"), 0, 0);
@@ -123,42 +131,41 @@ pub fn main() !void {
     codex.tuneIn();
     const net_fd = codex.bindUmbilical(); 
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    
+    // [!] MEMORY OPTIMIZATION: Use C Allocator (Malloc)
+    const allocator = std.heap.c_allocator;
+
     var sys_hunter = hunter.Hunter.init(allocator);
     defer sys_hunter.deinit();
 
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
-    
     var esc_seq: [8]u8 = undefined; 
     var esc_len: usize = 0;
     var seq_buf: [6]u8 = .{0} ** 6;
-    
     var blink_timer: usize = 0;
     var is_high_cycle: bool = true;
     var dirty: bool = true;
-    
+
     while (true) {
         try sys_hunter.tick();
 
         if (codex.transcieve(net_fd)) |byte| {
             dirty = true;
-            
             // 1. REFLEX (GZL)
             var k: usize = 0;
             while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
             seq_buf[5] = byte;
             
             if (std.mem.eql(u8, &seq_buf, ".!XX-.")) std.process.exit(0);
+            
             // GZL Lens Controls
             if (std.mem.eql(u8, &seq_buf, ".![-.")) { sys_hunter.lens.shiftScope(1); esc_len = 0; }
             if (std.mem.eql(u8, &seq_buf, ".!]-.")) { sys_hunter.lens.shiftScope(-1); esc_len = 0; }
 
             // 2. ANSI (MOTOR)
             if (byte == 27) { 
-                esc_len = 1; esc_seq[0] = byte;
+                esc_len = 1;
+                esc_seq[0] = byte;
             } else if (esc_len > 0) {
                 if (esc_len < 8) {
                     esc_seq[esc_len] = byte;
@@ -196,15 +203,13 @@ pub fn main() !void {
                         .SHED => { sys_hunter.shed(); journal_len = 0; },
                         .SCOPE_IN => { sys_hunter.lens.shiftScope(1); journal_len = 0; },
                         .SCOPE_OUT => { sys_hunter.lens.shiftScope(-1); journal_len = 0; },
-                        // Pass TEXT from cortex if present, else use full buffer? 
-                        // Cortex dispatch handles splitting for memo
                         .MEMO => { 
                             const txt = if (response.text.len > 0) response.text else cmd_slice;
                             sys_hunter.createMemo(txt) catch {}; 
                             journal_len = 0; 
                         },
                         .PRINT => {
-                            journal_len = 0; 
+                            journal_len = 0;
                             for (response.text) |c| {
                                 if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; }
                             }
@@ -236,8 +241,7 @@ pub fn main() !void {
 
         if (dirty) {
             clear(0x00000000);
-            
-            drawHeader(); // [!] NEW HEADER FUNCTION
+            drawHeader(is_high_cycle); // [!] Passing State
             
             if (sys_hunter.active) {
                 sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
