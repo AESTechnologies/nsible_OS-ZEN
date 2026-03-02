@@ -1,13 +1,11 @@
 const std = @import("std");
 const font = @import("glyphs.zig");
-const banyan = @import("banyan.zig"); // [!] THE LENS
+const banyan = @import("banyan.zig");
 
-// [!] SOVEREIGN TYPES
 const StringList = std.ArrayListUnmanaged([]u8);
 const PhiloteMap = std.StringHashMapUnmanaged(u32);
 const ExternalAgent = std.process.Child;
 
-// [!] THREAD CONTEXT
 const FlightVector = struct {
     allocator: std.mem.Allocator,
     url: []u8,
@@ -20,14 +18,12 @@ pub const Hunter = struct {
     allocator: std.mem.Allocator,
     history: StringList,
     history_index: usize, 
-    lens: banyan.Banyan, // [!] OPTIC CORE
+    lens: banyan.Banyan, 
     url: []u8,
     status: []const u8,
     scroll_y: usize,
     active: bool,
     philote_map: PhiloteMap,
-    
-    // ASYNC STATE
     current_vector: ?*FlightVector, 
     thread_handle: ?std.Thread,
 
@@ -37,7 +33,7 @@ pub const Hunter = struct {
             .history = .{},
             .history_index = 0,
             .lens = banyan.Banyan.init(allocator),
-            .url = allocator.dupe(u8, "WAITING") catch @panic("HUNTER_INIT_OOM"),
+            .url = allocator.dupe(u8, "WAITING") catch @panic("OOM"),
             .status = "IDLE",
             .scroll_y = 0,
             .active = false,
@@ -46,24 +42,18 @@ pub const Hunter = struct {
             .thread_handle = null,
         };
         self.loadHistory() catch {}; 
-        
-        if (self.history.items.len > 0) {
-            self.navigateHistory(0) catch {};
-        }
         return self;
     }
 
     pub fn deinit(self: *Hunter) void {
         if (self.thread_handle) |t| t.detach(); 
-        
         self.saveHistory() catch {}; 
         self.history.deinit(self.allocator);
-        self.lens.deinit(); // Clean the Lens
+        self.lens.deinit(); 
         self.philote_map.deinit(self.allocator);
-        if (self.url.len > 0) self.allocator.free(self.url);
+        self.allocator.free(self.url);
     }
 
-    // --- HEARTBEAT ---
     pub fn tick(self: *Hunter) !void {
         if (self.current_vector) |vector| {
             if (vector.is_complete) {
@@ -75,7 +65,6 @@ pub const Hunter = struct {
                 } else {
                     self.status = "NO_SIGNAL";
                 }
-                
                 if (self.thread_handle) |t| t.detach();
                 self.thread_handle = null;
                 self.allocator.free(vector.url);
@@ -85,17 +74,65 @@ pub const Hunter = struct {
         }
     }
 
-    // --- EXECUTION (Async) ---
+    // [ MEMO: Save Journal to Artifact ]
+    pub fn createMemo(self: *Hunter, content: []const u8) !void {
+        // Create title
+        var buf: [64]u8 = undefined;
+        const title = try std.fmt.bufPrint(&buf, "memo://{d}", .{std.time.timestamp()});
+        const title_dupe = try self.allocator.dupe(u8, title);
+
+        try self.history.append(self.allocator, title_dupe);
+        self.history_index = self.history.items.len - 1;
+        
+        // Feed text to lens
+        try self.lens.absorb(content);
+        self.status = "MEMO_SAVED";
+        self.active = true;
+        
+        self.allocator.free(self.url);
+        self.url = try self.allocator.dupe(u8, title);
+        
+        self.saveHistory() catch {};
+    }
+
+    pub fn shed(self: *Hunter) void {
+        if (self.history.items.len == 0) return;
+        self.allocator.free(self.history.items[self.history_index]);
+        _ = self.history.orderedRemove(self.history_index);
+        
+        if (self.history.items.len == 0) {
+            self.history_index = 0;
+            self.status = "IDLE";
+            for (self.lens.leaves.items) |*leaf| self.allocator.free(leaf.text);
+            self.lens.leaves.clearRetainingCapacity();
+            self.allocator.free(self.url);
+            self.url = self.allocator.dupe(u8, "WAITING") catch return;
+            self.active = false;
+        } else {
+            if (self.history_index >= self.history.items.len) {
+                self.history_index = self.history.items.len - 1;
+            }
+            self.navigateHistory(0) catch {};
+        }
+        self.saveHistory() catch {};
+    }
+
     fn executeFetch(self: *Hunter, target: []const u8) !void {
         self.active = true;
         self.status = "FETCHING..."; 
         self.scroll_y = 0;
+        
+        if (std.mem.startsWith(u8, target, "memo://")) {
+            self.status = "LOCAL_MEMO";
+            // In future, load from file system if needed.
+            // For now, it assumes the memo is active in RAM if just created.
+            return; 
+        }
 
         const gop = try self.philote_map.getOrPut(self.allocator, target);
         if (!gop.found_existing) gop.value_ptr.* = 0;
         gop.value_ptr.* += 1;
 
-        // Clear Lens Immediately
         for (self.lens.leaves.items) |*leaf| self.allocator.free(leaf.text);
         self.lens.leaves.clearRetainingCapacity();
 
@@ -116,14 +153,12 @@ pub const Hunter = struct {
 
         self.thread_handle = try std.Thread.spawn(.{}, shadowFlight, .{vector});
         
-        if (self.url.len > 0) self.allocator.free(self.url);
+        self.allocator.free(self.url);
         self.url = try self.allocator.dupe(u8, target);
     }
 
-    // --- SHADOW FUNCTION ---
     fn shadowFlight(vector: *FlightVector) void {
         const argv = [_][]const u8{ "curl", "-L", "-s", "-k", vector.url };
-        
         var agent = ExternalAgent.init(&argv, vector.allocator);
         agent.stdout_behavior = .Pipe;
         agent.stderr_behavior = .Ignore;
@@ -137,20 +172,16 @@ pub const Hunter = struct {
                 } else |_| { vector.success = false; }
             }
         } else |_| { vector.success = false; }
-        
         vector.is_complete = true; 
     }
 
-    // --- NAVIGATION ---
     pub fn navigateHistory(self: *Hunter, direction: i32) !void {
         if (self.history.items.len == 0) return;
-
         if (direction < 0) { 
             if (self.history_index > 0) self.history_index -= 1;
         } else if (direction > 0) { 
             if (self.history_index < self.history.items.len - 1) self.history_index += 1;
         }
-        
         self.saveHistory() catch {};
         try self.executeFetch(self.history.items[self.history_index]);
     }
@@ -161,39 +192,11 @@ pub const Hunter = struct {
         self.saveHistory() catch {};
         try self.executeFetch(target);
     }
-    // --- EXPULSION ---
-    pub fn shed(self: *Hunter) void {
-        if (self.history.items.len == 0) return;
-        
-        // Free the memory of the current URL
-        self.allocator.free(self.history.items[self.history_index]);
-        _ = self.history.orderedRemove(self.history_index);
-        
-        if (self.history.items.len == 0) {
-            // Nothing left
-            self.history_index = 0;
-            self.status = "IDLE";
-            for (self.lens.leaves.items) |*leaf| self.allocator.free(leaf.text);
-            self.lens.leaves.clearRetainingCapacity();
-            if (self.url.len > 0) self.allocator.free(self.url);
-            self.url = self.allocator.dupe(u8, "WAITING") catch return;
-        } else {
-            // Shift to previous tab
-            if (self.history_index >= self.history.items.len) {
-                self.history_index = self.history.items.len - 1;
-            }
-            self.navigateHistory(0) catch {};
-        }
-        self.saveHistory() catch {};
-    }
 
-    // --- PARSING ---
     fn parseContent(self: *Hunter, raw: []const u8) !void {
-        // [!] The Banyan Lens absorbs the truth directly
         try self.lens.absorb(raw);
     }
 
-    // --- PERSISTENCE ---
     fn saveHistory(self: *Hunter) !void {
         const file = try std.fs.cwd().createFile("nsible_history.gzl", .{});
         defer file.close();
@@ -218,32 +221,25 @@ pub const Hunter = struct {
         if (self.history.items.len > 0) self.history_index = self.history.items.len - 1;
     }
 
-    // --- RENDER ---
     pub fn render(self: *Hunter, buffer: []u32, width: usize, height: usize) void {
         const start_y = 20; 
         const end_y = height - 20;
 
-        // A. Content (Delegated to the Optic Core)
         self.lens.render(buffer, width, height, self.scroll_y);
 
-        // B. Timeline (Flex/Warp)
+        // Timeline
         const timeline_x = width - 20;
         var t_y: usize = start_y;
-        
         for (self.history.items, 0..) |h_url, idx| {
             if (t_y >= end_y) break;
-            
             var weight_px: usize = 3; 
             if (self.philote_map.get(h_url)) |w| { weight_px += (w * 2); }
             
             var color: u32 = 0x00DC143C; 
             if (idx == self.history_index) {
-                weight_px += 8; // Flex
-                if (std.mem.eql(u8, self.status, "FETCHING...")) {
-                    color = 0x00FFBF00; // Amber Pulse
-                } else {
-                    color = 0x00FFFFFF; // White Lock
-                }
+                weight_px += 8; 
+                if (std.mem.eql(u8, self.status, "FETCHING...")) color = 0x00FFBF00;
+                else color = 0x00FFFFFF;
             }
             if (weight_px > 40) weight_px = 40;
 
@@ -251,22 +247,20 @@ pub const Hunter = struct {
             while (dy < 8) : (dy += 1) { 
                 var dx: usize = 0;
                 while (dx < weight_px) : (dx += 1) {
-                    const screen_x = timeline_x + (18 - dx); 
-                    const screen_y = t_y + dy;
-                    if (screen_x < width and screen_y < height) {
-                        buffer[screen_y * width + screen_x] = color;
-                    }
+                    const sx = timeline_x + (18 - dx); 
+                    const sy = t_y + dy;
+                    if (sx < width and sy < height) buffer[sy * width + sx] = color;
                 }
             }
             t_y += 10;
         }
 
-        // C. Status & Focus Info
+        // Status
         var sx: usize = width - 180;
         const sy: usize = height - 15;
-        
-        var status_buf: [32]u8 = undefined;
+        var status_buf: [64]u8 = undefined;
         const scope_str = switch (self.lens.focus_depth) {
+            0 => "[RAW]",
             1 => "[ZEN]",
             2 => "[MATRIX]",
             3 => "[ROOT]",
@@ -290,9 +284,7 @@ fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8,
             if ((bitmap[y] & (@as(u8, 1) << @intCast(7 - x))) != 0) {
                 const screen_x = px + x;
                 const screen_y = py + y;
-                if (screen_x < w and screen_y < h) {
-                    buf[screen_y * w + screen_x] = color;
-                }
+                if (screen_x < w and screen_y < h) buffer[screen_y * w + screen_x] = color;
             }
         }
     }
