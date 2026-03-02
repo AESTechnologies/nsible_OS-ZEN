@@ -74,9 +74,7 @@ pub const Hunter = struct {
         }
     }
 
-    // [ MEMO: Save Journal to Artifact ]
     pub fn createMemo(self: *Hunter, content: []const u8) !void {
-        // Create title
         var buf: [64]u8 = undefined;
         const title = try std.fmt.bufPrint(&buf, "memo://{d}", .{std.time.timestamp()});
         const title_dupe = try self.allocator.dupe(u8, title);
@@ -84,7 +82,6 @@ pub const Hunter = struct {
         try self.history.append(self.allocator, title_dupe);
         self.history_index = self.history.items.len - 1;
         
-        // Feed text to lens
         try self.lens.absorb(content);
         self.status = "MEMO_SAVED";
         self.active = true;
@@ -124,8 +121,6 @@ pub const Hunter = struct {
         
         if (std.mem.startsWith(u8, target, "memo://")) {
             self.status = "LOCAL_MEMO";
-            // In future, load from file system if needed.
-            // For now, it assumes the memo is active in RAM if just created.
             return; 
         }
 
@@ -227,7 +222,6 @@ pub const Hunter = struct {
 
         self.lens.render(buffer, width, height, self.scroll_y);
 
-        // Timeline
         const timeline_x = width - 20;
         var t_y: usize = start_y;
         for (self.history.items, 0..) |h_url, idx| {
@@ -238,8 +232,12 @@ pub const Hunter = struct {
             var color: u32 = 0x00DC143C; 
             if (idx == self.history_index) {
                 weight_px += 8; 
-                if (std.mem.eql(u8, self.status, "FETCHING...")) color = 0x00FFBF00;
-                else color = 0x00FFFFFF;
+                // [!] SYNTAX FIX: Braces enforced
+                if (std.mem.eql(u8, self.status, "FETCHING...")) {
+                    color = 0x00FFBF00;
+                } else {
+                    color = 0x00FFFFFF;
+                }
             }
             if (weight_px > 40) weight_px = 40;
 
@@ -255,7 +253,6 @@ pub const Hunter = struct {
             t_y += 10;
         }
 
-        // Status
         var sx: usize = width - 180;
         const sy: usize = height - 15;
         var status_buf: [64]u8 = undefined;
