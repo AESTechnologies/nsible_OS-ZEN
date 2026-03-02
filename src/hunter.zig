@@ -15,7 +15,10 @@ const FlightVector = struct {
 };
 
 pub const Hunter = struct {
-    allocator: std.mem.Allocator,
+    // [!] DUAL LOBES
+    allocator: std.mem.Allocator,        // THE VOID (Persistent)
+    sap_fba: *std.heap.FixedBufferAllocator, // THE SAP (Volatile)
+    
     history: StringList,
     history_index: usize, 
     lens: banyan.Banyan, 
@@ -27,13 +30,15 @@ pub const Hunter = struct {
     current_vector: ?*FlightVector, 
     thread_handle: ?std.Thread,
 
-    pub fn init(allocator: std.mem.Allocator) Hunter {
+    pub fn init(perm_allocator: std.mem.Allocator, sap_fba: *std.heap.FixedBufferAllocator) Hunter {
         var self = Hunter{
-            .allocator = allocator,
+            .allocator = perm_allocator,
+            .sap_fba = sap_fba,
             .history = .{},
             .history_index = 0,
-            .lens = banyan.Banyan.init(allocator),
-            .url = allocator.dupe(u8, "WAITING") catch @panic("OOM"),
+            // Lens uses the Sap
+            .lens = banyan.Banyan.init(sap_fba.allocator()),
+            .url = perm_allocator.dupe(u8, "WAITING") catch @panic("OOM_INIT"),
             .status = "IDLE",
             .scroll_y = 0,
             .active = false,
@@ -59,6 +64,7 @@ pub const Hunter = struct {
             if (vector.is_complete) {
                 if (vector.success and vector.result_payload != null) {
                     const body = vector.result_payload.?;
+                    // Body is in Void (Vector created it). Free it after parsing to recycle Void space.
                     defer self.allocator.free(body); 
                     try self.parseContent(body);
                     self.status = "LOCKED";
@@ -82,13 +88,14 @@ pub const Hunter = struct {
         try self.history.append(self.allocator, title_dupe);
         self.history_index = self.history.items.len - 1;
         
-        try self.lens.absorb(content);
+        // Memos are rendered in the Sap (volatile)
+        try self.parseContent(content);
+        
         self.status = "MEMO_SAVED";
         self.active = true;
         
         self.allocator.free(self.url);
         self.url = try self.allocator.dupe(u8, title);
-        
         self.saveHistory() catch {};
     }
 
@@ -100,8 +107,11 @@ pub const Hunter = struct {
         if (self.history.items.len == 0) {
             self.history_index = 0;
             self.status = "IDLE";
-            for (self.lens.leaves.items) |*leaf| self.allocator.free(leaf.text);
-            self.lens.leaves.clearRetainingCapacity();
+            
+            // [!] WIPE THE SAP
+            self.sap_fba.reset();
+            self.lens = banyan.Banyan.init(self.sap_fba.allocator());
+            
             self.allocator.free(self.url);
             self.url = self.allocator.dupe(u8, "WAITING") catch return;
             self.active = false;
@@ -128,12 +138,9 @@ pub const Hunter = struct {
         if (!gop.found_existing) gop.value_ptr.* = 0;
         gop.value_ptr.* += 1;
 
-        for (self.lens.leaves.items) |*leaf| self.allocator.free(leaf.text);
-        self.lens.leaves.clearRetainingCapacity();
-
         if (self.current_vector) |_| {
              if (self.thread_handle) |t| t.detach();
-             self.current_vector = null; 
+             self.current_vector = null;
         }
 
         const vector = try self.allocator.create(FlightVector);
@@ -167,7 +174,7 @@ pub const Hunter = struct {
                 } else |_| { vector.success = false; }
             }
         } else |_| { vector.success = false; }
-        vector.is_complete = true; 
+        vector.is_complete = true;
     }
 
     pub fn navigateHistory(self: *Hunter, direction: i32) !void {
@@ -189,11 +196,20 @@ pub const Hunter = struct {
     }
 
     fn parseContent(self: *Hunter, raw: []const u8) !void {
+        // [!] THE WIPE CYCLE
+        // 1. Reset the Sap (Foreign Matter)
+        self.sap_fba.reset();
+        
+        // 2. Re-Init Lens on the fresh Sap
+        self.lens = banyan.Banyan.init(self.sap_fba.allocator());
+        
+        // 3. Absorb
         try self.lens.absorb(raw);
     }
 
     fn saveHistory(self: *Hunter) !void {
-        const file = try std.fs.cwd().createFile("nsible_history.gzl", .{});
+        // [!] PERSISTENCE: aiua.tome
+        const file = try std.fs.cwd().createFile("aiua.tome", .{});
         defer file.close();
         for (self.history.items) |entry| {
             try file.writeAll(entry);
@@ -202,7 +218,7 @@ pub const Hunter = struct {
     }
 
     fn loadHistory(self: *Hunter) !void {
-        const file = std.fs.cwd().openFile("nsible_history.gzl", .{}) catch return;
+        const file = std.fs.cwd().openFile("aiua.tome", .{}) catch return;
         defer file.close();
         const content = file.readToEndAlloc(self.allocator, 1024 * 1024) catch return;
         defer self.allocator.free(content);
@@ -217,7 +233,7 @@ pub const Hunter = struct {
     }
 
     pub fn render(self: *Hunter, buffer: []u32, width: usize, height: usize) void {
-        const start_y = 20; 
+        const start_y = 20;
         const end_y = height - 20;
 
         self.lens.render(buffer, width, height, self.scroll_y);
@@ -229,10 +245,9 @@ pub const Hunter = struct {
             var weight_px: usize = 3; 
             if (self.philote_map.get(h_url)) |w| { weight_px += (w * 2); }
             
-            var color: u32 = 0x00DC143C; 
+            var color: u32 = 0x00DC143C;
             if (idx == self.history_index) {
-                weight_px += 8; 
-                // [!] SYNTAX FIX: Braces enforced
+                weight_px += 8;
                 if (std.mem.eql(u8, self.status, "FETCHING...")) {
                     color = 0x00FFBF00;
                 } else {
@@ -240,12 +255,11 @@ pub const Hunter = struct {
                 }
             }
             if (weight_px > 40) weight_px = 40;
-
             var dy: usize = 0;
             while (dy < 8) : (dy += 1) { 
                 var dx: usize = 0;
                 while (dx < weight_px) : (dx += 1) {
-                    const sx = timeline_x + (18 - dx); 
+                    const sx = timeline_x + (18 - dx);
                     const sy = t_y + dy;
                     if (sx < width and sy < height) buffer[sy * width + sx] = color;
                 }
