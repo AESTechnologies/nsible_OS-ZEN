@@ -1,12 +1,14 @@
 #!/bin/sh
  
-# [ SOVEREIGN ENTRY ]
-# Usage: ./nsible [sync]
+# [ SOVEREIGN ENTRY :: ziGGit Control ]
+# Directives: sync, log, purge, orbit
+
+cmd="${1:-sync}" # Defaults to sync if no argument provided
  
-if [ "$1" = "sync" ]; then
-    echo "[ @NSIBLE :: UMBILICAL SYNC ]"
+if [ "$cmd" = "sync" ]; then
+    echo "[ @NSIBLE :: @://ziG.Git.pLink/... ]"
  
-    # 1. CHECK FOR LOCAL DIVERGENCE (Dirty State)
+    # 1. CHECK FOR LOCAL DIVERGENCE
     if [ -n "$(git status --porcelain)" ]; then
         echo "[ ! ] LOCAL DIVERGENCE DETECTED"
         echo "      Files on this vessel have been modified."
@@ -43,12 +45,11 @@ if [ "$1" = "sync" ]; then
                 git reset --hard origin/zen
                 ;;
             *)
-                echo "[ SYNC ABORTED ]"
+                echo "[ pLINK ABORTED ]"
                 exit 1
                 ;;
         esac
     else
-        # Clean state, standard pull
         git pull --no-edit origin zen
     fi
     
@@ -59,20 +60,38 @@ if [ "$1" = "sync" ]; then
         
         if [ $? -eq 0 ]; then
             echo "[ REBIRTH ]"
-            # Success: Fall through to launch
+            sudo ./zig-out/bin/nsible_os
         else
             echo "[ ! ] BUILD FAILED. ABORTING."
             exit 1
         fi
     else
-        echo "[ ! ] SYNC FAILED."
+        echo "[ ! ] pLINK FAILED."
         exit 1
     fi
-fi
- 
-# [ LAUNCH SEQUENCE ]
-if [ -f "./zig-out/bin/nsible_os" ]; then
-    sudo ./zig-out/bin/nsible_os
+
+elif [ "$cmd" = "log" ]; then
+    echo "[ @NSIBLE :: BLACK BOX ARCHIVE ]"
+    if [ -f "trail.tome" ]; then
+        cat trail.tome
+    else
+        echo "   :: The Void is quiet. No fatal traces found."
+    fi
+
+elif [ "$cmd" = "purge" ]; then
+    echo "[ @NSIBLE :: INITIATING DEEP PURGE ]"
+    rm -rf zig-cache zig-out trail.tome
+    echo "   :: Compiler caches and Black Box cleared."
+
+elif [ "$cmd" = "orbit" ]; then
+    echo "[ @NSIBLE :: OFFLINE ORBIT ]"
+    if [ -f "./zig-out/bin/nsible_os" ]; then
+        sudo ./zig-out/bin/nsible_os
+    else
+        echo "[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST."
+    fi
+
 else
-    echo "[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST."
+    echo "Unknown directive: $cmd"
+    echo "Usage: ./nsible [sync | log | purge | orbit]"
 fi
