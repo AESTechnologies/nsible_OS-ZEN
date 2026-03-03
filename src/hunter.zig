@@ -77,6 +77,7 @@ pub const Hunter = struct {
         }
     }
 
+    // [!] UPDATED: Semantic Auto-Wrapper implementation
     pub fn createMemo(self: *Hunter, content: []const u8) !void {
         var buf: [64]u8 = undefined;
         const ts = std.time.timestamp();
@@ -86,14 +87,25 @@ pub const Hunter = struct {
         try self.history.append(self.allocator, title_dupe);
         self.history_index = self.history.items.len - 1;
         
+        // SEMANTIC AUTO-WRAPPER: Mathematical Inference
+        var final_content: []const u8 = content;
+        var auto_wrapped: ?[]u8 = null;
+        
+        if (std.mem.indexOf(u8, content, "<") == null) {
+            auto_wrapped = try std.fmt.allocPrint(self.allocator, "<p>{s}</p>", .{content});
+            final_content = auto_wrapped.?;
+        }
+
         var filename_buf: [64]u8 = undefined;
         const filename = try std.fmt.bufPrint(&filename_buf, "memo_{d}.memo", .{ts});
         if (std.fs.cwd().createFile(filename, .{})) |file| {
-            try file.writeAll(content);
+            try file.writeAll(final_content);
             file.close();
         } else |_| {}
 
-        try self.parseContent(content);
+        try self.parseContent(final_content);
+        
+        if (auto_wrapped) |w| self.allocator.free(w);
         
         self.status = "MEMO_SAVED";
         self.active = true;
@@ -258,6 +270,7 @@ pub const Hunter = struct {
 
         self.lens.render(buffer, width, height, self.scroll_y);
 
+        const timeline_x = width - 20;
         var t_y: usize = start_y;
         for (self.history.items, 0..) |h_url, idx| {
             if (t_y >= end_y) break;
@@ -279,8 +292,7 @@ pub const Hunter = struct {
             while (dy < 8) : (dy += 1) { 
                 var dx: usize = 0;
                 while (dx < weight_px) : (dx += 1) {
-                    // [!] INTEGER OVERFLOW FIX: Math anchors to the right edge and subtracts inward.
-                    const sx = (width - 10) - dx;
+                    const sx = (timeline_x + 18) - dx; 
                     const sy = t_y + dy;
                     if (sx < width and sy < height) buffer[sy * width + sx] = color;
                 }
