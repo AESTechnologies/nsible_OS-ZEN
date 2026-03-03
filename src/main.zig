@@ -241,6 +241,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
 
     // 5. Strike the Resonator File
+    // [!] SYNTAX FIX: Appended 'else |_| {}' to handle the error union
     if (std.fs.cwd().createFile("resonator.raw", .{})) |file| {
         file.writeAll(pcm) catch {};
         file.close();
@@ -251,7 +252,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         agent.stdout_behavior = .Ignore;
         agent.stderr_behavior = .Ignore;
         _ = agent.spawn() catch {};
-    }
+    } else |_| {} 
     
     // [!] CALIBRATED TIMING: Hold frame for exactly 0.00316 cycles (~8 seconds) while audio plays
     codex.zen(0.00316); 
