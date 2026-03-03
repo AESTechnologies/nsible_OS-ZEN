@@ -174,7 +174,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     // 1. Establish State Seed
     var state_seed: usize = 42;
     if (std.fs.cwd().statFile("aiua.tome")) |stat| {
-        state_seed = stat.size;
+        state_seed = @as(usize, @intCast(stat.size));
     } else |_| {}
 
     // 2. Prepare 8-bit PCM Output Buffer (8000 Hz for ~8 seconds)
