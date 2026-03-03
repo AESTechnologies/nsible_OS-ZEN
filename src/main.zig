@@ -177,9 +177,9 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         state_seed = @as(usize, @intCast(stat.size));
     } else |_| {}
 
-    // 2. Prepare 8-bit PCM Output Buffer (8000 Hz for ~8 seconds)
+    // 2. Prepare 8-bit PCM Output Buffer (8000 Hz for ~4 seconds)
     const sample_rate = 8000;
-    const buffer_size = 64000; 
+    const buffer_size = 32000; // Adjusted buffer down slightly to match the faster execution speed naturally
     var pcm = allocator.alloc(u8, buffer_size) catch return;
     defer allocator.free(pcm);
 
@@ -207,7 +207,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
             freq = 800.0 + @as(f32, @floatFromInt(state_seed % 100));
         }
         
-        const chunk_size = 941; // Samples per visual rendering step
+        const chunk_size = 470; // Adjusted samples per visual rendering step for the 2x speedup
         var chunk: usize = 0;
         
         while (chunk < chunk_size and sample_idx < buffer_size) : (chunk += 1) {
@@ -241,7 +241,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
 
     // 5. Strike the Resonator File
-    // [!] SYNTAX FIX: Appended 'else |_| {}' to handle the error union
     if (std.fs.cwd().createFile("resonator.raw", .{})) |file| {
         file.writeAll(pcm) catch {};
         file.close();
@@ -254,8 +253,8 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         _ = agent.spawn() catch {};
     } else |_| {} 
     
-    // [!] CALIBRATED TIMING: Hold frame for exactly 0.00316 cycles (~8 seconds) while audio plays
-    codex.zen(0.00316); 
+    // [!] CALIBRATED TIMING: Hold frame for exactly 0.00158 cycles (~4 seconds) while audio plays
+    codex.zen(0.00158); 
 }
 
 // --- MAIN ENTRY ---
