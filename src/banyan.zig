@@ -7,7 +7,7 @@ const COL_TEXT_DIM  = 0x00444444; // Dark Grey (Receded)
 const COL_TAG       = 0x00555555; // Dim Grey (Structure)
 const COL_LINK      = 0x00DC143C; // Crimson (Flow)
 const COL_ROOT      = 0x00FFBF00; // Brass (Machine Logic)
-const COL_DELIM     = 0x00FFBF00; // Brass (Delimiters - Safe Color)
+const COL_DELIM     = 0x00FFBF00; // Brass (Delimiters)
 
 pub const HarvestType = enum { TEXT, LINK, MEDIA, SCRIPT, STRUCT, BREAK, DELIM, RAW };
 
@@ -50,16 +50,24 @@ pub const Banyan = struct {
         var i: usize = 0;
         var start: usize = 0;
         var in_tag = false;
+        
+        // [!] STATE MACHINE: Track when we are inside machine-logic blocks
+        var in_script = false;
+        var in_style = false;
+
         while (i < raw.len) {
             const c = raw[i];
             
-            // 1. DELIMITER CHECK (Outside tags)
+            // 1. DELIMITER CHECK
             if (!in_tag and isDelim(c)) {
-                if (i > start) try self.addLeaf(raw[start..i], .TEXT, 1, false);
-                try self.addLeaf(raw[i..i+1], .DELIM, 1, false);
+                if (i > start) {
+                    const layer: u8 = if (in_script or in_style) 3 else 1;
+                    const hType: HarvestType = if (in_script or in_style) .SCRIPT else .TEXT;
+                    try self.addLeaf(raw[start..i], hType, layer, false);
+                }
+                const delimLayer: u8 = if (in_script or in_style) 3 else 1;
+                try self.addLeaf(raw[i..i+1], .DELIM, delimLayer, false);
                 
-                // [!] BUG FIX: The Infinite Loop Trap.
-                // We must increment the index before continuing, or we stall forever.
                 i += 1;
                 start = i;
                 continue;
@@ -67,7 +75,11 @@ pub const Banyan = struct {
 
             // 2. TAG START
             if (c == '<') {
-                if (i > start) try self.addLeaf(raw[start..i], .TEXT, 1, false);
+                if (i > start) {
+                    const layer: u8 = if (in_script or in_style) 3 else 1;
+                    const hType: HarvestType = if (in_script or in_style) .SCRIPT else .TEXT;
+                    try self.addLeaf(raw[start..i], hType, layer, false);
+                }
                 start = i;
                 in_tag = true;
             }
@@ -75,22 +87,27 @@ pub const Banyan = struct {
             else if (in_tag and c == '>') {
                 var h_type: HarvestType = .STRUCT;
                 var layer: u8 = 2; // Matrix
+                const tag_slice = raw[start..i+1];
 
-                if (contains(raw[start..i+1], "<script") or contains(raw[start..i+1], "<style")) {
+                // [!] TOGGLE STATE MACHINE
+                if (contains(tag_slice, "<script")) in_script = true;
+                if (contains(tag_slice, "</script")) in_script = false;
+                if (contains(tag_slice, "<style")) in_style = true;
+                if (contains(tag_slice, "</style")) in_style = false;
+
+                if (contains(tag_slice, "<script") or contains(tag_slice, "<style")) {
                     h_type = .SCRIPT;
                     layer = 3;
-                } else if (contains(raw[start..i+1], "href=")) {
+                } else if (contains(tag_slice, "href=")) {
                     h_type = .LINK;
                 }
 
-                // Add the tag (Hidden in Zen)
-                try self.addLeaf(raw[start..i+1], h_type, layer, false);
+                try self.addLeaf(tag_slice, h_type, layer, false);
                 
-                // [!] HARD BREAK LOGIC (Prevent Wall of Text)
-                if (isBlockTag(raw[start..i+1])) {
+                // [!] HARD BREAK LOGIC (Now includes <li> and <p> explicitly)
+                if (isBlockTag(tag_slice) and !in_script and !in_style) {
                     try self.addLeaf("", .BREAK, 1, true);
-                    // Double break for paragraphs
-                    if (contains(raw[start..i+1], "<p") or contains(raw[start..i+1], "</p")) {
+                    if (contains(tag_slice, "<p") or contains(tag_slice, "</p") or contains(tag_slice, "<li") or contains(tag_slice, "</li")) {
                          try self.addLeaf("", .BREAK, 1, true);
                     }
                 }
@@ -101,7 +118,13 @@ pub const Banyan = struct {
             
             i += 1;
         }
-        if (i > start) try self.addLeaf(raw[start..i], .TEXT, 1, false);
+        
+        // Final flush
+        if (i > start) {
+            const layer: u8 = if (in_script or in_style) 3 else 1;
+            const hType: HarvestType = if (in_script or in_style) .SCRIPT else .TEXT;
+            try self.addLeaf(raw[start..i], hType, layer, false);
+        }
     }
 
     fn isDelim(c: u8) bool {
@@ -111,7 +134,6 @@ pub const Banyan = struct {
     fn addLeaf(self: *Banyan, text: []const u8, h_type: HarvestType, layer: u8, is_newline: bool) !void {
         if (text.len == 0 and !is_newline) return;
         
-        // In Zen (Layer 1), compress whitespace. In Raw/Matrix, keep it.
         var final: []u8 = undefined;
         if (layer == 1 and !is_newline and h_type == .TEXT) {
              final = try compressWhitespace(self.allocator, text);
@@ -130,9 +152,13 @@ pub const Banyan = struct {
 
     fn isBlockTag(tag: []const u8) bool {
         if (contains(tag, "<br")) return true;
+        if (contains(tag, "<p")) return true;
         if (contains(tag, "</p")) return true;
+        if (contains(tag, "<div")) return true;
         if (contains(tag, "</div")) return true;
+        if (contains(tag, "<li")) return true;
         if (contains(tag, "</li")) return true;
+        if (contains(tag, "<h")) return true;
         if (contains(tag, "</h")) return true;
         return false;
     }
@@ -176,23 +202,18 @@ pub const Banyan = struct {
 
             var color: u32 = COL_TEXT_HIGH;
             
-            // [!] STRUCTURAL COLORING
             if (self.focus_depth == 0) {
-                // RAW: Tags visible
                 if (leaf.layer > 1) color = COL_TAG;
                 if (leaf.h_type == .DELIM) color = COL_DELIM;
             } else if (self.focus_depth == 3) {
-                // ROOT: Highlighting Scripts
                 if (leaf.layer == 1) color = COL_TEXT_DIM;
                 if (leaf.layer == 3) color = COL_ROOT;
                 if (leaf.layer == 2) color = COL_TAG;
             } else if (self.focus_depth == 2) {
-                // MATRIX: Show Tags
                 if (leaf.layer == 2) color = COL_TAG;
                 if (leaf.h_type == .LINK) color = COL_LINK;
                 if (leaf.h_type == .DELIM) color = COL_DELIM;
             } else {
-                // ZEN: Clean
                 if (leaf.h_type == .LINK) color = COL_LINK;
                 if (leaf.h_type == .DELIM) color = COL_DELIM;
             }
