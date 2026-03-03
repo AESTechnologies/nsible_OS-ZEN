@@ -143,6 +143,27 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     drawChar(cursor_x, cursor_y, 0xDB, 0x00000000);
 }
 
+// [!] EXIT SEQUENCE (Matrix & Stamp)
+fn exitSequence() noreturn {
+    // 1. Blackout
+    clear(0x00000000);
+    
+    // 2. HighClaw Stamp [Bottom Right Marker]
+    const stamp_x = WIDTH - 24;
+    const stamp_y = HEIGHT - 16;
+    drawChar(stamp_x, stamp_y, 127, 0x00DC143C); // 高
+    drawChar(stamp_x + 8, stamp_y, 128, 0x00DC143C); // 爪
+    
+    // 3. Flush to screen
+    @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
+    
+    // 4. Clean Host TTY (ANSI: Clear Screen, Home Cursor, Show Cursor)
+    const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
+    _ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
+    
+    std.process.exit(0);
+}
+
 // [!] IGNITION SEQUENCE & AUDIO RESONATOR
 fn bootSplash(allocator: std.mem.Allocator) void {
     clear(0x00000000);
@@ -295,7 +316,7 @@ pub fn main() !void {
             var reflex_triggered = false;
 
             if (std.mem.eql(u8, &seq_buf, ".!XX-.")) {
-                std.process.exit(0);
+                exitSequence(); // [!] CLEAN MATRIX TERMINATION
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) {
                 sys_hunter.lens.shiftScope(1);
@@ -345,7 +366,7 @@ pub fn main() !void {
                         const response = cortex.dispatch(cmd_slice);
                         switch (response.action) {
                             .CLEAR => {}, 
-                            .EXIT => std.process.exit(0),
+                            .EXIT => exitSequence(), // [!] CLEAN MATRIX TERMINATION
                             .SHED => { sys_hunter.shed(); journal_len = 0; },
                             .SCOPE_IN => { sys_hunter.lens.shiftScope(1); journal_len = 0; },
                             .SCOPE_OUT => { sys_hunter.lens.shiftScope(-1); journal_len = 0; },
