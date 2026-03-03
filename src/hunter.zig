@@ -79,12 +79,21 @@ pub const Hunter = struct {
 
     pub fn createMemo(self: *Hunter, content: []const u8) !void {
         var buf: [64]u8 = undefined;
-        const title = try std.fmt.bufPrint(&buf, "memo://{d}", .{std.time.timestamp()});
+        const ts = std.time.timestamp();
+        const title = try std.fmt.bufPrint(&buf, "memo://{d}", .{ts});
         const title_dupe = try self.allocator.dupe(u8, title);
 
         try self.history.append(self.allocator, title_dupe);
         self.history_index = self.history.items.len - 1;
         
+        // [!] IMMORTAL ARTIFACTS: Forge the memo to physical disk.
+        var filename_buf: [64]u8 = undefined;
+        const filename = try std.fmt.bufPrint(&filename_buf, "memo_{d}.memo", .{ts});
+        if (std.fs.cwd().createFile(filename, .{})) |file| {
+            try file.writeAll(content);
+            file.close();
+        } else |_| {}
+
         try self.parseContent(content);
         
         self.status = "MEMO_SAVED";
@@ -126,6 +135,31 @@ pub const Hunter = struct {
         
         if (std.mem.startsWith(u8, target, "memo://")) {
             self.status = "LOCAL_MEMO";
+            const ts_str = target[7..];
+            
+            var filename_buf: [64]u8 = undefined;
+            const filename = std.fmt.bufPrint(&filename_buf, "memo_{s}.memo", .{ts_str}) catch return;
+
+            // [!] RETRIEVE ARTIFACT: Bypass network, pull straight from disk into the Void temporarily.
+            if (std.fs.cwd().openFile(filename, .{})) |file| {
+                if (file.readToEndAlloc(self.allocator, 1024 * 1024)) |body| {
+                    self.parseContent(body) catch {};
+                    self.allocator.free(body); // Free LIFO space, Sap handles the rendering.
+                } else |_| {
+                    self.status = "MEMO_LOST";
+                }
+                file.close();
+            } else |_| {
+                self.status = "MEMO_LOST";
+            }
+
+            if (self.current_vector) |_| {
+                 if (self.thread_handle) |t| t.detach();
+                 self.current_vector = null;
+            }
+            self.allocator.free(self.url);
+            self.url = self.allocator.dupe(u8, target) catch return;
+
             return; 
         }
 
