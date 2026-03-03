@@ -104,7 +104,14 @@ pub const Banyan = struct {
 
                 try self.addLeaf(tag_slice, h_type, layer, false);
                 
-                // [!] HARD BREAK LOGIC (Now includes <li> and <p> explicitly)
+                // [!] BANYSANG: Visual Markers for Lists and Headers in Zen mode
+                if (contains(tag_slice, "<li")) {
+                    try self.addLeaf(" > ", .TEXT, 1, false);
+                } else if (contains(tag_slice, "<h1") or contains(tag_slice, "<h2") or contains(tag_slice, "<h3")) {
+                    try self.addLeaf(" # ", .TEXT, 1, false);
+                }
+
+                // [!] HARD BREAK LOGIC (Includes <li> and <p> explicitly)
                 if (isBlockTag(tag_slice) and !in_script and !in_style) {
                     try self.addLeaf("", .BREAK, 1, true);
                     if (contains(tag_slice, "<p") or contains(tag_slice, "</p") or contains(tag_slice, "<li") or contains(tag_slice, "</li")) {
@@ -178,13 +185,12 @@ pub const Banyan = struct {
         return out.toOwnedSlice(allocator);
     }
 
-    // [ RENDER ] 
+    // [!] RENDER (UPDATED: Character-level wrap and perfect virtual row scrolling)
     pub fn render(self: *Banyan, buffer: []u32, width: usize, height: usize, scroll_y: usize) void {
         const start_y = 20;
         const line_h = 10;
         const max_lines = (height - 40) / line_h;
         
-        var screen_row: usize = 0;
         var cursor_x: usize = 10;
         var virtual_row: usize = 0;
 
@@ -194,14 +200,13 @@ pub const Banyan = struct {
             
             if (leaf.is_newline) {
                 virtual_row += 1;
-                cursor_x = 10; continue;
+                cursor_x = 10; 
+                continue;
             }
-
-            if (virtual_row < scroll_y) continue;
-            if (screen_row >= max_lines) break;
 
             var color: u32 = COL_TEXT_HIGH;
             
+            // [!] STRUCTURAL COLORING
             if (self.focus_depth == 0) {
                 if (leaf.layer > 1) color = COL_TAG;
                 if (leaf.h_type == .DELIM) color = COL_DELIM;
@@ -218,14 +223,21 @@ pub const Banyan = struct {
                 if (leaf.h_type == .DELIM) color = COL_DELIM;
             }
 
-            const py = start_y + (screen_row * line_h);
             for (leaf.text) |c| {
+                // Wrap logic: Carriage return if we hit the right margin
                 if (cursor_x >= width - 20) {
-                    screen_row += 1;
-                    virtual_row += 1; cursor_x = 10;
-                    if (screen_row >= max_lines) break;
+                    virtual_row += 1;
+                    cursor_x = 10;
                 }
-                drawCharToBuf(buffer, width, height, cursor_x, py, c, color);
+
+                // Pixel-perfect drawing: Only render if character's virtual row is visible
+                if (virtual_row >= scroll_y) {
+                    const screen_row = virtual_row - scroll_y;
+                    if (screen_row >= max_lines) break; 
+                    
+                    const py = start_y + (screen_row * line_h);
+                    drawCharToBuf(buffer, width, height, cursor_x, py, c, color);
+                }
                 cursor_x += 8;
             }
         }
