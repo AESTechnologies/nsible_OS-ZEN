@@ -86,7 +86,6 @@ pub const Hunter = struct {
         try self.history.append(self.allocator, title_dupe);
         self.history_index = self.history.items.len - 1;
         
-        // [!] IMMORTAL ARTIFACTS: Forge the memo to physical disk.
         var filename_buf: [64]u8 = undefined;
         const filename = try std.fmt.bufPrint(&filename_buf, "memo_{d}.memo", .{ts});
         if (std.fs.cwd().createFile(filename, .{})) |file| {
@@ -140,11 +139,10 @@ pub const Hunter = struct {
             var filename_buf: [64]u8 = undefined;
             const filename = std.fmt.bufPrint(&filename_buf, "memo_{s}.memo", .{ts_str}) catch return;
 
-            // [!] RETRIEVE ARTIFACT: Bypass network, pull straight from disk into the Void temporarily.
             if (std.fs.cwd().openFile(filename, .{})) |file| {
                 if (file.readToEndAlloc(self.allocator, 1024 * 1024)) |body| {
                     self.parseContent(body) catch {};
-                    self.allocator.free(body); // Free LIFO space, Sap handles the rendering.
+                    self.allocator.free(body); 
                 } else |_| {
                     self.status = "MEMO_LOST";
                 }
@@ -260,7 +258,6 @@ pub const Hunter = struct {
 
         self.lens.render(buffer, width, height, self.scroll_y);
 
-        const timeline_x = width - 20;
         var t_y: usize = start_y;
         for (self.history.items, 0..) |h_url, idx| {
             if (t_y >= end_y) break;
@@ -277,11 +274,13 @@ pub const Hunter = struct {
                 }
             }
             if (weight_px > 40) weight_px = 40;
+            
             var dy: usize = 0;
             while (dy < 8) : (dy += 1) { 
                 var dx: usize = 0;
                 while (dx < weight_px) : (dx += 1) {
-                    const sx = timeline_x + (18 - dx);
+                    // [!] INTEGER OVERFLOW FIX: Math anchors to the right edge and subtracts inward.
+                    const sx = (width - 10) - dx;
                     const sy = t_y + dy;
                     if (sx < width and sy < height) buffer[sy * width + sx] = color;
                 }
