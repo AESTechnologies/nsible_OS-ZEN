@@ -28,14 +28,14 @@ var sap_buffer: [SAP_SIZE]u8 = undefined;
 var fb_pixels: []u32 = undefined;
 var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
 
+// [!] THE BLACK BOX FILE DESCRIPTOR
+var panic_fd: i32 = -1;
+
 // .-*-. BLACK BOX RECORDER (PANIC HANDLER) .-*-.
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
-    // [!] SOVEREIGN BOOTSTRAP: Use native FS to forge the log, completely bypassing raw flag structures.
-    if (std.fs.cwd().createFile("trail.tome", .{})) |file| {
-        const fd: i32 = file.handle;
-        
-        // Redirect STDERR (2) to our successfully forged file
-        _ = linux.syscall2(.dup2, @as(usize, @bitCast(fd)), 2);
+    // Rely exclusively on the pre-opened file descriptor. Zero filesystem overhead.
+    if (panic_fd >= 0) {
+        _ = linux.syscall2(.dup2, @as(usize, @bitCast(panic_fd)), 2);
         
         const header = "\n[ @NSIBLE FATAL EXCEPTION ]\n";
         _ = linux.syscall3(.write, 2, @intFromPtr(header), header.len);
@@ -51,8 +51,7 @@ pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize)
         } else {
             std.debug.dumpCurrentStackTrace(ret_addr);
         }
-        file.close();
-    } else |_| {}
+    }
 
     var blink: bool = true;
     while (true) {
@@ -154,9 +153,11 @@ pub fn main() !void {
     if (fs.access("aiua.tome", .{})) |_| {} else |_| {
         if (fs.createFile("aiua.tome", .{})) |f| { f.close(); } else |_| {}
     }
-    if (fs.access("trail.tome", .{})) |_| {} else |_| {
-        if (fs.createFile("trail.tome", .{})) |f| { f.close(); } else |_| {}
-    }
+    
+    // [!] OPEN THE BLACK BOX PERMANENTLY
+    if (fs.createFile("trail.tome", .{})) |f| {
+        panic_fd = f.handle;
+    } else |_| {}
 
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
     _ = linux.syscall5(.mount, @intFromPtr("sysfs"), @intFromPtr("/sys"), @intFromPtr("sysfs"), 0, 0);
