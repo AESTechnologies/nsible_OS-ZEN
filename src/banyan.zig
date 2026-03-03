@@ -50,7 +50,6 @@ pub const Banyan = struct {
         var i: usize = 0;
         var start: usize = 0;
         var in_tag = false;
-        
         while (i < raw.len) {
             const c = raw[i];
             
@@ -58,7 +57,11 @@ pub const Banyan = struct {
             if (!in_tag and isDelim(c)) {
                 if (i > start) try self.addLeaf(raw[start..i], .TEXT, 1, false);
                 try self.addLeaf(raw[i..i+1], .DELIM, 1, false);
-                start = i + 1;
+                
+                // [!] BUG FIX: The Infinite Loop Trap.
+                // We must increment the index before continuing, or we stall forever.
+                i += 1;
+                start = i;
                 continue;
             }
 
@@ -139,9 +142,11 @@ pub const Banyan = struct {
         var last_space = false;
         for (input) |c| {
             if (c == ' ' or c == '\n' or c == '\r' or c == '\t') {
-                if (!last_space) { out.appendAssumeCapacity(' '); last_space = true; }
+                if (!last_space) { out.appendAssumeCapacity(' ');
+                last_space = true; }
             } else {
-                out.appendAssumeCapacity(c); last_space = false;
+                out.appendAssumeCapacity(c);
+                last_space = false;
             }
         }
         return out.toOwnedSlice(allocator);
@@ -160,9 +165,10 @@ pub const Banyan = struct {
         for (self.leaves.items) |leaf| {
             // [!] SCOPE FILTER
             if (self.focus_depth > 0 and leaf.layer > self.focus_depth) continue;
-
+            
             if (leaf.is_newline) {
-                virtual_row += 1; cursor_x = 10; continue;
+                virtual_row += 1;
+                cursor_x = 10; continue;
             }
 
             if (virtual_row < scroll_y) continue;
@@ -194,7 +200,8 @@ pub const Banyan = struct {
             const py = start_y + (screen_row * line_h);
             for (leaf.text) |c| {
                 if (cursor_x >= width - 20) {
-                    screen_row += 1; virtual_row += 1; cursor_x = 10;
+                    screen_row += 1;
+                    virtual_row += 1; cursor_x = 10;
                     if (screen_row >= max_lines) break;
                 }
                 drawCharToBuf(buffer, width, height, cursor_x, py, c, color);
