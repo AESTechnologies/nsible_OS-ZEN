@@ -13,19 +13,15 @@ const VERSION     = "v0.10.1 // Banyan";
 const HOST_ID     = "dataDESK:archX";
 const URI_PREFIX  = "@://0.10.1/x8_64-li-mu/";
 
-// --- HARDWARE CONFIGURATION ---
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
 
 // --- MEMORY ARCHITECTURE ---
 // [1] THE VOID (DMZ / Preservables)
-// 42.13 MB Static Heap for System State, History, and Memos.
 const VOID_SIZE = 42_130_000;
 var void_buffer: [VOID_SIZE]u8 = undefined;
 
 // [2] THE SAP (Volatile / Foreign Matter)
-// 88.00 MB Static Heap for Web Content and Banyan Rendering.
-// Wiped clean on every fetch to prevent contamination.
 const SAP_SIZE = 88_000_000;
 var sap_buffer: [SAP_SIZE]u8 = undefined;
 
@@ -34,8 +30,9 @@ var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
 
 // .-*-. BLACK BOX RECORDER (PANIC HANDLER) .-*-.
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
-    const mode: usize = 0o666;
-    const flags: usize = 577; // O_WRONLY | O_CREAT | O_TRUNC
+    // Relying on Zig's OS-aware constants instead of raw magic numbers to ensure sudo creation
+    const flags = std.posix.O.WRONLY | std.posix.O.CREAT | std.posix.O.TRUNC;
+    const mode = 0o666;
     const filename = "trail.tome";
 
     const fd_res = linux.syscall3(.open, @intFromPtr(filename), flags, mode);
@@ -156,6 +153,15 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
 
 // --- MAIN ENTRY ---
 pub fn main() !void {
+    // [!] OS BOOTSTRAP: Forge Core Structures
+    const fs = std.fs.cwd();
+    if (fs.access("aiua.tome", .{})) |_| {} else |_| {
+        if (fs.createFile("aiua.tome", .{})) |f| { f.close(); } else |_| {}
+    }
+    if (fs.access("trail.tome", .{})) |_| {} else |_| {
+        if (fs.createFile("trail.tome", .{})) |f| { f.close(); } else |_| {}
+    }
+
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
     _ = linux.syscall5(.mount, @intFromPtr("sysfs"), @intFromPtr("/sys"), @intFromPtr("sysfs"), 0, 0);
     
@@ -170,16 +176,12 @@ pub fn main() !void {
     codex.tuneIn();
     const net_fd = codex.bindUmbilical(); 
 
-    // [!] INSTANTIATE MEMORY PARTITIONS [!]
-    
-    // 1. The Void (Permanent / Preservables)
+    // [!] INSTANTIATE MEMORY PARTITIONS
     var void_fba = std.heap.FixedBufferAllocator.init(&void_buffer);
     const void_allocator = void_fba.allocator();
 
-    // 2. The Sap (Volatile / Foreign Matter)
     var sap_fba = std.heap.FixedBufferAllocator.init(&sap_buffer);
     
-    // Initialize Hunter with Dual Lobes
     var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
 
