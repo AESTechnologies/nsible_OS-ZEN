@@ -143,18 +143,30 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     drawChar(cursor_x, cursor_y, 0xDB, 0x00000000);
 }
 
-// [!] IGNITION SEQUENCE
-fn bootSplash() void {
+// [!] IGNITION SEQUENCE & AUDIO RESONATOR
+fn bootSplash(allocator: std.mem.Allocator) void {
     clear(0x00000000);
     
     const center_y = HEIGHT / 2;
-    
-    // 1. Draw Horizon Line (Silver)
     drawRect(0, center_y, WIDTH, 1, 0x00444444);
     
-    // 2. Modulate Cycle Waveform (Crimson)
+    // 1. Establish State Seed
+    var state_seed: usize = 42;
+    if (std.fs.cwd().statFile("aiua.tome")) |stat| {
+        state_seed = stat.size;
+    } else |_| {}
+
+    // 2. Prepare 8-bit PCM Output Buffer (8000 Hz for ~8 seconds)
+    const sample_rate = 8000;
+    const buffer_size = 64000; 
+    var pcm = allocator.alloc(u8, buffer_size) catch return;
+    defer allocator.free(pcm);
+
+    // 3. Modulate Visual & Audio Waveform Concurrently
     var x: usize = 100;
     var step: usize = 0;
+    var sample_idx: usize = 0;
+    
     while (x < WIDTH - 100) : (x += 12) {
         const amplitude = if (step % 5 == 0) @as(usize, 30) 
                           else if (step % 3 == 0) @as(usize, 14) 
@@ -163,10 +175,41 @@ fn bootSplash() void {
                           
         const y = center_y - amplitude;
         drawRect(x, y, 6, amplitude * 2, 0x00DC143C);
+
+        // Mathematical Translation to Audio
+        var freq: f32 = 0.0;
+        if (amplitude == 30) {
+            freq = 2000.0 + @as(f32, @floatFromInt(state_seed % 500));
+        } else if (amplitude == 14) {
+            freq = 1200.0 + @as(f32, @floatFromInt(state_seed % 300));
+        } else if (amplitude == 8) {
+            freq = 800.0 + @as(f32, @floatFromInt(state_seed % 100));
+        }
+        
+        const chunk_size = 941; // Samples per visual rendering step
+        var chunk: usize = 0;
+        
+        while (chunk < chunk_size and sample_idx < buffer_size) : (chunk += 1) {
+            if (freq == 0.0) {
+                pcm[sample_idx] = 128; // Silence baseline
+            } else {
+                const t = @as(f32, @floatFromInt(sample_idx)) / @as(f32, sample_rate);
+                const period = 1.0 / freq;
+                const phase = @mod(t, period) / period;
+                var wave_f = phase;
+                if (phase > 0.5) wave_f = 1.0 - phase;
+                wave_f *= 2.0; 
+                
+                const vol = @as(f32, @floatFromInt(amplitude)) / 30.0;
+                const out = (wave_f * 127.0 * vol) + 128.0;
+                pcm[sample_idx] = @as(u8, @intFromFloat(out));
+            }
+            sample_idx += 1;
+        }
         step += 1;
     }
 
-    // 3. Typography
+    // 4. Print Typography
     print(WIDTH / 2 - 80, center_y - 60, "A E S   T E C H N O L O G I E S", 0x00FFFFFF);
     print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", 0x00AAAAAA);
     
@@ -174,10 +217,22 @@ fn bootSplash() void {
     const time_str = chronos.getCycleString(&time_buf);
     const time_x = WIDTH / 2 - ((time_str.len * 8) / 2);
     print(time_x, center_y + 45, time_str, 0x00FFBF00);
-
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
+
+    // 5. Strike the Resonator File
+    if (std.fs.cwd().createFile("resonator.raw", .{})) |file| {
+        file.writeAll(pcm) catch {};
+        file.close();
+        
+        // 6. Spawn Async Audio Vector
+        const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "resonator.raw" };
+        var agent = std.process.Child.init(&argv, allocator);
+        agent.stdout_behavior = .Ignore;
+        agent.stderr_behavior = .Ignore;
+        _ = agent.spawn() catch {};
+    }
     
-    // [!] CALIBRATED TIMING: Hold frame for exactly 0.00316 cycles (~8 seconds)
+    // [!] CALIBRATED TIMING: Hold frame for exactly 0.00316 cycles (~8 seconds) while audio plays
     codex.zen(0.00316); 
 }
 
@@ -206,12 +261,13 @@ pub fn main() !void {
     codex.tuneIn();
     const net_fd = codex.bindUmbilical(); 
 
-    bootSplash();
-
+    // [!] INSTANTIATE MEMORY PARTITIONS FIRST FOR AUDIO GENERATION
     var void_fba = std.heap.FixedBufferAllocator.init(&void_buffer);
     const void_allocator = void_fba.allocator();
 
     var sap_fba = std.heap.FixedBufferAllocator.init(&sap_buffer);
+
+    bootSplash(void_allocator);
     
     var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
@@ -243,20 +299,20 @@ pub fn main() !void {
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) {
                 sys_hunter.lens.shiftScope(1);
-                if (journal_len >= 4) journal_len -= 4; // Scrub reflex from visual bar
+                if (journal_len >= 4) journal_len -= 4;
                 reflex_triggered = true;
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) {
                 sys_hunter.lens.shiftScope(-1);
-                if (journal_len >= 4) journal_len -= 4; // Scrub reflex from visual bar
+                if (journal_len >= 4) journal_len -= 4;
                 reflex_triggered = true;
             } 
             else if (std.mem.endsWith(u8, &seq_buf, "//-.")) {
-                if (journal_len >= 3) journal_len -= 3; // Scrub '//-' from text body
+                if (journal_len >= 3) journal_len -= 3;
                 const cmd_slice = journal[0..journal_len];
                 const clean_slice = std.mem.trimRight(u8, cmd_slice, " ");
                 sys_hunter.createMemo(clean_slice) catch {};
-                journal_len = 0; // Wipe journal
+                journal_len = 0;
                 reflex_triggered = true;
             }
 
