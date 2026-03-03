@@ -30,15 +30,11 @@ var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
 
 // .-*-. BLACK BOX RECORDER (PANIC HANDLER) .-*-.
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
-    // Relying on Zig's OS-aware constants instead of raw magic numbers to ensure sudo creation
-    const flags = std.posix.O.WRONLY | std.posix.O.CREAT | std.posix.O.TRUNC;
-    const mode = 0o666;
-    const filename = "trail.tome";
-
-    const fd_res = linux.syscall3(.open, @intFromPtr(filename), flags, mode);
-    const fd: i32 = @bitCast(@as(u32, @truncate(fd_res)));
-
-    if (fd >= 0) {
+    // [!] SOVEREIGN BOOTSTRAP: Use native FS to forge the log, completely bypassing raw flag structures.
+    if (std.fs.cwd().createFile("trail.tome", .{})) |file| {
+        const fd: i32 = file.handle;
+        
+        // Redirect STDERR (2) to our successfully forged file
         _ = linux.syscall2(.dup2, @as(usize, @bitCast(fd)), 2);
         
         const header = "\n[ @NSIBLE FATAL EXCEPTION ]\n";
@@ -55,8 +51,8 @@ pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize)
         } else {
             std.debug.dumpCurrentStackTrace(ret_addr);
         }
-        _ = linux.syscall1(.close, @as(usize, @bitCast(fd)));
-    }
+        file.close();
+    } else |_| {}
 
     var blink: bool = true;
     while (true) {
