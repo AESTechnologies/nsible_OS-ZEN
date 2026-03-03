@@ -177,8 +177,8 @@ fn bootSplash() void {
 
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
     
-    // Hold frame dynamically based on Cycle Time execution
-    codex.zen(0.0003); 
+    // [!] CALIBRATED TIMING: Hold frame for exactly 0.00316 cycles (~8 seconds)
+    codex.zen(0.00316); 
 }
 
 // --- MAIN ENTRY ---
@@ -206,7 +206,6 @@ pub fn main() !void {
     codex.tuneIn();
     const net_fd = codex.bindUmbilical(); 
 
-    // [!] FIRE IGNITION SPLASH
     bootSplash();
 
     var void_fba = std.heap.FixedBufferAllocator.init(&void_buffer);
@@ -231,72 +230,96 @@ pub fn main() !void {
 
         if (codex.transcieve(net_fd)) |byte| {
             dirty = true;
-            // 1. REFLEX
+            
+            // 1. HARDWARE REFLEX SEQUENCE
             var k: usize = 0;
             while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
             seq_buf[5] = byte;
-            if (std.mem.eql(u8, &seq_buf, ".!XX-.")) std.process.exit(0);
-            if (std.mem.eql(u8, &seq_buf, ".![-.")) { sys_hunter.lens.shiftScope(1); esc_len = 0; }
-            if (std.mem.eql(u8, &seq_buf, ".!]-.")) { sys_hunter.lens.shiftScope(-1); esc_len = 0; }
 
-            // 2. ANSI
-            if (byte == 27) { 
-                esc_len = 1; esc_seq[0] = byte;
-            } else if (esc_len > 0) {
-                if (esc_len < 8) {
-                    esc_seq[esc_len] = byte; esc_len += 1;
-                    if (esc_len == 3 and esc_seq[1] == '[') {
-                        if (byte == 'A') { if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1; esc_len = 0; }
-                        else if (byte == 'B') { sys_hunter.scroll_y += 1; esc_len = 0; }
-                        else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; esc_len = 0; }
-                        else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; esc_len = 0; }
-                    } else if (byte == '~') {
-                         if (esc_len >= 4 and esc_seq[1] == '[') {
-                            const digit = esc_seq[2];
-                            if (digit == '5') { if (sys_hunter.scroll_y >= 15) sys_hunter.scroll_y -= 15 else sys_hunter.scroll_y = 0; }
-                            else if (digit == '6') { sys_hunter.scroll_y += 15; }
-                        }
-                        esc_len = 0;
-                    }
-                } else { esc_len = 0; }
+            var reflex_triggered = false;
+
+            if (std.mem.eql(u8, &seq_buf, ".!XX-.")) {
+                std.process.exit(0);
             } 
-            // 3. CORTEX
-            else {
-                 if (byte == '\n' or byte == '\r') {
-                    const cmd_slice = journal[0..journal_len];
-                    const response = cortex.dispatch(cmd_slice);
-                    switch (response.action) {
-                        .CLEAR => {}, 
-                        .EXIT => std.process.exit(0),
-                        .SHED => { sys_hunter.shed(); journal_len = 0; },
-                        .SCOPE_IN => { sys_hunter.lens.shiftScope(1); journal_len = 0; },
-                        .SCOPE_OUT => { sys_hunter.lens.shiftScope(-1); journal_len = 0; },
-                        .MEMO => { 
-                            const txt = if (response.text.len > 0) response.text else cmd_slice;
-                            sys_hunter.createMemo(txt) catch {}; journal_len = 0; 
-                        },
-                        .PRINT => {
-                            journal_len = 0;
-                            for (response.text) |c| {
-                                if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; }
+            else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) {
+                sys_hunter.lens.shiftScope(1);
+                if (journal_len >= 4) journal_len -= 4; // Scrub reflex from visual bar
+                reflex_triggered = true;
+            } 
+            else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) {
+                sys_hunter.lens.shiftScope(-1);
+                if (journal_len >= 4) journal_len -= 4; // Scrub reflex from visual bar
+                reflex_triggered = true;
+            } 
+            else if (std.mem.endsWith(u8, &seq_buf, "//-.")) {
+                if (journal_len >= 3) journal_len -= 3; // Scrub '//-' from text body
+                const cmd_slice = journal[0..journal_len];
+                const clean_slice = std.mem.trimRight(u8, cmd_slice, " ");
+                sys_hunter.createMemo(clean_slice) catch {};
+                journal_len = 0; // Wipe journal
+                reflex_triggered = true;
+            }
+
+            if (!reflex_triggered) {
+                // 2. ANSI
+                if (byte == 27) { 
+                    esc_len = 1; esc_seq[0] = byte;
+                } else if (esc_len > 0) {
+                    if (esc_len < 8) {
+                        esc_seq[esc_len] = byte; esc_len += 1;
+                        if (esc_len == 3 and esc_seq[1] == '[') {
+                            if (byte == 'A') { if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1; esc_len = 0; }
+                            else if (byte == 'B') { sys_hunter.scroll_y += 1; esc_len = 0; }
+                            else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; esc_len = 0; }
+                            else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; esc_len = 0; }
+                        } else if (byte == '~') {
+                             if (esc_len >= 4 and esc_seq[1] == '[') {
+                                const digit = esc_seq[2];
+                                if (digit == '5') { if (sys_hunter.scroll_y >= 15) sys_hunter.scroll_y -= 15 else sys_hunter.scroll_y = 0; }
+                                else if (digit == '6') { sys_hunter.scroll_y += 15; }
                             }
-                        },
-                        .HUNT => {
-                             if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scroll_y += 1; }
-                             else if (std.mem.eql(u8, response.text, "^")) { if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1; }
-                             else {
-                                var target = response.text;
-                                if (std.mem.startsWith(u8, target, "hunt ")) target = target[5..];
-                                sys_hunter.hunt(target) catch { sys_hunter.status = "FETCH_ERR"; };
-                            }
-                            journal_len = 0;
-                        },
-                        .NONE => { journal_len = 0; }
+                            esc_len = 0;
+                        }
+                    } else { esc_len = 0; }
+                } 
+                // 3. CORTEX
+                else {
+                     if (byte == '\n' or byte == '\r') {
+                        const cmd_slice = journal[0..journal_len];
+                        const response = cortex.dispatch(cmd_slice);
+                        switch (response.action) {
+                            .CLEAR => {}, 
+                            .EXIT => std.process.exit(0),
+                            .SHED => { sys_hunter.shed(); journal_len = 0; },
+                            .SCOPE_IN => { sys_hunter.lens.shiftScope(1); journal_len = 0; },
+                            .SCOPE_OUT => { sys_hunter.lens.shiftScope(-1); journal_len = 0; },
+                            .MEMO => { 
+                                const txt = if (response.text.len > 0) response.text else cmd_slice;
+                                sys_hunter.createMemo(txt) catch {}; journal_len = 0; 
+                            },
+                            .PRINT => {
+                                journal_len = 0;
+                                for (response.text) |c| {
+                                    if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; }
+                                }
+                            },
+                            .HUNT => {
+                                 if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scroll_y += 1; }
+                                 else if (std.mem.eql(u8, response.text, "^")) { if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1; }
+                                 else {
+                                    var target = response.text;
+                                    if (std.mem.startsWith(u8, target, "hunt ")) target = target[5..];
+                                    sys_hunter.hunt(target) catch { sys_hunter.status = "FETCH_ERR"; };
+                                }
+                                journal_len = 0;
+                            },
+                            .NONE => { journal_len = 0; }
+                        }
+                    } else if (byte == 127 or byte == 8) {
+                        if (journal_len > 0) journal_len -= 1;
+                    } else if (byte >= 32 and byte <= 126) {
+                        if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
                     }
-                } else if (byte == 127 or byte == 8) {
-                    if (journal_len > 0) journal_len -= 1;
-                } else if (byte >= 32 and byte <= 126) {
-                    if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
                 }
             }
         }
