@@ -143,47 +143,33 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     drawChar(cursor_x, cursor_y, 0xDB, 0x00000000);
 }
 
-// [!] EXIT SEQUENCE (Matrix & Stamp)
 fn exitSequence() noreturn {
-    // 1. Blackout
     clear(0x00000000);
-    
-    // 2. HighClaw Stamp [Bottom Right Marker]
     const stamp_x = WIDTH - 24;
     const stamp_y = HEIGHT - 16;
-    drawChar(stamp_x, stamp_y, 127, 0x00DC143C); // 高
-    drawChar(stamp_x + 8, stamp_y, 128, 0x00DC143C); // 爪
-    
-    // 3. Flush to screen
+    drawChar(stamp_x, stamp_y, 127, 0x00DC143C); 
+    drawChar(stamp_x + 8, stamp_y, 128, 0x00DC143C); 
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
-    
-    // 4. Clean Host TTY (ANSI: Clear Screen, Home Cursor, Show Cursor)
     const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
     _ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
-    
     std.process.exit(0);
 }
 
-// [!] IGNITION SEQUENCE & AUDIO RESONATOR
 fn bootSplash(allocator: std.mem.Allocator) void {
     clear(0x00000000);
-    
     const center_y = HEIGHT / 2;
     drawRect(0, center_y, WIDTH, 1, 0x00444444);
     
-    // 1. Establish State Seed
     var state_seed: usize = 42;
     if (std.fs.cwd().statFile("aiua.tome")) |stat| {
         state_seed = @as(usize, @intCast(stat.size));
     } else |_| {}
 
-    // 2. Prepare 8-bit PCM Output Buffer (8000 Hz for ~4 seconds)
     const sample_rate = 8000;
-    const buffer_size = 32000; // Adjusted buffer down slightly to match the faster execution speed naturally
+    const buffer_size = 32000; 
     var pcm = allocator.alloc(u8, buffer_size) catch return;
     defer allocator.free(pcm);
 
-    // 3. Modulate Visual & Audio Waveform Concurrently
     var x: usize = 100;
     var step: usize = 0;
     var sample_idx: usize = 0;
@@ -197,22 +183,17 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         const y = center_y - amplitude;
         drawRect(x, y, 6, amplitude * 2, 0x00DC143C);
 
-        // Mathematical Translation to Audio
         var freq: f32 = 0.0;
-        if (amplitude == 30) {
-            freq = 2000.0 + @as(f32, @floatFromInt(state_seed % 500));
-        } else if (amplitude == 14) {
-            freq = 1200.0 + @as(f32, @floatFromInt(state_seed % 300));
-        } else if (amplitude == 8) {
-            freq = 800.0 + @as(f32, @floatFromInt(state_seed % 100));
-        }
+        if (amplitude == 30) { freq = 2000.0 + @as(f32, @floatFromInt(state_seed % 500)); } 
+        else if (amplitude == 14) { freq = 1200.0 + @as(f32, @floatFromInt(state_seed % 300)); } 
+        else if (amplitude == 8) { freq = 800.0 + @as(f32, @floatFromInt(state_seed % 100)); }
         
-        const chunk_size = 470; // Adjusted samples per visual rendering step for the 2x speedup
+        const chunk_size = 470; 
         var chunk: usize = 0;
         
         while (chunk < chunk_size and sample_idx < buffer_size) : (chunk += 1) {
             if (freq == 0.0) {
-                pcm[sample_idx] = 128; // Silence baseline
+                pcm[sample_idx] = 128; 
             } else {
                 const t = @as(f32, @floatFromInt(sample_idx)) / @as(f32, sample_rate);
                 const period = 1.0 / freq;
@@ -220,7 +201,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
                 var wave_f = phase;
                 if (phase > 0.5) wave_f = 1.0 - phase;
                 wave_f *= 2.0; 
-                
                 const vol = @as(f32, @floatFromInt(amplitude)) / 30.0;
                 const out = (wave_f * 127.0 * vol) + 128.0;
                 pcm[sample_idx] = @as(u8, @intFromFloat(out));
@@ -230,22 +210,17 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         step += 1;
     }
 
-    // 4. Print Typography
     print(WIDTH / 2 - 80, center_y - 60, "A E S   T E C H N O L O G I E S", 0x00FFFFFF);
     print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", 0x00AAAAAA);
-    
     var time_buf: [64]u8 = undefined;
     const time_str = chronos.getCycleString(&time_buf);
     const time_x = WIDTH / 2 - ((time_str.len * 8) / 2);
     print(time_x, center_y + 45, time_str, 0x00FFBF00);
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
 
-    // 5. Strike the Resonator File
     if (std.fs.cwd().createFile("resonator.raw", .{})) |file| {
         file.writeAll(pcm) catch {};
         file.close();
-        
-        // 6. Spawn Async Audio Vector
         const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "resonator.raw" };
         var agent = std.process.Child.init(&argv, allocator);
         agent.stdout_behavior = .Ignore;
@@ -253,11 +228,9 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         _ = agent.spawn() catch {};
     } else |_| {} 
     
-    // [!] CALIBRATED TIMING: Hold frame for exactly 0.00158 cycles (~4 seconds) while audio plays
     codex.zen(0.00158); 
 }
 
-// --- MAIN ENTRY ---
 pub fn main() !void {
     const fs = std.fs.cwd();
     if (fs.access("aiua.tome", .{})) |_| {} else |_| {
@@ -282,10 +255,8 @@ pub fn main() !void {
     codex.tuneIn();
     const net_fd = codex.bindUmbilical(); 
 
-    // [!] INSTANTIATE MEMORY PARTITIONS FIRST FOR AUDIO GENERATION
     var void_fba = std.heap.FixedBufferAllocator.init(&void_buffer);
     const void_allocator = void_fba.allocator();
-
     var sap_fba = std.heap.FixedBufferAllocator.init(&sap_buffer);
 
     bootSplash(void_allocator);
@@ -308,7 +279,6 @@ pub fn main() !void {
         if (codex.transcieve(net_fd)) |byte| {
             dirty = true;
             
-            // 1. HARDWARE REFLEX SEQUENCE
             var k: usize = 0;
             while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
             seq_buf[5] = byte;
@@ -316,20 +286,20 @@ pub fn main() !void {
             var reflex_triggered = false;
 
             if (std.mem.eql(u8, &seq_buf, ".!XX-.")) {
-                exitSequence(); // [!] CLEAN MATRIX TERMINATION
+                exitSequence(); 
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) {
-                sys_hunter.lens.shiftScope(1);
+                sys_hunter.shiftScope(1); // [!] ROUTED THROUGH MUTEX SAFEGUARD
                 if (journal_len >= 4) journal_len -= 4;
                 reflex_triggered = true;
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) {
-                sys_hunter.lens.shiftScope(-1);
+                sys_hunter.shiftScope(-1); // [!] ROUTED THROUGH MUTEX SAFEGUARD
                 if (journal_len >= 4) journal_len -= 4;
                 reflex_triggered = true;
             } 
             else if (std.mem.endsWith(u8, &seq_buf, "//-.")) {
-                if (journal_len >= 3) journal_len -= 3;
+                if (journal_len >= 4) journal_len -= 4;
                 const cmd_slice = journal[0..journal_len];
                 const clean_slice = std.mem.trimRight(u8, cmd_slice, " ");
                 sys_hunter.createMemo(clean_slice) catch {};
@@ -338,38 +308,36 @@ pub fn main() !void {
             }
 
             if (!reflex_triggered) {
-                // 2. ANSI
                 if (byte == 27) { 
                     esc_len = 1; esc_seq[0] = byte;
                 } else if (esc_len > 0) {
                     if (esc_len < 8) {
                         esc_seq[esc_len] = byte; esc_len += 1;
                         if (esc_len == 3 and esc_seq[1] == '[') {
-                            if (byte == 'A') { if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1; esc_len = 0; }
-                            else if (byte == 'B') { sys_hunter.scroll_y += 1; esc_len = 0; }
+                            // [!] ALL UI SCROLLING ROUTED THROUGH MUTEX SAFEGUARDS
+                            if (byte == 'A') { sys_hunter.scrollBy(-1); esc_len = 0; }
+                            else if (byte == 'B') { sys_hunter.scrollBy(1); esc_len = 0; }
                             else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; esc_len = 0; }
                             else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; esc_len = 0; }
                         } else if (byte == '~') {
                              if (esc_len >= 4 and esc_seq[1] == '[') {
                                 const digit = esc_seq[2];
-                                if (digit == '5') { if (sys_hunter.scroll_y >= 15) sys_hunter.scroll_y -= 15 else sys_hunter.scroll_y = 0; }
-                                else if (digit == '6') { sys_hunter.scroll_y += 15; }
+                                if (digit == '5') { sys_hunter.scrollBy(-15); }
+                                else if (digit == '6') { sys_hunter.scrollBy(15); }
                             }
                             esc_len = 0;
                         }
                     } else { esc_len = 0; }
-                } 
-                // 3. CORTEX
-                else {
+                } else {
                      if (byte == '\n' or byte == '\r') {
                         const cmd_slice = journal[0..journal_len];
                         const response = cortex.dispatch(cmd_slice);
                         switch (response.action) {
                             .CLEAR => {}, 
-                            .EXIT => exitSequence(), // [!] CLEAN MATRIX TERMINATION
+                            .EXIT => exitSequence(), 
                             .SHED => { sys_hunter.shed(); journal_len = 0; },
-                            .SCOPE_IN => { sys_hunter.lens.shiftScope(1); journal_len = 0; },
-                            .SCOPE_OUT => { sys_hunter.lens.shiftScope(-1); journal_len = 0; },
+                            .SCOPE_IN => { sys_hunter.shiftScope(1); journal_len = 0; },
+                            .SCOPE_OUT => { sys_hunter.shiftScope(-1); journal_len = 0; },
                             .MEMO => { 
                                 const txt = if (response.text.len > 0) response.text else cmd_slice;
                                 sys_hunter.createMemo(txt) catch {}; journal_len = 0; 
@@ -381,12 +349,12 @@ pub fn main() !void {
                                 }
                             },
                             .HUNT => {
-                                 if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scroll_y += 1; }
-                                 else if (std.mem.eql(u8, response.text, "^")) { if (sys_hunter.scroll_y > 0) sys_hunter.scroll_y -= 1; }
+                                 if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scrollBy(1); }
+                                 else if (std.mem.eql(u8, response.text, "^")) { sys_hunter.scrollBy(-1); }
                                  else {
                                     var target = response.text;
                                     if (std.mem.startsWith(u8, target, "hunt ")) target = target[5..];
-                                    sys_hunter.hunt(target) catch { sys_hunter.status = "FETCH_ERR"; };
+                                    sys_hunter.hunt(target) catch { sys_hunter.mutex.lock(); sys_hunter.status = "FETCH_ERR"; sys_hunter.mutex.unlock(); };
                                 }
                                 journal_len = 0;
                             },
@@ -407,8 +375,14 @@ pub fn main() !void {
         if (dirty) {
             clear(0x00000000);
             drawHeader(is_high_cycle);
-            if (sys_hunter.active) { sys_hunter.render(&back_buffer, WIDTH, HEIGHT); } 
-            else { print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555); }
+            
+            // [!] THREAD-SAFE RENDER CHECK
+            if (sys_hunter.isActive()) { 
+                sys_hunter.render(&back_buffer, WIDTH, HEIGHT); 
+            } else { 
+                print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555); 
+            }
+            
             drawUriBar(journal[0..journal_len], journal_len);
             @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
             dirty = false;
