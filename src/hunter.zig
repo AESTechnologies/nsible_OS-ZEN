@@ -17,6 +17,7 @@ const FlightVector = struct {
 pub const Hunter = struct {
     allocator: std.mem.Allocator, 
     sap_fba: *std.heap.FixedBufferAllocator, 
+    mutex: std.Thread.Mutex, // [!] THE GATEKEEPER
     
     history: StringList,
     history_index: usize, 
@@ -33,6 +34,7 @@ pub const Hunter = struct {
         var self = Hunter{
             .allocator = perm_allocator,
             .sap_fba = sap_fba,
+            .mutex = .{},
             .history = .{},
             .history_index = 0,
             .lens = banyan.Banyan.init(sap_fba.allocator()),
@@ -57,7 +59,38 @@ pub const Hunter = struct {
         self.allocator.free(self.url);
     }
 
+    // [!] THREAD-SAFE ENTRY POINTS
+    pub fn isActive(self: *Hunter) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.active;
+    }
+
+    pub fn shiftScope(self: *Hunter, direction: i8) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.lens.shiftScope(direction);
+    }
+
+    pub fn scrollBy(self: *Hunter, direction: i32) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (direction < 0) {
+            const abs_dir = @as(usize, @intCast(-direction));
+            if (self.scroll_y > abs_dir) {
+                self.scroll_y -= abs_dir;
+            } else {
+                self.scroll_y = 0;
+            }
+        } else {
+            self.scroll_y += @as(usize, @intCast(direction));
+        }
+    }
+
     pub fn tick(self: *Hunter) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        
         if (self.current_vector) |vector| {
             if (vector.is_complete) {
                 if (vector.success and vector.result_payload != null) {
@@ -77,8 +110,10 @@ pub const Hunter = struct {
         }
     }
 
-    // [!] UPDATED: Semantic Auto-Wrapper implementation
     pub fn createMemo(self: *Hunter, content: []const u8) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
         var buf: [64]u8 = undefined;
         const ts = std.time.timestamp();
         const title = try std.fmt.bufPrint(&buf, "memo://{d}", .{ts});
@@ -87,7 +122,6 @@ pub const Hunter = struct {
         try self.history.append(self.allocator, title_dupe);
         self.history_index = self.history.items.len - 1;
         
-        // SEMANTIC AUTO-WRAPPER: Mathematical Inference
         var final_content: []const u8 = content;
         var auto_wrapped: ?[]u8 = null;
         
@@ -116,6 +150,9 @@ pub const Hunter = struct {
     }
 
     pub fn shed(self: *Hunter) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
         if (self.history.items.len == 0) return;
         self.allocator.free(self.history.items[self.history_index]);
         _ = self.history.orderedRemove(self.history_index);
@@ -134,7 +171,7 @@ pub const Hunter = struct {
             if (self.history_index >= self.history.items.len) {
                 self.history_index = self.history.items.len - 1;
             }
-            self.navigateHistory(0) catch {};
+            self.executeFetch(self.history.items[self.history_index]) catch {};
         }
         self.saveHistory() catch {};
     }
@@ -217,6 +254,9 @@ pub const Hunter = struct {
     }
 
     pub fn navigateHistory(self: *Hunter, direction: i32) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
         if (self.history.items.len == 0) return;
         if (direction < 0) { 
             if (self.history_index > 0) self.history_index -= 1;
@@ -228,6 +268,9 @@ pub const Hunter = struct {
     }
     
     pub fn hunt(self: *Hunter, target: []const u8) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
         try self.history.append(self.allocator, try self.allocator.dupe(u8, target));
         self.history_index = self.history.items.len - 1;
         self.saveHistory() catch {};
@@ -265,6 +308,9 @@ pub const Hunter = struct {
     }
 
     pub fn render(self: *Hunter, buffer: []u32, width: usize, height: usize) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
         const start_y = 20;
         const end_y = height - 20;
 
