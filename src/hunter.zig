@@ -15,9 +15,8 @@ const FlightVector = struct {
 };
 
 pub const Hunter = struct {
-    // [!] DUAL LOBES
-    allocator: std.mem.Allocator,        // THE VOID (Persistent)
-    sap_fba: *std.heap.FixedBufferAllocator, // THE SAP (Volatile)
+    allocator: std.mem.Allocator, 
+    sap_fba: *std.heap.FixedBufferAllocator, 
     
     history: StringList,
     history_index: usize, 
@@ -36,7 +35,6 @@ pub const Hunter = struct {
             .sap_fba = sap_fba,
             .history = .{},
             .history_index = 0,
-            // Lens uses the Sap
             .lens = banyan.Banyan.init(sap_fba.allocator()),
             .url = perm_allocator.dupe(u8, "WAITING") catch @panic("OOM_INIT"),
             .status = "IDLE",
@@ -64,7 +62,6 @@ pub const Hunter = struct {
             if (vector.is_complete) {
                 if (vector.success and vector.result_payload != null) {
                     const body = vector.result_payload.?;
-                    // Body is in Void (Vector created it). Free it after parsing to recycle Void space.
                     defer self.allocator.free(body); 
                     try self.parseContent(body);
                     self.status = "LOCKED";
@@ -88,7 +85,6 @@ pub const Hunter = struct {
         try self.history.append(self.allocator, title_dupe);
         self.history_index = self.history.items.len - 1;
         
-        // Memos are rendered in the Sap (volatile)
         try self.parseContent(content);
         
         self.status = "MEMO_SAVED";
@@ -108,7 +104,6 @@ pub const Hunter = struct {
             self.history_index = 0;
             self.status = "IDLE";
             
-            // [!] WIPE THE SAP
             self.sap_fba.reset();
             self.lens = banyan.Banyan.init(self.sap_fba.allocator());
             
@@ -196,19 +191,12 @@ pub const Hunter = struct {
     }
 
     fn parseContent(self: *Hunter, raw: []const u8) !void {
-        // [!] THE WIPE CYCLE
-        // 1. Reset the Sap (Foreign Matter)
         self.sap_fba.reset();
-        
-        // 2. Re-Init Lens on the fresh Sap
         self.lens = banyan.Banyan.init(self.sap_fba.allocator());
-        
-        // 3. Absorb
         try self.lens.absorb(raw);
     }
 
     fn saveHistory(self: *Hunter) !void {
-        // [!] PERSISTENCE: aiua.tome
         const file = try std.fs.cwd().createFile("aiua.tome", .{});
         defer file.close();
         for (self.history.items) |entry| {
