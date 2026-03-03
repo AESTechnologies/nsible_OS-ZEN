@@ -9,9 +9,9 @@ const hunter = @import("hunter.zig");
 
 // --- UNIVERSAL CONSTANTS ---
 const SYSTEM_NAME = "@NSIBLE OS";
-const VERSION     = "v0.10.1 // Banyan";
+const VERSION     = "v0.10.2-nightly // Banysang";
 const HOST_ID     = "dataDESK:archX";
-const URI_PREFIX  = "@://0.10.1/x8_64-li-mu/";
+const URI_PREFIX  = "@://0.10.2/x8_64-li-mu/";
 
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;

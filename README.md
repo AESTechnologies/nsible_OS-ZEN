@@ -1,5 +1,4 @@
-cat << 'EOF' > README.md
-# ◬ @NSIBLE OS // v0.10.1 // Banyan
+# ◬ @NSIBLE OS // v0.10.2-nightly // Banysang
 > **by Æ§ Tech**
 > *A Sovereign, High-Talon Semantic Logic Operating System.*
 
@@ -7,12 +6,13 @@ cat << 'EOF' > README.md
 
 Designed strictly for the Acer Aspire One (x86, 32-bit framebuffer).
 
-### ⌗ ARCHITECTURE
+### ⌗ ARCHITECTURE (Banysang Cycle)
 * **Kernel:** Zig *(No standard lib dependencies for graphics/input)*
 * **Memory:** Dual-Lobe Static Allocation
   * **[ THE VOID ]** (42.13 MB): Persistent storage (History, Memos, System State).
   * **[ THE SAP ]** (88.00 MB): Volatile rendering buffer, wiped on every fetch.
-* **Storage:** `aiua.tome` (State), `trail.tome` (Black Box)
+* **Storage:** `aiua.tome` (Immortal Artifacts), `trail.tome` (Black Box)
+* **Acoustics:** 8-bit PCM Math-Resonator (Pitch-shifted by `aiua.tome` mass)
 * **Optic:** The Banyan Lens *(Multi-Spectral HTML Parser)*
 * **Network:** Async Curl *(Shadow Flight)*
 * **Input:** GZL Reflex + ANSI Motor
@@ -25,14 +25,15 @@ Designed strictly for the Acer Aspire One (x86, 32-bit framebuffer).
 | :--- | :--- |
 | `@://url` | Fetch target (Hunt) |
 | `zI` / `zO` | Scope In / Out (Raw -> Zen -> Matrix -> Root) |
-| `memo [txt]`| Save text as a local artifact (or append `//-.` to input) |
+| `memo [txt]`| Save text as an immortal local artifact |
 | `shed` | Drop current tab / Clean the Sap memory |
 | `cycle` | Return current cycle time state |
 | `v` / `^` | Scroll up / down |
-| `exit` | Terminate gracefully |
+| `exit` | Matrix Clean & Terminate |
 
 ### ⌗ REFLEX SEQUENCES (GZL)
-* `.!XX-.` : Hardware Level Kill-Switch (Immediate Exit)
+* `//-.` : Instant Memo (Triggered on strike)
+* `.!XX-.` : Hardware Level Kill-Switch
 * `.![-.` / `.!]-.` : Hardware Scope In / Out
 
 ---
@@ -44,5 +45,4 @@ Designed strictly for the Acer Aspire One (x86, 32-bit framebuffer).
 4. **[ROOT]**: Scripts & Machine Logic visible (Brass).
 
 ---
-**STATUS:** WAKING // **CODENAME:** BANYAN
-EOF
+**STATUS:** STAGING // **CODENAME:** BANYSANG (Ficus benghalensis sanguinem)
