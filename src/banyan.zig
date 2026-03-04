@@ -1,9 +1,9 @@
 // [@://nsible_os/src/banyan.zig/.-={
 //   module: "Banyan Rendering Lobe",
-//   version: "0.10.2-nightly // Banysang",
+//   version: "0.10.8-nightly // Banysang",
 //   description: "Semantic parsing matrix and pixel-perfect rendering engine with variable focus depths.",
-//   changes: "Implemented state machine for script/style isolation, character-level wrapping, and visual list markers.",
-//   philotic_inferences: "Perception is multi-layered; true clarity requires the ability to selectively filter structural noise from the signal."
+//   changes: "Deployed MELT (Matrix Enumerative Link/Text Selector) for virtual pointers. Added in-place HTML entity decoder to purge web artifacts.",
+//   philotic_inferences: "A sovereign operator requires no mouse. The path forward is illuminated by the indices of the void."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -28,12 +28,14 @@ pub const Leaf = struct {
 pub const Banyan = struct {
     allocator: std.mem.Allocator,
     leaves: std.ArrayListUnmanaged(Leaf), 
-    focus_depth: u8, // 0=RAW, 1=ZEN, 2=MATRIX, 3=ROOT
+    pub links: std.ArrayListUnmanaged([]u8), // [!] MELT Routing Table
+    focus_depth: u8, 
 
     pub fn init(allocator: std.mem.Allocator) Banyan {
         return .{
             .allocator = allocator,
             .leaves = .{}, 
+            .links = .{},
             .focus_depth = 1, // Default: ZEN
         };
     }
@@ -41,6 +43,8 @@ pub const Banyan = struct {
     pub fn deinit(self: *Banyan) void {
         for (self.leaves.items) |*leaf| self.allocator.free(leaf.text);
         self.leaves.deinit(self.allocator); 
+        for (self.links.items) |link| self.allocator.free(link);
+        self.links.deinit(self.allocator);
     }
 
     pub fn shiftScope(self: *Banyan, direction: i8) void {
@@ -53,12 +57,14 @@ pub const Banyan = struct {
     pub fn absorb(self: *Banyan, raw: []const u8) !void {
         for (self.leaves.items) |*leaf| self.allocator.free(leaf.text);
         self.leaves.clearRetainingCapacity();
+        
+        for (self.links.items) |link| self.allocator.free(link);
+        self.links.clearRetainingCapacity();
 
         var i: usize = 0;
         var start: usize = 0;
         var in_tag = false;
         
-        // [!] STATE MACHINE: Track when we are inside machine-logic blocks
         var in_script = false;
         var in_style = false;
 
@@ -96,7 +102,6 @@ pub const Banyan = struct {
                 var layer: u8 = 2; // Matrix
                 const tag_slice = raw[start..i+1];
 
-                // [!] TOGGLE STATE MACHINE
                 if (contains(tag_slice, "<script")) in_script = true;
                 if (contains(tag_slice, "</script")) in_script = false;
                 if (contains(tag_slice, "<style")) in_style = true;
@@ -111,14 +116,38 @@ pub const Banyan = struct {
 
                 try self.addLeaf(tag_slice, h_type, layer, false);
                 
-                // [!] BANYSANG: Visual Markers for Lists and Headers in Zen mode
+                // [!] MELT INDEX INJECTION
+                if (h_type == .LINK and std.mem.startsWith(u8, tag_slice, "<a ")) {
+                    var url_start: usize = 0;
+                    var url_end: usize = 0;
+                    
+                    if (std.mem.indexOf(u8, tag_slice, "href=\"")) |idx| {
+                        url_start = idx + 6;
+                        if (std.mem.indexOfScalarPos(u8, tag_slice, url_start, '"')) |e_idx| { url_end = e_idx; }
+                    } else if (std.mem.indexOf(u8, tag_slice, "href='")) |idx| {
+                        url_start = idx + 6;
+                        if (std.mem.indexOfScalarPos(u8, tag_slice, url_start, '\'')) |e_idx| { url_end = e_idx; }
+                    }
+
+                    if (url_end > url_start) {
+                        const extracted_url = tag_slice[url_start..url_end];
+                        const link_idx = self.links.items.len;
+                        if (self.allocator.dupe(u8, extracted_url)) |duped| {
+                            self.links.append(self.allocator, duped) catch {};
+                            
+                            var marker_buf: [32]u8 = undefined;
+                            const marker_str = std.fmt.bufPrint(&marker_buf, "[{d}]", .{link_idx}) catch "[?]";
+                            try self.addLeaf(marker_str, .LINK, 1, false); // Injected at Layer 1
+                        } else |_| {}
+                    }
+                }
+
                 if (contains(tag_slice, "<li")) {
                     try self.addLeaf(" > ", .TEXT, 1, false);
                 } else if (contains(tag_slice, "<h1") or contains(tag_slice, "<h2") or contains(tag_slice, "<h3")) {
                     try self.addLeaf(" # ", .TEXT, 1, false);
                 }
 
-                // [!] HARD BREAK LOGIC (Includes <li> and <p> explicitly)
                 if (isBlockTag(tag_slice) and !in_script and !in_style) {
                     try self.addLeaf("", .BREAK, 1, true);
                     if (contains(tag_slice, "<p") or contains(tag_slice, "</p") or contains(tag_slice, "<li") or contains(tag_slice, "</li")) {
@@ -133,7 +162,6 @@ pub const Banyan = struct {
             i += 1;
         }
         
-        // Final flush
         if (i > start) {
             const layer: u8 = if (in_script or in_style) 3 else 1;
             const hType: HarvestType = if (in_script or in_style) .SCRIPT else .TEXT;
@@ -145,6 +173,48 @@ pub const Banyan = struct {
         return (c == '{' or c == '}' or c == '[' or c == ']' or c == '(' or c == ')');
     }
 
+    // [!] IN-PLACE HTML ENTITY DECODER
+    fn decodeEntitiesInPlace(text: []u8) []u8 {
+        var read_ptr: usize = 0;
+        var write_ptr: usize = 0;
+        while (read_ptr < text.len) {
+            if (text[read_ptr] == '&' and read_ptr + 3 < text.len) {
+                if (std.mem.startsWith(u8, text[read_ptr..], "&#160;")) {
+                    text[write_ptr] = ' '; write_ptr += 1; read_ptr += 6; continue;
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8217;")) {
+                    text[write_ptr] = '\''; write_ptr += 1; read_ptr += 7; continue;
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&amp;")) {
+                    text[write_ptr] = '&'; write_ptr += 1; read_ptr += 5; continue;
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&quot;")) {
+                    text[write_ptr] = '"'; write_ptr += 1; read_ptr += 6; continue;
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&#39;")) {
+                    text[write_ptr] = '\''; write_ptr += 1; read_ptr += 5; continue;
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&lt;")) {
+                    text[write_ptr] = '<'; write_ptr += 1; read_ptr += 4; continue;
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&gt;")) {
+                    text[write_ptr] = '>'; write_ptr += 1; read_ptr += 4; continue;
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8211;")) {
+                    text[write_ptr] = '-'; write_ptr += 1; read_ptr += 7; continue;
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8212;")) {
+                    text[write_ptr] = '-'; write_ptr += 1; read_ptr += 7; continue;
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8220;")) {
+                    text[write_ptr] = '"'; write_ptr += 1; read_ptr += 7; continue;
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8221;")) {
+                    text[write_ptr] = '"'; write_ptr += 1; read_ptr += 7; continue;
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8230;")) {
+                    text[write_ptr] = '.'; write_ptr += 1;
+                    if (write_ptr < text.len) { text[write_ptr] = '.'; write_ptr += 1; }
+                    if (write_ptr < text.len) { text[write_ptr] = '.'; write_ptr += 1; }
+                    read_ptr += 7; continue;
+                }
+            }
+            text[write_ptr] = text[read_ptr];
+            write_ptr += 1;
+            read_ptr += 1;
+        }
+        return text[0..write_ptr];
+    }
+
     fn addLeaf(self: *Banyan, text: []const u8, h_type: HarvestType, layer: u8, is_newline: bool) !void {
         if (text.len == 0 and !is_newline) return;
         
@@ -152,8 +222,10 @@ pub const Banyan = struct {
         if (layer == 1 and !is_newline and h_type == .TEXT) {
              final = try compressWhitespace(self.allocator, text);
              if (final.len == 0) { self.allocator.free(final); return; }
+             final = decodeEntitiesInPlace(final); 
         } else {
              final = try self.allocator.dupe(u8, text);
+             if (h_type == .TEXT) { final = decodeEntitiesInPlace(final); }
         }
 
         const leaf = Leaf{ .text = final, .h_type = h_type, .layer = layer, .is_newline = is_newline };
@@ -192,7 +264,6 @@ pub const Banyan = struct {
         return out.toOwnedSlice(allocator);
     }
 
-    // [!] RENDER (UPDATED: Character-level wrap and perfect virtual row scrolling)
     pub fn render(self: *Banyan, buffer: []u32, width: usize, height: usize, scroll_y: usize) void {
         const start_y = 20;
         const line_h = 10;
@@ -202,7 +273,6 @@ pub const Banyan = struct {
         var virtual_row: usize = 0;
 
         for (self.leaves.items) |leaf| {
-            // [!] SCOPE FILTER
             if (self.focus_depth > 0 and leaf.layer > self.focus_depth) continue;
             
             if (leaf.is_newline) {
@@ -213,7 +283,6 @@ pub const Banyan = struct {
 
             var color: u32 = COL_TEXT_HIGH;
             
-            // [!] STRUCTURAL COLORING
             if (self.focus_depth == 0) {
                 if (leaf.layer > 1) color = COL_TAG;
                 if (leaf.h_type == .DELIM) color = COL_DELIM;
@@ -231,13 +300,11 @@ pub const Banyan = struct {
             }
 
             for (leaf.text) |c| {
-                // Wrap logic: Carriage return if we hit the right margin
                 if (cursor_x >= width - 20) {
                     virtual_row += 1;
                     cursor_x = 10;
                 }
 
-                // Pixel-perfect drawing: Only render if character's virtual row is visible
                 if (virtual_row >= scroll_y) {
                     const screen_row = virtual_row - scroll_y;
                     if (screen_row >= max_lines) break; 
