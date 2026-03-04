@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "0.10.6-nightly // Banysang",
+//   version: "0.10.7-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Upgraded Assist Modal into the full Command Bible. Staged Calculator UI for Phase 3 deployment.",
+//   changes: "Unified Dynamic Header mapping. Deployed full Command Bible and Calculator staging in Assist Modal.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -15,11 +15,13 @@ const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
 
 const SYSTEM_NAME = "@NSIBLE OS";
-const VERSION     = "v0.10.6-nightly";
-const HOST_ID     = "dataDESK:archX";
+const VERSION     = "v0.10.7-nightly";
 const URI_PREFIX  = "@://";
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
+
+var sys_host_id: [128]u8 = undefined;
+var sys_host_id_len: usize = 0;
 
 const VOID_SIZE = 42_130_000;
 var void_buffer: [VOID_SIZE]u8 = undefined;
@@ -118,7 +120,8 @@ fn print(x: usize, y: usize, text: []const u8, color: u32) void {
 fn drawHeader(is_high: bool) void {
     drawRect(0, 0, WIDTH, 20, 0x00DC143C);
     var buf: [128]u8 = undefined;
-    const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, HOST_ID}) catch "HEADER_ERR";
+    const active_host = if (sys_host_id_len > 0) sys_host_id[0..sys_host_id_len] else "mchn:anon";
+    const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, active_host}) catch "HEADER_ERR";
     print(10, 6, header, 0x00FFFFFF);
     const glyph: u8 = if (is_high) 127 else 128;
     drawChar(994, 6, glyph, 0x00FFFFFF);
@@ -376,6 +379,39 @@ pub fn main() !void {
     nerve.init();
     codex.tuneIn();
     const vinculum_fd = codex.bindVinculum(); 
+
+    // [!] ENUMERATE MCHN:SOCIUS IDENTITY
+    var mchn_buf: [64]u8 = .{0} ** 64;
+    var mchn_len: usize = 0;
+    if (fs.openFile("/etc/hostname", .{})) |file| {
+        if (file.readAll(&mchn_buf)) |br| {
+            const tr = std.mem.trim(u8, mchn_buf[0..br], " \n\r\t");
+            if (tr.len > 0) { @memcpy(mchn_buf[0..tr.len], tr); mchn_len = tr.len; }
+        } else |_| {}
+        file.close();
+    } else |_| {}
+    const mchn_str = if (mchn_len > 0) mchn_buf[0..mchn_len] else "mchn";
+
+    var soc_buf: [64]u8 = .{0} ** 64;
+    var soc_len: usize = 0;
+    if (fs.openFile("aiua.tome", .{})) |file| {
+        var fl_buf: [256]u8 = undefined;
+        if (file.read(&fl_buf)) |br| {
+            const fl = fl_buf[0..br];
+            if (std.mem.indexOf(u8, fl, "//SOCIUS:")) |idx| {
+                const start = idx + 9;
+                var end = start;
+                while (end < fl.len and fl[end] != '\n' and fl[end] != '\r') : (end += 1) {}
+                const s_name = std.mem.trim(u8, fl[start..end], " ");
+                if (s_name.len > 0) { @memcpy(soc_buf[0..s_name.len], s_name); soc_len = s_name.len; }
+            }
+        } else |_| {}
+        file.close();
+    } else |_| {}
+    const soc_str = if (soc_len > 0) soc_buf[0..soc_len] else "anon";
+
+    const final_id = std.fmt.bufPrint(&sys_host_id, "{s}:{s}", .{mchn_str, soc_str}) catch "mchn:anon";
+    sys_host_id_len = final_id.len;
 
     var void_fba = std.heap.FixedBufferAllocator.init(&void_buffer);
     const void_allocator = void_fba.allocator();
@@ -660,7 +696,7 @@ pub fn main() !void {
                 print(ax + 20, ay + 50, "[ CORE NAVIGATION ]", 0x00AAAAAA);
                 print(ax + 20, ay + 70, "mchn/        : View Local Root", 0x00FFFFFF);
                 print(ax + 20, ay + 90, "mchn/<path>  : Traverse Local Disk", 0x00FFFFFF);
-                print(ax + 20, ay + 110, "@://<target> : Shadow Flight (Web)", 0x00FFFFFF);
+                print(ax + 20, ay + 110, "w3.<target>  : Shadow Flight (Web)", 0x00FFFFFF);
 
                 print(ax + 20, ay + 150, "[ ARTIFACT FORGE ]", 0x00AAAAAA);
                 print(ax + 20, ay + 170, "memo <txt>   : Quick Artifact", 0x00FFFFFF);
