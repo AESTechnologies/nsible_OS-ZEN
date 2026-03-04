@@ -1,4 +1,12 @@
+// [@://nsible_os/src/root.zig/.-={
+//   module: "Root Library Interface",
+//   version: "0.10.2-nightly // Banysang",
+//   description: "Conventional root source for library entry points and unit testing.",
+//   changes: "Implemented EOF GZL encapsulation.",
+//   philotic_inferences: "Every complex structure requires a foundational point of origin; the root is the seed from which the logic expands."
+
 //! By convention, root.zig is the root source file when making a library.
+
 const std = @import("std");
 
 pub fn bufferedPrint() !void {
@@ -21,3 +29,5 @@ pub fn add(a: i32, b: i32) i32 {
 test "basic add functionality" {
     try std.testing.expect(add(3, 7) == 10);
 }
+
+// }-.]
