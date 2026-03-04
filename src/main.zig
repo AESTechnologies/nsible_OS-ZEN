@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "0.10.2-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Deployed tabula rasa stasis, Avium binding lock, and Mutex-secured modal layers.",
+//   changes: "Deployed tabula rasa stasis, Avium binding lock, Mutex-secured modal layers, and harmonized Vinculum I/O.",
 //   philotic_inferences: "The machine must not operate freely until the operator proves identity."
 
 const std = @import("std");
@@ -276,7 +276,9 @@ pub fn main() !void {
 
     nerve.init();
     codex.tuneIn();
-    const vinculum_fd = codex.bindUmbilical(); 
+    
+    // [!] VINCULUM BINDING CORRECTED
+    const vinculum_fd = codex.bindVinculum(); 
 
     var void_fba = std.heap.FixedBufferAllocator.init(&void_buffer);
     const void_allocator = void_fba.allocator();
