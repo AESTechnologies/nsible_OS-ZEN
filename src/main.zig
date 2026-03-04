@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "0.10.7-nightly // Banysang",
+//   version: "0.10.8-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Unified Dynamic Header mapping. Deployed full Command Bible and Calculator staging in Assist Modal.",
+//   changes: "Resolved memory aliasing panic during hostname extraction.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -15,7 +15,7 @@ const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
 
 const SYSTEM_NAME = "@NSIBLE OS";
-const VERSION     = "v0.10.7-nightly";
+const VERSION     = "v0.10.8-nightly";
 const URI_PREFIX  = "@://";
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
@@ -380,13 +380,17 @@ pub fn main() !void {
     codex.tuneIn();
     const vinculum_fd = codex.bindVinculum(); 
 
-    // [!] ENUMERATE MCHN:SOCIUS IDENTITY
+    // [!] ENUMERATE MCHN:SOCIUS IDENTITY (FIXED ALIASING)
     var mchn_buf: [64]u8 = .{0} ** 64;
     var mchn_len: usize = 0;
     if (fs.openFile("/etc/hostname", .{})) |file| {
-        if (file.readAll(&mchn_buf)) |br| {
-            const tr = std.mem.trim(u8, mchn_buf[0..br], " \n\r\t");
-            if (tr.len > 0) { @memcpy(mchn_buf[0..tr.len], tr); mchn_len = tr.len; }
+        var raw_mchn: [128]u8 = undefined;
+        if (file.readAll(&raw_mchn)) |br| {
+            const tr = std.mem.trim(u8, raw_mchn[0..br], " \n\r\t");
+            if (tr.len > 0) { 
+                @memcpy(mchn_buf[0..tr.len], tr); 
+                mchn_len = tr.len; 
+            }
         } else |_| {}
         file.close();
     } else |_| {}
@@ -403,7 +407,10 @@ pub fn main() !void {
                 var end = start;
                 while (end < fl.len and fl[end] != '\n' and fl[end] != '\r') : (end += 1) {}
                 const s_name = std.mem.trim(u8, fl[start..end], " ");
-                if (s_name.len > 0) { @memcpy(soc_buf[0..s_name.len], s_name); soc_len = s_name.len; }
+                if (s_name.len > 0) { 
+                    @memcpy(soc_buf[0..s_name.len], s_name); 
+                    soc_len = s_name.len; 
+                }
             }
         } else |_| {}
         file.close();
@@ -692,7 +699,6 @@ pub fn main() !void {
                 print(ax + 20, ay + 20, "[ @NSIBLE COMMAND BIBLE & ASSIST ]", 0x00FFBF00);
                 drawRect(ax + 20, ay + 35, aw - 40, 1, 0x00444444);
 
-                // Column 1
                 print(ax + 20, ay + 50, "[ CORE NAVIGATION ]", 0x00AAAAAA);
                 print(ax + 20, ay + 70, "mchn/        : View Local Root", 0x00FFFFFF);
                 print(ax + 20, ay + 90, "mchn/<path>  : Traverse Local Disk", 0x00FFFFFF);
@@ -703,7 +709,6 @@ pub fn main() !void {
                 print(ax + 20, ay + 190, "<Title> //-. : Titled Artifact", 0x00FFFFFF);
                 print(ax + 20, ay + 210, "| memo       : Pipe (Pending)", 0x00FFFFFF);
 
-                // Column 2
                 print(ax + 380, ay + 50, "[ MATRIX MANIPULATION ]", 0x00AAAAAA);
                 print(ax + 380, ay + 70, "shed / drop  : Destroy active node", 0x00FFFFFF);
                 print(ax + 380, ay + 90, "v / ^        : Scroll Matrix down/up", 0x00FFFFFF);
@@ -716,7 +721,6 @@ pub fn main() !void {
 
                 drawRect(ax + 20, ay + 250, aw - 40, 1, 0x00444444);
 
-                // Staged Calculator
                 print(ax + 20, ay + 270, "[ CALCULATOR SUB-ROUTINE ]", 0x00DC143C); 
                 print(ax + 20, ay + 290, ">> ARITHMETIC ENGINE : OFFLINE", 0x00555555);
                 print(ax + 20, ay + 310, ">> STATUS            : Operator sleep required before AST deployment.", 0x00555555);
