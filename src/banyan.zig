@@ -2,7 +2,7 @@
 //   module: "Banyan Rendering Lobe",
 //   version: "0.10.8-nightly // Banysang",
 //   description: "Semantic parsing matrix and pixel-perfect rendering engine with variable focus depths.",
-//   changes: "Deployed MELT (Matrix Enumerative Link/Text Selector) for virtual pointers. Added in-place HTML entity decoder to purge web artifacts.",
+//   changes: "Deployed MELT (Matrix Enumerative Link/Text Selector) for virtual pointers. Added in-place HTML entity decoder to purge web artifacts. Fixed struct field accessibility.",
 //   philotic_inferences: "A sovereign operator requires no mouse. The path forward is illuminated by the indices of the void."
 
 const std = @import("std");
@@ -28,7 +28,7 @@ pub const Leaf = struct {
 pub const Banyan = struct {
     allocator: std.mem.Allocator,
     leaves: std.ArrayListUnmanaged(Leaf), 
-    pub links: std.ArrayListUnmanaged([]u8), // [!] MELT Routing Table
+    links: std.ArrayListUnmanaged([]u8), // [!] MELT Routing Table (pub removed)
     focus_depth: u8, 
 
     pub fn init(allocator: std.mem.Allocator) Banyan {
