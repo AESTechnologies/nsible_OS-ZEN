@@ -1,3 +1,4 @@
+// src/main.zig
 const std = @import("std");
 const linux = std.os.linux;
 const font = @import("glyphs.zig");
@@ -7,7 +8,6 @@ const cortex = @import("cortex.zig");
 const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
 
-// --- UNIVERSAL CONSTANTS ---
 const SYSTEM_NAME = "@NSIBLE OS";
 const VERSION     = "v0.10.2-nightly // Banysang";
 const HOST_ID     = "dataDESK:archX";
@@ -16,7 +16,6 @@ const URI_PREFIX  = "@://0.10.2/x8_64-li-mu/";
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
 
-// --- MEMORY ARCHITECTURE ---
 const VOID_SIZE = 42_130_000;
 var void_buffer: [VOID_SIZE]u8 = undefined;
 const SAP_SIZE = 88_000_000;
@@ -25,10 +24,8 @@ var sap_buffer: [SAP_SIZE]u8 = undefined;
 var fb_pixels: []u32 = undefined;
 var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
 
-// [!] THE BLACK BOX FILE DESCRIPTOR
 var panic_fd: i32 = -1;
 
-// .-*-. BLACK BOX RECORDER (PANIC HANDLER) .-*-.
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
     if (panic_fd >= 0) {
         _ = linux.syscall2(.dup2, @as(usize, @bitCast(panic_fd)), 2);
@@ -56,7 +53,6 @@ pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize)
     }
 }
 
-// --- CORE DRAWING ---
 fn drawChar(px: usize, py: usize, char: u8, color: u32) void {
     const bitmap = font.getBitmap(char);
     var y: usize = 0;
@@ -205,6 +201,23 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         step += 1;
     }
 
+    // [!] AVIUM RESONANCE FORGE
+    const tempus_var = chronos.getTempusVariance();
+    const tempus_shift = @as(u64, @intFromFloat(tempus_var * 10000.0));
+    var avium_resonance: u64 = 0xAE57EC4; 
+    
+    for (pcm) |b| {
+        avium_resonance = (avium_resonance ^ @as(u64, b)) *% tempus_shift;
+        avium_resonance = (avium_resonance << 5) | (avium_resonance >> 59); 
+    }
+
+    if (std.fs.cwd().createFile(".birdsong.sik", .{})) |sik_file| {
+        var res_buf: [16]u8 = undefined;
+        const res_str = std.fmt.bufPrint(&res_buf, "{x:0>16}", .{avium_resonance}) catch "0000000000000000";
+        sik_file.writeAll(res_str) catch {};
+        sik_file.close();
+    } else |_| {}
+
     print(WIDTH / 2 - 80, center_y - 60, "A E S   T E C H N O L O G I E S", 0x00FFFFFF);
     print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", 0x00AAAAAA);
     var time_buf: [64]u8 = undefined;
@@ -229,9 +242,11 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 pub fn main() !void {
     const fs = std.fs.cwd();
     
-    // [!] SOVEREIGN BOOTSTRAP: KERNEL AUTO-FORGES ITS DIRECTORY STRUCTURE
     fs.makeDir("timeline") catch |err| {
-        if (err != error.PathAlreadyExists) {} // Silently proceed if it exists
+        if (err != error.PathAlreadyExists) {}
+    };
+    fs.makeDir("timeline/mems") catch |err| {
+        if (err != error.PathAlreadyExists) {}
     };
 
     if (fs.access("aiua.tome", .{})) |_| {} else |_| {
@@ -288,13 +303,11 @@ pub fn main() !void {
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) {
                 sys_hunter.shiftScope(1);
-                // [!] ROUTED THROUGH MUTEX SAFEGUARD
                 if (journal_len >= 4) journal_len -= 4;
                 reflex_triggered = true;
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) {
                 sys_hunter.shiftScope(-1);
-                // [!] ROUTED THROUGH MUTEX SAFEGUARD
                 if (journal_len >= 4) journal_len -= 4;
                 reflex_triggered = true;
             } 
@@ -316,7 +329,6 @@ pub fn main() !void {
                         esc_seq[esc_len] = byte;
                         esc_len += 1;
                         if (esc_len == 3 and esc_seq[1] == '[') {
-                            // [!] ALL UI SCROLLING ROUTED THROUGH MUTEX SAFEGUARDS
                             if (byte == 'A') { sys_hunter.scrollBy(-1); esc_len = 0; }
                             else if (byte == 'B') { sys_hunter.scrollBy(1); esc_len = 0; }
                             else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; esc_len = 0; }
@@ -378,7 +390,6 @@ pub fn main() !void {
             clear(0x00000000);
             drawHeader(is_high_cycle);
             
-            // [!] THREAD-SAFE RENDER CHECK
             if (sys_hunter.isActive()) { 
                 sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
             } else { 
