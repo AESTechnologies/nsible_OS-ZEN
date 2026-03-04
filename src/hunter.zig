@@ -2,8 +2,8 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.5-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Resolved immutable pointer capture collision during directory validation.",
-//   philotic_inferences: "To edit the code, the machine must first be able to read itself. The lens turns inward."
+//   changes: "Implemented hardware hostname enumeration. Replaced static local prefix with dynamic hostname/mchn bindings.",
+//   philotic_inferences: "To navigate the self, the system must first know its own name."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -30,6 +30,7 @@ pub const Hunter = struct {
     history_index: usize, 
     lens: banyan.Banyan, 
     url: []u8,
+    local_id: []const u8, // [!] Hardware identity anchor
     status: []const u8,
     scroll_y: usize,
     active: bool,
@@ -38,6 +39,18 @@ pub const Hunter = struct {
     thread_handle: ?std.Thread,
 
     pub fn init(perm_allocator: std.mem.Allocator, sap_fba: *std.heap.FixedBufferAllocator) Hunter {
+        
+        // [!] ENUMERATE HARDWARE IDENTITY
+        var id_to_dupe: []const u8 = "mchn";
+        var host_buf: [256]u8 = undefined;
+        if (std.fs.cwd().openFile("/etc/hostname", .{})) |file| {
+            if (file.readAll(&host_buf)) |bytes_read| {
+                const trimmed = std.mem.trim(u8, host_buf[0..bytes_read], " \n\r\t");
+                if (trimmed.len > 0) id_to_dupe = trimmed;
+            } else |_| {}
+            file.close();
+        } else |_| {}
+
         var self = Hunter{
             .allocator = perm_allocator,
             .sap_fba = sap_fba,
@@ -46,6 +59,7 @@ pub const Hunter = struct {
             .history_index = 0,
             .lens = banyan.Banyan.init(sap_fba.allocator()),
             .url = perm_allocator.dupe(u8, "WAITING") catch @panic("OOM_INIT"),
+            .local_id = perm_allocator.dupe(u8, id_to_dupe) catch @panic("OOM_INIT"),
             .status = "IDLE",
             .scroll_y = 0,
             .active = false,
@@ -64,6 +78,7 @@ pub const Hunter = struct {
         self.lens.deinit(); 
         self.philote_map.deinit(self.allocator);
         self.allocator.free(self.url);
+        self.allocator.free(self.local_id);
     }
 
     pub fn isActive(self: *Hunter) bool {
@@ -190,8 +205,7 @@ pub const Hunter = struct {
         self.saveHistory() catch {};
     }
 
-    // [!] LOCAL DISK INSPECTOR (IDE CORE)
-    fn fetchLocal(self: *Hunter, path: []const u8) !void {
+    fn fetchLocal(self: *Hunter, path: []const u8, prefix: []const u8) !void {
         var html_buf: std.ArrayListUnmanaged(u8) = .{};
         defer html_buf.deinit(self.allocator);
 
@@ -199,17 +213,9 @@ pub const Hunter = struct {
         
         var is_dir = false;
         if (is_absolute) {
-            if (std.fs.openDirAbsolute(path, .{})) |dir| { 
-                var d = dir; 
-                is_dir = true; 
-                d.close(); 
-            } else |_| {}
+            if (std.fs.openDirAbsolute(path, .{})) |dir| { var d = dir; is_dir = true; d.close(); } else |_| {}
         } else {
-            if (std.fs.cwd().openDir(path, .{})) |dir| { 
-                var d = dir; 
-                is_dir = true; 
-                d.close(); 
-            } else |_| {}
+            if (std.fs.cwd().openDir(path, .{})) |dir| { var d = dir; is_dir = true; d.close(); } else |_| {}
         }
 
         if (is_dir) {
@@ -217,19 +223,22 @@ pub const Hunter = struct {
             defer dir.close();
             var iter = dir.iterate();
 
-            try html_buf.appendSlice(self.allocator, "<b>[ LOCAL DIRECTORY: ");
+            try html_buf.appendSlice(self.allocator, "<b>[ DYNAMIC DISK: ");
             try html_buf.appendSlice(self.allocator, path);
             try html_buf.appendSlice(self.allocator, " ]</b><br><br>");
 
             while (try iter.next()) |entry| {
                 const icon = if (entry.kind == .directory) "[DIR ]" else "[FILE]";
-                const sep = if (path.len > 0 and !std.mem.endsWith(u8, path, "/")) "/" else "";
+                
+                const clean_path = if (std.mem.eql(u8, path, ".")) "" else path;
+                const final_sep = if (clean_path.len > 0 and !std.mem.endsWith(u8, clean_path, "/")) "/" else "";
                 
                 try html_buf.appendSlice(self.allocator, "  ");
                 try html_buf.appendSlice(self.allocator, icon);
-                try html_buf.appendSlice(self.allocator, " <a href=\"@://local/");
-                try html_buf.appendSlice(self.allocator, path);
-                try html_buf.appendSlice(self.allocator, sep);
+                try html_buf.appendSlice(self.allocator, " <a href=\"");
+                try html_buf.appendSlice(self.allocator, prefix);
+                try html_buf.appendSlice(self.allocator, clean_path);
+                try html_buf.appendSlice(self.allocator, final_sep);
                 try html_buf.appendSlice(self.allocator, entry.name);
                 try html_buf.appendSlice(self.allocator, "\">");
                 try html_buf.appendSlice(self.allocator, entry.name);
@@ -238,7 +247,6 @@ pub const Hunter = struct {
         } else {
             const file = if (is_absolute) try std.fs.openFileAbsolute(path, .{}) else try std.fs.cwd().openFile(path, .{});
             defer file.close();
-            
             const content = try file.readToEndAlloc(self.allocator, 1024 * 1024 * 2); 
             defer self.allocator.free(content);
             
@@ -291,13 +299,30 @@ pub const Hunter = struct {
             return; 
         }
 
-        // 2. LOCAL DISK ROUTING (@://local/)
-        if (std.mem.startsWith(u8, target, "@://local/")) {
+        // 2. DYNAMIC DISK ROUTING (Hostname or mchn)
+        var local_prefix_buf: [256]u8 = undefined;
+        const host_prefix = std.fmt.bufPrint(&local_prefix_buf, "@://{s}/", .{self.local_id}) catch "@://mchn/";
+        const mchn_prefix = "@://mchn/";
+
+        var is_local = false;
+        var local_path: []const u8 = "";
+        var active_prefix: []const u8 = "";
+
+        if (std.mem.startsWith(u8, target, host_prefix)) {
+            is_local = true;
+            local_path = target[host_prefix.len..];
+            active_prefix = host_prefix;
+        } else if (std.mem.startsWith(u8, target, mchn_prefix)) {
+            is_local = true;
+            local_path = target[mchn_prefix.len..];
+            active_prefix = mchn_prefix;
+        }
+
+        if (is_local) {
             self.status = "LOCAL_DISK";
-            const local_path = target[10..];
             const actual_path = if (local_path.len == 0) "." else local_path;
             
-            self.fetchLocal(actual_path) catch {
+            self.fetchLocal(actual_path, active_prefix) catch {
                 self.status = "LOCAL_ERR";
             };
 
