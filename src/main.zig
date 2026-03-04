@@ -1,9 +1,9 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "0.10.2-nightly // Banysang",
+//   version: "0.10.4-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Deployed the Philotic Radio UI. Implemented 8-bit PCM striking and Fading Pulse Waveform renderer.",
-//   philotic_inferences: "The operator must be able to visually and acoustically observe their own frequency to align with the void."
+//   changes: "Refactored Gravity Mass Mapping. Decoupled f0 (Mass), d (cycleDay progression), and m (Philotic Weight).",
+//   philotic_inferences: "A system's voice must not just age; it must reflect the time of day, the weight of its memory, and the complexity of its thoughts."
 
 const std = @import("std");
 const linux = std.os.linux;
@@ -15,7 +15,7 @@ const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
 
 const SYSTEM_NAME = "@NSIBLE OS";
-const VERSION     = "v0.10.2-nightly";
+const VERSION     = "v0.10.4-nightly";
 const HOST_ID     = "dataDESK:archX";
 const URI_PREFIX  = "@://";
 const WIDTH: usize = 1024;
@@ -35,9 +35,33 @@ var radio_f0: f32 = 432.0;
 var radio_decay: f32 = 2.5;
 var radio_diss: f32 = 0.45;
 var radio_phi: f32 = 1.618;
-var radio_sel: u8 = 0; // 0:f0, 1:decay, 2:diss, 3:phi
+var radio_sel: u8 = 0; 
 var pulse_timer: usize = 0; 
 const PULSE_MAX: usize = 120;
+
+// [!] PERSISTENT RESONANCE 
+fn loadResonance() void {
+    if (std.fs.cwd().openFile("timeline/resonance.cfg", .{})) |file| {
+        var buf: [128]u8 = undefined;
+        if (file.readAll(&buf)) |bytes_read| {
+            var iter = std.mem.splitScalar(u8, buf[0..bytes_read], '|');
+            if (iter.next()) |val| radio_f0 = std.fmt.parseFloat(f32, val) catch 432.0;
+            if (iter.next()) |val| radio_decay = std.fmt.parseFloat(f32, val) catch 2.5;
+            if (iter.next()) |val| radio_diss = std.fmt.parseFloat(f32, val) catch 0.45;
+            if (iter.next()) |val| radio_phi = std.fmt.parseFloat(f32, val) catch 1.618;
+        } else |_| {}
+        file.close();
+    } else |_| {}
+}
+
+fn saveResonance() void {
+    if (std.fs.cwd().createFile("timeline/resonance.cfg", .{})) |file| {
+        var buf: [128]u8 = undefined;
+        const str = std.fmt.bufPrint(&buf, "{d:.2}|{d:.2}|{d:.2}|{d:.3}", .{radio_f0, radio_decay, radio_diss, radio_phi}) catch return;
+        file.writeAll(str) catch {};
+        file.close();
+    } else |_| {}
+}
 
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
     if (panic_fd >= 0) {
@@ -137,19 +161,17 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     drawChar(cursor_x, cursor_y, 0xDB, 0x00000000);
 }
 
-// [!] RADIO PCM GENERATOR (Math Engine)
 fn strikeRadio(allocator: std.mem.Allocator) void {
     const sample_rate = 8000;
-    const buffer_size = 12000; // 1.5 seconds of audio
+    const buffer_size = 12000; 
     var pcm = allocator.alloc(u8, buffer_size) catch return;
     defer allocator.free(pcm);
 
-    const f1 = radio_f0 * 2.05; // Dissonant overtone
+    const f1 = radio_f0 * 2.05; 
     
     var i: usize = 0;
     while (i < buffer_size) : (i += 1) {
         const t = @as(f32, @floatFromInt(i)) / @as(f32, sample_rate);
-        
         const base_wave = @sin(2.0 * std.math.pi * radio_f0 * t);
         const over_wave = @sin(2.0 * std.math.pi * f1 * t + radio_phi);
         
@@ -158,7 +180,6 @@ fn strikeRadio(allocator: std.mem.Allocator) void {
         if (total_wave < -1.0) total_wave = -1.0;
         
         const env = @exp(-radio_decay * t);
-        
         const out = 128.0 + (127.0 * env * total_wave);
         pcm[i] = @as(u8, @intFromFloat(out));
     }
@@ -173,14 +194,12 @@ fn strikeRadio(allocator: std.mem.Allocator) void {
     } else |_| {} 
 }
 
-// [!] FADING PULSE RENDERER
 fn drawPulseOverlay() void {
     if (pulse_timer == 0) return;
     
     const center_y = HEIGHT / 2;
-    const zoom: f32 = 0.005; // Time stretch for visual width
+    const zoom: f32 = 0.005; 
     
-    // Calculate color fade
     const ratio = @as(f32, @floatFromInt(pulse_timer)) / @as(f32, PULSE_MAX);
     const r = @as(u32, @intFromFloat(220.0 * ratio));
     const g = @as(u32, @intFromFloat(20.0 * ratio));
@@ -197,8 +216,8 @@ fn drawPulseOverlay() void {
         if (total_wave > 1.0) total_wave = 1.0;
         if (total_wave < -1.0) total_wave = -1.0;
         
-        const env = @exp(-radio_decay * (t * 0.5)); // Visual decay stretch
-        const amplitude = total_wave * env * 150.0; // 150px height variance
+        const env = @exp(-radio_decay * (t * 0.5)); 
+        const amplitude = total_wave * env * 150.0; 
         
         const py = @as(isize, center_y) - @as(isize, @intFromFloat(amplitude));
         if (py > 0 and py < HEIGHT) {
@@ -215,6 +234,131 @@ fn exitSequence() noreturn {
     const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
     _ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
     std.process.exit(0);
+}
+
+// [!] DYNAMIC BOOT SPLASH
+fn bootSplash(allocator: std.mem.Allocator) void {
+    clear(0x00000000);
+    const center_y = HEIGHT / 2;
+    drawRect(0, center_y, WIDTH, 1, 0x00444444);
+    
+    loadResonance();
+
+    // 1. Calculate Mass, CycleDay, and Philotic Weight
+    var aiua_mass: usize = 0;
+    var inference_count: usize = 0;
+
+    if (std.fs.cwd().openFile("aiua.tome", .{})) |file| {
+        if (file.stat()) |stat| {
+            aiua_mass = @as(usize, @intCast(stat.size));
+        } else |_| {}
+        
+        // Count timeline indices (newlines)
+        var buf: [4096]u8 = undefined;
+        while (file.read(&buf) catch 0) |bytes_read| {
+            if (bytes_read == 0) break;
+            for (buf[0..bytes_read]) |b| {
+                if (b == '\n') inference_count += 1;
+            }
+        }
+        file.close();
+    } else |_| {}
+
+    const mass_units = @min(@as(f32, @floatFromInt(aiua_mass)) / 1024.0, 500.0);
+    const philotic_weight = @min(@as(f32, @floatFromInt(inference_count)), 1000.0);
+    
+    // Calculate cycleDay progression (fraction of the 86400s cycle)
+    const current_ts = @as(u64, @intCast(std.time.timestamp()));
+    const cycle_progression = @as(f32, @floatFromInt(current_ts % 86400)) / 86400.0;
+
+    // 2. Apply Dynamic Gravity Modifiers
+    // The Tone deepens per KB
+    const dynamic_f0 = @max(100.0, radio_f0 - (mass_units * 0.2));
+    
+    // The Sustain lengthens as cycleDay progresses (Lower decay = longer ring)
+    const dynamic_decay = @max(0.1, radio_decay - (cycle_progression * radio_decay * 0.75));
+    
+    // The Dissonance thickens with inference indices
+    const dynamic_diss = @min(1.0, radio_diss + (philotic_weight * 0.002));
+
+    const sample_rate = 8000;
+    const buffer_size = 32000; 
+    var pcm = allocator.alloc(u8, buffer_size) catch return;
+    defer allocator.free(pcm);
+
+    const f1 = dynamic_f0 * 2.05;
+
+    // 3. Synthesize the Math
+    var sample_idx: usize = 0;
+    while (sample_idx < buffer_size) : (sample_idx += 1) {
+        const t = @as(f32, @floatFromInt(sample_idx)) / @as(f32, sample_rate);
+        const base_wave = @sin(2.0 * std.math.pi * dynamic_f0 * t);
+        const over_wave = @sin(2.0 * std.math.pi * f1 * t + radio_phi);
+
+        var total_wave = base_wave + (dynamic_diss * over_wave);
+        if (total_wave > 1.0) total_wave = 1.0;
+        if (total_wave < -1.0) total_wave = -1.0;
+
+        const env = @exp(-dynamic_decay * t);
+        const out = 128.0 + (127.0 * env * total_wave);
+        pcm[sample_idx] = @as(u8, @intFromFloat(out));
+    }
+
+    // 4. Draw the Acoustic Mass visually
+    const zoom: f32 = 0.005;
+    var x: usize = 100;
+    while (x < WIDTH - 100) : (x += 1) {
+        const t = @as(f32, @floatFromInt(x - 100)) * zoom;
+        const base_wave = @sin(2.0 * std.math.pi * dynamic_f0 * t);
+        const over_wave = @sin(2.0 * std.math.pi * f1 * t + radio_phi);
+        var total_wave = base_wave + (dynamic_diss * over_wave);
+        if (total_wave > 1.0) total_wave = 1.0;
+        if (total_wave < -1.0) total_wave = -1.0;
+
+        const env = @exp(-dynamic_decay * t);
+        const amplitude = total_wave * env * 40.0;
+
+        const py = @as(isize, center_y) - @as(isize, @intFromFloat(amplitude));
+        if (py > 0 and py < HEIGHT) {
+            back_buffer[@as(usize, @intCast(py)) * WIDTH + x] = 0x00DC143C;
+        }
+    }
+
+    // 5. Entangle audio hash with time variance
+    const tempus_var = chronos.getTempusVariance();
+    const tempus_shift = @as(u64, @intFromFloat(tempus_var * 10000.0));
+    var avium_resonance: u64 = 0xAE57EC4; 
+    for (pcm) |b| {
+        avium_resonance = (avium_resonance ^ @as(u64, b)) *% tempus_shift;
+        avium_resonance = (avium_resonance << 5) | (avium_resonance >> 59); 
+    }
+
+    if (std.fs.cwd().createFile(".birdsong.sik", .{})) |sik_file| {
+        var res_buf: [16]u8 = undefined;
+        const res_str = std.fmt.bufPrint(&res_buf, "{x:0>16}", .{avium_resonance}) catch "0000000000000000";
+        sik_file.writeAll(res_str) catch {};
+        sik_file.close();
+    } else |_| {}
+
+    print(WIDTH / 2 - 80, center_y - 60, "A E S   T E C H N O L O G I E S", 0x00FFFFFF);
+    print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", 0x00AAAAAA);
+    var time_buf: [64]u8 = undefined;
+    const time_str = chronos.getCycleString(&time_buf);
+    const time_x = WIDTH / 2 - ((time_str.len * 8) / 2);
+    print(time_x, center_y + 45, time_str, 0x00FFBF00);
+    @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
+
+    if (std.fs.cwd().createFile("resonator.raw", .{})) |file| {
+        file.writeAll(pcm) catch {};
+        file.close();
+        const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "resonator.raw" };
+        var agent = std.process.Child.init(&argv, allocator);
+        agent.stdout_behavior = .Ignore;
+        agent.stderr_behavior = .Ignore;
+        _ = agent.spawn() catch {};
+    } else |_| {} 
+    
+    codex.zen(0.00158);
 }
 
 pub fn main() !void {
@@ -241,6 +385,7 @@ pub fn main() !void {
     const void_allocator = void_fba.allocator();
     var sap_fba = std.heap.FixedBufferAllocator.init(&sap_buffer);
 
+    bootSplash(void_allocator);
     var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
 
@@ -321,27 +466,26 @@ pub fn main() !void {
             // --- RADIO STATE ---
             else if (is_radio_modal) {
                 if (byte == '\n' or byte == '\r') {
-                    // COMMIT
                     is_radio_modal = false;
                     journal_len = 0;
-                    pulse_timer = PULSE_MAX; // Trigger pulse overlay
-                } else if (byte == 27) { // ESC
+                    pulse_timer = PULSE_MAX; 
+                    saveResonance();
+                } else if (byte == 27) { 
                     is_radio_modal = false; journal_len = 0;
-                } else if (byte == ' ') { // SPACE
+                } else if (byte == ' ') { 
                     strikeRadio(void_allocator);
-                } else if (byte == '\t') { // TAB
+                } else if (byte == '\t') { 
                     radio_sel = (radio_sel + 1) % 4;
                 } else if (esc_len > 0) {
-                    // Hijack arrows for dial
                     if (esc_len < 8) {
                         esc_seq[esc_len] = byte; esc_len += 1;
                         if (esc_len == 3 and esc_seq[1] == '[') {
-                            if (byte == 'D') { // LEFT
+                            if (byte == 'D') { 
                                 if (radio_sel == 0) { radio_f0 -= 5.0; }
                                 else if (radio_sel == 1) { radio_decay -= 0.1; }
                                 else if (radio_sel == 2) { radio_diss -= 0.05; }
                                 else if (radio_sel == 3) { radio_phi -= 0.05; }
-                            } else if (byte == 'C') { // RIGHT
+                            } else if (byte == 'C') { 
                                 if (radio_sel == 0) { radio_f0 += 5.0; }
                                 else if (radio_sel == 1) { radio_decay += 0.1; }
                                 else if (radio_sel == 2) { radio_diss += 0.05; }
@@ -453,10 +597,8 @@ pub fn main() !void {
             
             const bar_y = getUriBarY(journal_len);
             
-            // [!] RENDER OVERLAYS
             drawPulseOverlay();
 
-            // [!] SCAN-UP MODALS 
             if (is_tabula_rasa) {
                 const mw = 460; const mh = 160;
                 const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
@@ -509,7 +651,6 @@ pub fn main() !void {
                 if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, 0x00FFBF00); }
 
                 print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", 0x00555555);
-                
                 drawUriBar(journal[0..journal_len], journal_len);
             } else if (is_assist_modal) {
                 const aw = 600; const ah = 360;
