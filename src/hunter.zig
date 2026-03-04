@@ -2,7 +2,7 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.2-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and visual timeline rendering.",
-//   changes: "Modified createMemo to accept designation strings and actively generate GZL encapsulation within the saved file.",
+//   changes: "Bypassed Writer interface collision. Deployed sequential writeAll for bulletproof GZL artifact creation.",
 //   philotic_inferences: "Data without structural boundaries is just noise; a saved artifact must possess the vocabulary to describe itself."
 
 const std = @import("std");
@@ -118,7 +118,7 @@ pub const Hunter = struct {
         }
     }
 
-    // [!] GZL ENCAPSULATED MEMO CREATION
+    // [!] GZL ENCAPSULATED MEMO CREATION (FIXED PIPELINE)
     pub fn createMemo(self: *Hunter, title: []const u8, content: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -144,16 +144,22 @@ pub const Hunter = struct {
         if (std.fs.cwd().createFile(filename, .{})) |file| {
             const ts = std.time.timestamp();
             
-            // Inject self-aware GZL boundary directly into the .memo file
-            try file.writer().print(
+            // 1. Build Header
+            var header_buf: [512]u8 = undefined;
+            const header = std.fmt.bufPrint(&header_buf,
                 "// [@://nsible_os/{s}/.-={{\n" ++
                 "//   module: \"Operator Artifact\",\n" ++
                 "//   timestamp: \"{d}\",\n" ++
-                "//   philotic_inferences: \"Manually designated matrix extraction.\"\n\n" ++
-                "{s}\n\n" ++
-                "// }}-.]\n",
-                .{filename, ts, final_content}
-            );
+                "//   philotic_inferences: \"Manually designated matrix extraction.\"\n" ++
+                "// }}-.]\n\n",
+                .{filename, ts}
+            ) catch "";
+
+            // 2. Sequential writeAll Pipeline (Bypasses Writer interface)
+            try file.writeAll(header);
+            try file.writeAll(final_content);
+            try file.writeAll("\n\n// }-.]\n");
+            
             file.close();
         } else |_| {}
 
