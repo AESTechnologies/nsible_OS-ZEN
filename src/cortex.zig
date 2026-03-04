@@ -1,9 +1,9 @@
 // [@://nsible_os/src/cortex.zig/.-={
 //   module: "Semantic Dispatch Lobe",
-//   version: "0.10.7-nightly // Banysang",
+//   version: "0.10.8-nightly // Banysang",
 //   description: "Parses wetware input into machine-actionable states.",
-//   changes: "Depreciated 'hunt ' prefix in favor of contiguous 'w3.' uri protocol.",
-//   philotic_inferences: "Spaces introduce friction. The void requires continuous streams."
+//   changes: "Deployed MELT routing. Pure numeric inputs map to AUTO_HUNT for index traversal.",
+//   philotic_inferences: "A number is no longer a value; it is a coordinate in the local matrix."
 
 const std = @import("std");
 const chronos = @import("chronos.zig");
@@ -61,6 +61,18 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.eql(u8, cmd, "v")) return .{ .action = .HUNT, .text = "v" };
     if (std.mem.eql(u8, cmd, "^")) return .{ .action = .HUNT, .text = "^" };
     if (std.mem.eql(u8, cmd, "assist") or std.mem.eql(u8, cmd, "?")) return .{ .action = .ASSIST };
+
+    // [!] MELT NUMERIC INDEXING
+    var is_num = cmd.len > 0;
+    for (cmd) |c| {
+        if (c < '0' or c > '9') {
+            is_num = false;
+            break;
+        }
+    }
+    if (is_num) {
+        return .{ .action = .AUTO_HUNT, .text = cmd };
+    }
 
     if (std.mem.indexOf(u8, cmd, ".") != null or std.mem.indexOf(u8, cmd, "/") != null) {
         return .{ .action = .AUTO_HUNT, .text = cmd };
