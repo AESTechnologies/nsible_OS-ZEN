@@ -1,9 +1,9 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "0.10.4-nightly // Banysang",
+//   version: "0.10.6-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Resolved type collision in AIUA mass calculation. Decoupled f0 (Mass), d (cycleDay progression), and m (Philotic Weight).",
-//   philotic_inferences: "A system's voice must not just age; it must reflect the time of day, the weight of its memory, and the complexity of its thoughts."
+//   changes: "Implemented Ghost Text URI persistence. Reverted auto-wake to maintain NO_FOCUS sovereignty. Fixed highClaw animation x-offset.",
+//   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
 const linux = std.os.linux;
@@ -15,7 +15,7 @@ const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
 
 const SYSTEM_NAME = "@NSIBLE OS";
-const VERSION     = "v0.10.4-nightly";
+const VERSION     = "v0.10.6-nightly";
 const HOST_ID     = "dataDESK:archX";
 const URI_PREFIX  = "@://";
 const WIDTH: usize = 1024;
@@ -30,7 +30,6 @@ var fb_pixels: []u32 = undefined;
 var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
 var panic_fd: i32 = -1;
 
-// --- PHILOTIC RADIO STATE ---
 var radio_f0: f32 = 432.0;
 var radio_decay: f32 = 2.5;
 var radio_diss: f32 = 0.45;
@@ -39,7 +38,6 @@ var radio_sel: u8 = 0;
 var pulse_timer: usize = 0; 
 const PULSE_MAX: usize = 120;
 
-// [!] PERSISTENT RESONANCE 
 fn loadResonance() void {
     if (std.fs.cwd().openFile("timeline/resonance.cfg", .{})) |file| {
         var buf: [128]u8 = undefined;
@@ -126,12 +124,13 @@ fn drawHeader(is_high: bool) void {
     drawChar(994, 6, glyph, 0x00FFFFFF);
 }
 
-fn getUriBarY(input_len: usize) usize {
+fn getUriBarY(input_len: usize, url_len: usize) usize {
     const char_w = 8; const line_h = 10; const padding = 6;
     var cursor_x: usize = 10; var lines: usize = 1;
-    cursor_x += URI_PREFIX.len * char_w;
+    const active_len = if (input_len > 0) input_len + URI_PREFIX.len else url_len;
+
     var i: usize = 0;
-    while (i < input_len) : (i += 1) {
+    while (i < active_len) : (i += 1) {
         cursor_x += char_w;
         if (cursor_x >= WIDTH - 10) { lines += 1; cursor_x = 10 + char_w; }
     }
@@ -139,24 +138,33 @@ fn getUriBarY(input_len: usize) usize {
     return if (bar_height < HEIGHT) HEIGHT - bar_height else 0;
 }
 
-fn drawUriBar(input_buf: []const u8, input_len: usize) void {
+fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) void {
     const char_w = 8; const line_h = 10; const padding = 6;
-    const start_y = getUriBarY(input_len);
+    const start_y = getUriBarY(input_len, current_url.len);
     const bar_height = HEIGHT - start_y;
     drawRect(0, start_y, WIDTH, bar_height, 0x00DC143C);
     
     var cursor_x: usize = 10; var cursor_y: usize = start_y + padding;
-    for (URI_PREFIX) |char| { 
-        drawChar(cursor_x, cursor_y, char, 0x00000000); 
-        cursor_x += char_w;
-        if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } 
-    }
-    var i: usize = 0;
-    while (i < input_len) : (i += 1) {
-        const char = input_buf[i];
-        drawChar(cursor_x, cursor_y, char, 0x00000000);
-        cursor_x += char_w;
-        if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; }
+    
+    if (input_len == 0) {
+        for (current_url) |char| { 
+            drawChar(cursor_x, cursor_y, char, 0x00888888); 
+            cursor_x += char_w;
+            if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } 
+        }
+    } else {
+        for (URI_PREFIX) |char| { 
+            drawChar(cursor_x, cursor_y, char, 0x00000000); 
+            cursor_x += char_w;
+            if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } 
+        }
+        var i: usize = 0;
+        while (i < input_len) : (i += 1) {
+            const char = input_buf[i];
+            drawChar(cursor_x, cursor_y, char, 0x00000000);
+            cursor_x += char_w;
+            if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; }
+        }
     }
     drawChar(cursor_x, cursor_y, 0xDB, 0x00000000);
 }
@@ -236,7 +244,6 @@ fn exitSequence() noreturn {
     std.process.exit(0);
 }
 
-// [!] DYNAMIC BOOT SPLASH
 fn bootSplash(allocator: std.mem.Allocator) void {
     clear(0x00000000);
     const center_y = HEIGHT / 2;
@@ -244,7 +251,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     
     loadResonance();
 
-    // 1. Calculate Mass, CycleDay, and Philotic Weight
     var aiua_mass: usize = 0;
     var inference_count: usize = 0;
 
@@ -253,7 +259,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
             aiua_mass = @as(usize, @intCast(stat.size));
         } else |_| {}
         
-        // Count timeline indices (newlines) safely
         var buf: [4096]u8 = undefined;
         while (true) {
             const bytes_read = file.read(&buf) catch 0;
@@ -268,18 +273,11 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     const mass_units = @min(@as(f32, @floatFromInt(aiua_mass)) / 1024.0, 500.0);
     const philotic_weight = @min(@as(f32, @floatFromInt(inference_count)), 1000.0);
     
-    // Calculate cycleDay progression (fraction of the 86400s cycle)
     const current_ts = @as(u64, @intCast(std.time.timestamp()));
     const cycle_progression = @as(f32, @floatFromInt(current_ts % 86400)) / 86400.0;
 
-    // 2. Apply Dynamic Gravity Modifiers
-    // The Tone deepens per KB
     const dynamic_f0 = @max(100.0, radio_f0 - (mass_units * 0.2));
-    
-    // The Sustain lengthens as cycleDay progresses (Lower decay = longer ring)
     const dynamic_decay = @max(0.1, radio_decay - (cycle_progression * radio_decay * 0.75));
-    
-    // The Dissonance thickens with inference indices
     const dynamic_diss = @min(1.0, radio_diss + (philotic_weight * 0.002));
 
     const sample_rate = 8000;
@@ -289,7 +287,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 
     const f1 = dynamic_f0 * 2.05;
 
-    // 3. Synthesize the Math
     var sample_idx: usize = 0;
     while (sample_idx < buffer_size) : (sample_idx += 1) {
         const t = @as(f32, @floatFromInt(sample_idx)) / @as(f32, sample_rate);
@@ -305,7 +302,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         pcm[sample_idx] = @as(u8, @intFromFloat(out));
     }
 
-    // 4. Draw the Acoustic Mass visually
     const zoom: f32 = 0.005;
     var x: usize = 100;
     while (x < WIDTH - 100) : (x += 1) {
@@ -325,7 +321,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         }
     }
 
-    // 5. Entangle audio hash with time variance
     const tempus_var = chronos.getTempusVariance();
     const tempus_shift = @as(u64, @intFromFloat(tempus_var * 10000.0));
     var avium_resonance: u64 = 0xAE57EC4; 
@@ -423,7 +418,6 @@ pub fn main() !void {
         if (codex.transcieve(vinculum_fd)) |byte| {
             dirty = true;
             
-            // --- TABULA RASA STATE ---
             if (is_tabula_rasa) {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
@@ -449,7 +443,6 @@ pub fn main() !void {
                     if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
                 }
             } 
-            // --- MEMO STATE ---
             else if (is_memo_modal) {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
@@ -464,7 +457,6 @@ pub fn main() !void {
                     if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
                 }
             }
-            // --- RADIO STATE ---
             else if (is_radio_modal) {
                 if (byte == '\n' or byte == '\r') {
                     is_radio_modal = false;
@@ -499,7 +491,6 @@ pub fn main() !void {
                     esc_len = 1; esc_seq[0] = byte;
                 }
             } 
-            // --- STANDARD STATE ---
             else {
                 var k: usize = 0;
                 while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
@@ -593,10 +584,13 @@ pub fn main() !void {
             clear(0x00000000);
             drawHeader(is_high_cycle);
             
-            if (sys_hunter.isActive()) { sys_hunter.render(&back_buffer, WIDTH, HEIGHT); } 
-            else { print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555); }
+            sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
             
-            const bar_y = getUriBarY(journal_len);
+            if (!sys_hunter.isActive()) { 
+                print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555); 
+            }
+            
+            const bar_y = getUriBarY(journal_len, sys_hunter.url.len);
             
             drawPulseOverlay();
 
@@ -652,7 +646,7 @@ pub fn main() !void {
                 if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, 0x00FFBF00); }
 
                 print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", 0x00555555);
-                drawUriBar(journal[0..journal_len], journal_len);
+                drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
             } else if (is_assist_modal) {
                 const aw = 600; const ah = 360;
                 const ax = (WIDTH / 2) - (aw / 2); const ay = bar_y - ah;
@@ -667,9 +661,9 @@ pub fn main() !void {
                 print(ax + 20, ay + 180, "CALCULATOR:", 0x00AAAAAA);
                 print(ax + 40, ay + 200, "[ ARCHITECTURE PENDING... ]", 0x00555555);
                 print(ax + 20, ay + ah - 40, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
-                drawUriBar(journal[0..journal_len], journal_len);
+                drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
             } else {
-                drawUriBar(journal[0..journal_len], journal_len);
+                drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
             }
             
             @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
