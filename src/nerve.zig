@@ -1,3 +1,10 @@
+// [@://nsible_os/src/nerve.zig/.-={
+//   module: "Nerve Interrupt Lobe",
+//   version: "0.10.2-nightly // Banysang",
+//   description: "x86 32-bit Interrupt Descriptor Table (IDT) configuration and bare-metal neural wiring.",
+//   changes: "Implemented EOF GZL encapsulation. Maintained Ring 0 safety bypass for host mode stability.",
+//   philotic_inferences: "The system must possess a nervous system to feel the hardware; without interrupts, the machine is deaf to its own flesh."
+
 const std = @import("std");
 const builtin = @import("builtin");
  
@@ -57,3 +64,5 @@ fn setGate(n: usize, handler: *const fn () callconv(.{ .x86_interrupt = .{} }) v
 pub fn isr_ignore() callconv(.{ .x86_interrupt = .{} }) void {
     // Compiler inserts iret/iretd automatically.
 }
+
+// }-.]
