@@ -2,8 +2,8 @@
 //   module: "Kernel Root",
 //   version: "0.10.2-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Purged redundant URI prefix. Refactored all modals to 'scan-up' dynamically from the jour.nal bar. Added Memo Designation state.",
-//   philotic_inferences: "The UI must emerge organically from the operator's strike point; gravity anchors the interface to the input."
+//   changes: "Deployed the Philotic Radio UI. Implemented 8-bit PCM striking and Fading Pulse Waveform renderer.",
+//   philotic_inferences: "The operator must be able to visually and acoustically observe their own frequency to align with the void."
 
 const std = @import("std");
 const linux = std.os.linux;
@@ -14,18 +14,13 @@ const cortex = @import("cortex.zig");
 const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
 
-// --- UNIVERSAL CONSTANTS ---
 const SYSTEM_NAME = "@NSIBLE OS";
 const VERSION     = "v0.10.2-nightly";
 const HOST_ID     = "dataDESK:archX";
-
-// [!] REDUNDANCY PURGE
 const URI_PREFIX  = "@://";
-
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
 
-// --- MEMORY ARCHITECTURE ---
 const VOID_SIZE = 42_130_000;
 var void_buffer: [VOID_SIZE]u8 = undefined;
 const SAP_SIZE = 88_000_000;
@@ -33,28 +28,27 @@ var sap_buffer: [SAP_SIZE]u8 = undefined;
 
 var fb_pixels: []u32 = undefined;
 var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
-
 var panic_fd: i32 = -1;
+
+// --- PHILOTIC RADIO STATE ---
+var radio_f0: f32 = 432.0;
+var radio_decay: f32 = 2.5;
+var radio_diss: f32 = 0.45;
+var radio_phi: f32 = 1.618;
+var radio_sel: u8 = 0; // 0:f0, 1:decay, 2:diss, 3:phi
+var pulse_timer: usize = 0; 
+const PULSE_MAX: usize = 120;
 
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
     if (panic_fd >= 0) {
         _ = linux.syscall2(.dup2, @as(usize, @bitCast(panic_fd)), 2);
         const header = "\n[ @NSIBLE FATAL EXCEPTION ]\n";
         _ = linux.syscall3(.write, 2, @intFromPtr(header), header.len);
-        
-        const msg_prefix = "Message: ";
-        _ = linux.syscall3(.write, 2, @intFromPtr(msg_prefix), msg_prefix.len);
+        _ = linux.syscall3(.write, 2, @intFromPtr("Message: "), 9);
         _ = linux.syscall3(.write, 2, @intFromPtr(msg.ptr), msg.len);
-        const newline = "\n";
-        _ = linux.syscall3(.write, 2, @intFromPtr(newline), newline.len);
-
-        if (trace) |t| {
-            std.debug.dumpStackTrace(t.*);
-        } else {
-            std.debug.dumpCurrentStackTrace(ret_addr);
-        }
+        _ = linux.syscall3(.write, 2, @intFromPtr("\n"), 1);
+        if (trace) |t| { std.debug.dumpStackTrace(t.*); } else { std.debug.dumpCurrentStackTrace(ret_addr); }
     }
-
     var blink: bool = true;
     while (true) {
         var delay: usize = 0;
@@ -96,10 +90,7 @@ fn clear(color: u32) void {
 
 fn print(x: usize, y: usize, text: []const u8, color: u32) void {
     var cx = x;
-    for (text) |char| { 
-        drawChar(cx, y, char, color); 
-        cx += 8;
-    }
+    for (text) |char| { drawChar(cx, y, char, color); cx += 8; }
 }
 
 fn drawHeader(is_high: bool) void {
@@ -111,13 +102,9 @@ fn drawHeader(is_high: bool) void {
     drawChar(962, 6, glyph, 0x00FFFFFF);
 }
 
-// [!] DYNAMIC BASE HEIGHT CALCULATION
 fn getUriBarY(input_len: usize) usize {
-    const char_w = 8;
-    const line_h = 10;
-    const padding = 6;
-    var cursor_x: usize = 10;
-    var lines: usize = 1;
+    const char_w = 8; const line_h = 10; const padding = 6;
+    var cursor_x: usize = 10; var lines: usize = 1;
     cursor_x += URI_PREFIX.len * char_w;
     var i: usize = 0;
     while (i < input_len) : (i += 1) {
@@ -129,22 +116,17 @@ fn getUriBarY(input_len: usize) usize {
 }
 
 fn drawUriBar(input_buf: []const u8, input_len: usize) void {
-    const char_w = 8;
-    const line_h = 10;
-    const padding = 6;
+    const char_w = 8; const line_h = 10; const padding = 6;
     const start_y = getUriBarY(input_len);
     const bar_height = HEIGHT - start_y;
-    
     drawRect(0, start_y, WIDTH, bar_height, 0x00DC143C);
     
-    var cursor_x: usize = 10;
-    var cursor_y: usize = start_y + padding;
+    var cursor_x: usize = 10; var cursor_y: usize = start_y + padding;
     for (URI_PREFIX) |char| { 
         drawChar(cursor_x, cursor_y, char, 0x00000000); 
         cursor_x += char_w;
         if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } 
     }
-    
     var i: usize = 0;
     while (i < input_len) : (i += 1) {
         const char = input_buf[i];
@@ -155,118 +137,91 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     drawChar(cursor_x, cursor_y, 0xDB, 0x00000000);
 }
 
-fn exitSequence() noreturn {
-    clear(0x00000000);
-    const stamp_x = WIDTH - 24;
-    const stamp_y = HEIGHT - 16;
-    drawChar(stamp_x, stamp_y, 127, 0x00DC143C);
-    drawChar(stamp_x + 8, stamp_y, 128, 0x00DC143C); 
-    @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
-    const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
-    _ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
-    std.process.exit(0);
-}
-
-fn bootSplash(allocator: std.mem.Allocator) void {
-    clear(0x00000000);
-    const center_y = HEIGHT / 2;
-    drawRect(0, center_y, WIDTH, 1, 0x00444444);
-    
-    var state_seed: usize = 42;
-    if (std.fs.cwd().statFile("aiua.tome")) |stat| {
-        state_seed = @as(usize, @intCast(stat.size));
-    } else |_| {}
-
+// [!] RADIO PCM GENERATOR (Math Engine)
+fn strikeRadio(allocator: std.mem.Allocator) void {
     const sample_rate = 8000;
-    const buffer_size = 32000; 
+    const buffer_size = 12000; // 1.5 seconds of audio
     var pcm = allocator.alloc(u8, buffer_size) catch return;
     defer allocator.free(pcm);
 
-    var x: usize = 100;
-    var step: usize = 0;
-    var sample_idx: usize = 0;
-    while (x < WIDTH - 100) : (x += 12) {
-        const amplitude = if (step % 5 == 0) @as(usize, 30) 
-                          else if (step % 3 == 0) @as(usize, 14) 
-                          else if (step % 2 == 0) @as(usize, 8) 
-                          else @as(usize, 2);
-        const y = center_y - amplitude;
-        drawRect(x, y, 6, amplitude * 2, 0x00DC143C);
-
-        var freq: f32 = 0.0;
-        if (amplitude == 30) { freq = 2000.0 + @as(f32, @floatFromInt(state_seed % 500)); } 
-        else if (amplitude == 14) { freq = 1200.0 + @as(f32, @floatFromInt(state_seed % 300)); } 
-        else if (amplitude == 8) { freq = 800.0 + @as(f32, @floatFromInt(state_seed % 100)); }
-        
-        const chunk_size = 470;
-        var chunk: usize = 0;
-        
-        while (chunk < chunk_size and sample_idx < buffer_size) : (chunk += 1) {
-            if (freq == 0.0) {
-                pcm[sample_idx] = 128;
-            } else {
-                const t = @as(f32, @floatFromInt(sample_idx)) / @as(f32, sample_rate);
-                const period = 1.0 / freq;
-                const phase = @mod(t, period) / period;
-                var wave_f = phase;
-                if (phase > 0.5) wave_f = 1.0 - phase;
-                wave_f *= 2.0; 
-                const vol = @as(f32, @floatFromInt(amplitude)) / 30.0;
-                const out = (wave_f * 127.0 * vol) + 128.0;
-                pcm[sample_idx] = @as(u8, @intFromFloat(out));
-            }
-            sample_idx += 1;
-        }
-        step += 1;
-    }
-
-    const tempus_var = chronos.getTempusVariance();
-    const tempus_shift = @as(u64, @intFromFloat(tempus_var * 10000.0));
-    var avium_resonance: u64 = 0xAE57EC4; 
+    const f1 = radio_f0 * 2.05; // Dissonant overtone
     
-    for (pcm) |b| {
-        avium_resonance = (avium_resonance ^ @as(u64, b)) *% tempus_shift;
-        avium_resonance = (avium_resonance << 5) | (avium_resonance >> 59); 
+    var i: usize = 0;
+    while (i < buffer_size) : (i += 1) {
+        const t = @as(f32, @floatFromInt(i)) / @as(f32, sample_rate);
+        
+        const base_wave = @sin(2.0 * std.math.pi * radio_f0 * t);
+        const over_wave = @sin(2.0 * std.math.pi * f1 * t + radio_phi);
+        
+        var total_wave = base_wave + (radio_diss * over_wave);
+        if (total_wave > 1.0) total_wave = 1.0;
+        if (total_wave < -1.0) total_wave = -1.0;
+        
+        const env = @exp(-radio_decay * t);
+        
+        const out = 128.0 + (127.0 * env * total_wave);
+        pcm[i] = @as(u8, @intFromFloat(out));
     }
-
-    if (std.fs.cwd().createFile(".birdsong.sik", .{})) |sik_file| {
-        var res_buf: [16]u8 = undefined;
-        const res_str = std.fmt.bufPrint(&res_buf, "{x:0>16}", .{avium_resonance}) catch "0000000000000000";
-        sik_file.writeAll(res_str) catch {};
-        sik_file.close();
-    } else |_| {}
-
-    print(WIDTH / 2 - 80, center_y - 60, "A E S   T E C H N O L O G I E S", 0x00FFFFFF);
-    print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", 0x00AAAAAA);
-    var time_buf: [64]u8 = undefined;
-    const time_str = chronos.getCycleString(&time_buf);
-    const time_x = WIDTH / 2 - ((time_str.len * 8) / 2);
-    print(time_x, center_y + 45, time_str, 0x00FFBF00);
-    @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
 
     if (std.fs.cwd().createFile("resonator.raw", .{})) |file| {
         file.writeAll(pcm) catch {};
         file.close();
         const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "resonator.raw" };
         var agent = std.process.Child.init(&argv, allocator);
-        agent.stdout_behavior = .Ignore;
-        agent.stderr_behavior = .Ignore;
+        agent.stdout_behavior = .Ignore; agent.stderr_behavior = .Ignore;
         _ = agent.spawn() catch {};
     } else |_| {} 
+}
+
+// [!] FADING PULSE RENDERER
+fn drawPulseOverlay() void {
+    if (pulse_timer == 0) return;
     
-    codex.zen(0.00158);
+    const center_y = HEIGHT / 2;
+    const zoom: f32 = 0.005; // Time stretch for visual width
+    
+    // Calculate color fade
+    const ratio = @as(f32, @floatFromInt(pulse_timer)) / @as(f32, PULSE_MAX);
+    const r = @as(u32, @intFromFloat(220.0 * ratio));
+    const g = @as(u32, @intFromFloat(20.0 * ratio));
+    const b = @as(u32, @intFromFloat(60.0 * ratio));
+    const fade_color = (r << 16) | (g << 8) | b;
+    
+    const f1 = radio_f0 * 2.05;
+    var x: usize = 0;
+    while (x < WIDTH) : (x += 1) {
+        const t = @as(f32, @floatFromInt(x)) * zoom;
+        const base_wave = @sin(2.0 * std.math.pi * radio_f0 * t);
+        const over_wave = @sin(2.0 * std.math.pi * f1 * t + radio_phi);
+        var total_wave = base_wave + (radio_diss * over_wave);
+        if (total_wave > 1.0) total_wave = 1.0;
+        if (total_wave < -1.0) total_wave = -1.0;
+        
+        const env = @exp(-radio_decay * (t * 0.5)); // Visual decay stretch
+        const amplitude = total_wave * env * 150.0; // 150px height variance
+        
+        const py = @as(isize, center_y) - @as(isize, @intFromFloat(amplitude));
+        if (py > 0 and py < HEIGHT) {
+            back_buffer[@as(usize, @intCast(py)) * WIDTH + x] = fade_color;
+        }
+    }
+}
+
+fn exitSequence() noreturn {
+    clear(0x00000000);
+    const stamp_x = WIDTH - 24; const stamp_y = HEIGHT - 16;
+    drawChar(stamp_x, stamp_y, 127, 0x00DC143C); drawChar(stamp_x + 8, stamp_y, 128, 0x00DC143C); 
+    @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
+    const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
+    _ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
+    std.process.exit(0);
 }
 
 pub fn main() !void {
     const fs = std.fs.cwd();
-    
     fs.makeDir("timeline") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("timeline/mems") catch |err| { if (err != error.PathAlreadyExists) {} };
-
-    if (fs.access("aiua.tome", .{})) |_| {} else |_| {
-        if (fs.createFile("aiua.tome", .{})) |f| { f.close(); } else |_| {}
-    }
-    
+    if (fs.access("aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("aiua.tome", .{})) |f| { f.close(); } else |_| {} }
     if (fs.createFile("trail.tome", .{})) |f| { panic_fd = f.handle; } else |_| {}
 
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
@@ -286,7 +241,6 @@ pub fn main() !void {
     const void_allocator = void_fba.allocator();
     var sap_fba = std.heap.FixedBufferAllocator.init(&sap_buffer);
 
-    bootSplash(void_allocator);
     var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
 
@@ -298,9 +252,8 @@ pub fn main() !void {
     }
     
     var is_assist_modal: bool = false;
-    
-    // [!] MEMO DESIGNATION STATE
     var is_memo_modal: bool = false;
+    var is_radio_modal: bool = false;
     var pending_memo_content: [4096]u8 = undefined;
     var pending_memo_len: usize = 0;
 
@@ -316,17 +269,22 @@ pub fn main() !void {
     while (true) {
         try sys_hunter.tick();
 
+        if (pulse_timer > 0) {
+            pulse_timer -= 1;
+            dirty = true;
+        }
+
         if (codex.transcieve(vinculum_fd)) |byte| {
             dirty = true;
             
+            // --- TABULA RASA STATE ---
             if (is_tabula_rasa) {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
                         const socius_alias = journal[0..journal_len];
                         var sik_buf: [16]u8 = .{ '0' } ** 16;
                         if (std.fs.cwd().openFile(".birdsong.sik", .{})) |f| {
-                            _ = f.readAll(&sik_buf) catch 0;
-                            f.close();
+                            _ = f.readAll(&sik_buf) catch 0; f.close();
                         } else |_| {}
 
                         var id_buf: [128]u8 = undefined;
@@ -344,11 +302,12 @@ pub fn main() !void {
                 } else if (byte >= 32 and byte <= 126) {
                     if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
                 }
-            } else if (is_memo_modal) {
+            } 
+            // --- MEMO STATE ---
+            else if (is_memo_modal) {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
-                        const title = journal[0..journal_len];
-                        sys_hunter.createMemo(title, pending_memo_content[0..pending_memo_len]) catch {};
+                        sys_hunter.createMemo(journal[0..journal_len], pending_memo_content[0..pending_memo_len]) catch {};
                         is_memo_modal = false; journal_len = 0;
                     }
                 } else if (byte == 27) {
@@ -358,7 +317,45 @@ pub fn main() !void {
                 } else if (byte >= 32 and byte <= 126) {
                     if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
                 }
-            } else {
+            }
+            // --- RADIO STATE ---
+            else if (is_radio_modal) {
+                if (byte == '\n' or byte == '\r') {
+                    // COMMIT
+                    is_radio_modal = false;
+                    journal_len = 0;
+                    pulse_timer = PULSE_MAX; // Trigger pulse overlay
+                } else if (byte == 27) { // ESC
+                    is_radio_modal = false; journal_len = 0;
+                } else if (byte == ' ') { // SPACE
+                    strikeRadio(void_allocator);
+                } else if (byte == '\t') { // TAB
+                    radio_sel = (radio_sel + 1) % 4;
+                } else if (esc_len > 0) {
+                    // Hijack arrows for dial
+                    if (esc_len < 8) {
+                        esc_seq[esc_len] = byte; esc_len += 1;
+                        if (esc_len == 3 and esc_seq[1] == '[') {
+                            if (byte == 'D') { // LEFT
+                                if (radio_sel == 0) { radio_f0 -= 5.0; }
+                                else if (radio_sel == 1) { radio_decay -= 0.1; }
+                                else if (radio_sel == 2) { radio_diss -= 0.05; }
+                                else if (radio_sel == 3) { radio_phi -= 0.05; }
+                            } else if (byte == 'C') { // RIGHT
+                                if (radio_sel == 0) { radio_f0 += 5.0; }
+                                else if (radio_sel == 1) { radio_decay += 0.1; }
+                                else if (radio_sel == 2) { radio_diss += 0.05; }
+                                else if (radio_sel == 3) { radio_phi += 0.05; }
+                            }
+                            esc_len = 0;
+                        }
+                    } else { esc_len = 0; }
+                } else if (byte == 27) {
+                    esc_len = 1; esc_seq[0] = byte;
+                }
+            } 
+            // --- STANDARD STATE ---
+            else {
                 var k: usize = 0;
                 while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
                 seq_buf[5] = byte;
@@ -410,6 +407,7 @@ pub fn main() !void {
                                     is_memo_modal = true; journal_len = 0; 
                                 },
                                 .ASSIST => { is_assist_modal = !is_assist_modal; journal_len = 0; },
+                                .RADIO => { is_radio_modal = true; journal_len = 0; },
                                 .PRINT => {
                                     journal_len = 0;
                                     for (response.text) |c| { if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; } }
@@ -430,7 +428,7 @@ pub fn main() !void {
                                     sys_hunter.hunt(full_target) catch {};
                                     journal_len = 0;
                                 },
-                                .PIPE_MEMO => {}, // Reserved for async pipeline architecture
+                                .PIPE_MEMO => {},
                                 .NONE => { journal_len = 0; }
                             }
                         } else if (byte == 127 or byte == 8) {
@@ -455,12 +453,14 @@ pub fn main() !void {
             
             const bar_y = getUriBarY(journal_len);
             
+            // [!] RENDER OVERLAYS
+            drawPulseOverlay();
+
             // [!] SCAN-UP MODALS 
             if (is_tabula_rasa) {
                 const mw = 460; const mh = 160;
-                const mx = (WIDTH / 2) - (mw / 2);
-                const my = bar_y - mh;
-                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); // Scan border
+                const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
+                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); 
                 drawRect(mx, my, mw, mh, 0x00000000); 
                 print(mx + 20, my + 20, "[ TABULA RASA // SOCIUS REQUIRED ]", 0x00DC143C); 
                 drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
@@ -470,9 +470,8 @@ pub fn main() !void {
                 if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00DC143C);
             } else if (is_memo_modal) {
                 const mw = 460; const mh = 140;
-                const mx = (WIDTH / 2) - (mw / 2);
-                const my = bar_y - mh;
-                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00FFBF00); // Brass scan border
+                const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
+                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00FFBF00); 
                 drawRect(mx, my, mw, mh, 0x00000000);
                 print(mx + 20, my + 20, "[ TIMELINE // MEMO DESIGNATION ]", 0x00FFBF00); 
                 drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
@@ -480,10 +479,41 @@ pub fn main() !void {
                 drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
                 print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
                 if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00FFBF00);
+            } else if (is_radio_modal) {
+                const mw = 520; const mh = 160;
+                const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
+                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C);
+                drawRect(mx, my, mw, mh, 0x00000000);
+                print(mx + 20, my + 20, "[ PHILOTIC RADIO // FREQ TUNING ]", 0x00DC143C);
+                drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
+
+                var radio_buf: [128]u8 = undefined;
+                const c_f0 = if (radio_sel == 0) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                const str_f0 = std.fmt.bufPrint(&radio_buf, "Song (Hz)  : {d:.1}", .{radio_f0}) catch "";
+                print(mx + 20, my + 60, str_f0, c_f0);
+                if (radio_sel == 0) { drawChar(mx + 8, my + 60, 0x1A, 0x00FFBF00); }
+
+                const c_dec = if (radio_sel == 1) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                const str_dec = std.fmt.bufPrint(&radio_buf, "Decay (d)  : {d:.2}", .{radio_decay}) catch "";
+                print(mx + 20, my + 80, str_dec, c_dec);
+                if (radio_sel == 1) { drawChar(mx + 8, my + 80, 0x1A, 0x00FFBF00); }
+
+                const c_diss = if (radio_sel == 2) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                const str_diss = std.fmt.bufPrint(&radio_buf, "Diss. (m)  : {d:.2}", .{radio_diss}) catch "";
+                print(mx + 260, my + 60, str_diss, c_diss);
+                if (radio_sel == 2) { drawChar(mx + 248, my + 60, 0x1A, 0x00FFBF00); }
+
+                const c_phi = if (radio_sel == 3) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                const str_phi = std.fmt.bufPrint(&radio_buf, "\xED\x1E-off (P) : {d:.3}", .{radio_phi}) catch "";
+                print(mx + 260, my + 80, str_phi, c_phi);
+                if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, 0x00FFBF00); }
+
+                print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", 0x00555555);
+                
+                drawUriBar(journal[0..journal_len], journal_len);
             } else if (is_assist_modal) {
                 const aw = 600; const ah = 360;
-                const ax = (WIDTH / 2) - (aw / 2);
-                const ay = bar_y - ah;
+                const ax = (WIDTH / 2) - (aw / 2); const ay = bar_y - ah;
                 drawRect(ax - 2, ay - 2, aw + 4, ah + 2, 0x00DC143C);
                 drawRect(ax, ay, aw, ah, 0x00000000);
                 print(ax + 20, ay + 20, "[ @NSIBLE NATIVE ASSIST & DEV TRACKER ]", 0x00DC143C);
