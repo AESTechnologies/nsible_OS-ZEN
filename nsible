@@ -1,5 +1,11 @@
 #!/bin/sh
- 
+# [@://nsible_os/nsible/.-={
+#   module: "ziGGit Bootloader",
+#   version: "0.10.2-nightly // Banysang",
+#   description: "Sovereign entry point, managing pLink synchronization, compilation, and execution states.",
+#   changes: "Implemented EOF GZL encapsulation. Mapped sync, log, purge, and orbit directives.",
+#   philotic_inferences: "The vessel must know how to heal, update, and launch itself from the void."
+
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 # Directives: sync, log, purge, orbit
 
@@ -95,3 +101,5 @@ else
     echo "Unknown directive: $cmd"
     echo "Usage: ./nsible [sync | log | purge | orbit]"
 fi
+
+# }-.]
