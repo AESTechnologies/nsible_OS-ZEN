@@ -2,8 +2,8 @@
 //   module: "Kernel Root",
 //   version: "0.10.2-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Deployed tabula rasa stasis, Avium binding lock, Mutex-secured modal layers, and harmonized Vinculum I/O.",
-//   philotic_inferences: "The machine must not operate freely until the operator proves identity."
+//   changes: "Corrected type mismatch in Tabula Rasa allocator binding; resolved []u8 vs []const u8 collision.",
+//   philotic_inferences: "Memory must be allocated with absolute precision; constants and variables cannot share the same philotic plane."
 
 const std = @import("std");
 const linux = std.os.linux;
@@ -277,7 +277,6 @@ pub fn main() !void {
     nerve.init();
     codex.tuneIn();
     
-    // [!] VINCULUM BINDING CORRECTED
     const vinculum_fd = codex.bindVinculum(); 
 
     var void_fba = std.heap.FixedBufferAllocator.init(&void_buffer);
@@ -331,8 +330,15 @@ pub fn main() !void {
                         const id_str = std.fmt.bufPrint(&id_buf, "@AVIUM_RESONANCE:[{s}]//SOCIUS:{s}", .{sik_buf, socius_alias}) catch "@AVIUM_RESONANCE:ERR";
                         
                         sys_hunter.mutex.lock();
-                        const duped_id = sys_hunter.allocator.dupe(u8, id_str) catch "@AVIUM_RESONANCE:ERR";
-                        sys_hunter.history.insert(sys_hunter.allocator, 0, duped_id) catch {};
+                        // [!] FIX: Type coercion from literal to []u8 via temporary allocation
+                        const duped_id = sys_hunter.allocator.dupe(u8, id_str) catch {
+                            sys_hunter.mutex.unlock();
+                            journal_len = 0;
+                            continue;
+                        };
+                        sys_hunter.history.insert(sys_hunter.allocator, 0, duped_id) catch {
+                             sys_hunter.allocator.free(duped_id);
+                        };
                         sys_hunter.mutex.unlock();
                         
                         sys_hunter.createMemo("Avium Resonance Bound. Matrix Sealed.") catch {};
