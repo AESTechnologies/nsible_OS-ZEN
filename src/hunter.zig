@@ -31,6 +31,7 @@ pub const Hunter = struct {
     thread_handle: ?std.Thread,
 
     pub fn init(perm_allocator: std.mem.Allocator, sap_fba: *std.heap.FixedBufferAllocator) Hunter {
+     
         var self = Hunter{
             .allocator = perm_allocator,
             .sap_fba = sap_fba,
@@ -38,6 +39,7 @@ pub const Hunter = struct {
             .history = .{},
             .history_index = 0,
             .lens = banyan.Banyan.init(sap_fba.allocator()),
+          
             .url = perm_allocator.dupe(u8, "WAITING") catch @panic("OOM_INIT"),
             .status = "IDLE",
             .scroll_y = 0,
@@ -130,8 +132,9 @@ pub const Hunter = struct {
             final_content = auto_wrapped.?;
         }
 
-        var filename_buf: [64]u8 = undefined;
-        const filename = try std.fmt.bufPrint(&filename_buf, "memo_{d}.memo", .{ts});
+        // [!] DIRECTORY BOOTSTRAPPED BY MAIN.ZIG; ROUTING TO TIMELINE
+        var filename_buf: [128]u8 = undefined;
+        const filename = try std.fmt.bufPrint(&filename_buf, "timeline/memo_{d}.memo", .{ts});
         if (std.fs.cwd().createFile(filename, .{})) |file| {
             try file.writeAll(final_content);
             file.close();
@@ -143,7 +146,6 @@ pub const Hunter = struct {
         
         self.status = "MEMO_SAVED";
         self.active = true;
-        
         self.allocator.free(self.url);
         self.url = try self.allocator.dupe(u8, title);
         self.saveHistory() catch {};
@@ -156,7 +158,6 @@ pub const Hunter = struct {
         if (self.history.items.len == 0) return;
         self.allocator.free(self.history.items[self.history_index]);
         _ = self.history.orderedRemove(self.history_index);
-        
         if (self.history.items.len == 0) {
             self.history_index = 0;
             self.status = "IDLE";
@@ -185,9 +186,9 @@ pub const Hunter = struct {
             self.status = "LOCAL_MEMO";
             const ts_str = target[7..];
             
-            var filename_buf: [64]u8 = undefined;
-            const filename = std.fmt.bufPrint(&filename_buf, "memo_{s}.memo", .{ts_str}) catch return;
-
+            // [!] RETRIEVING FROM TIMELINE
+            var filename_buf: [128]u8 = undefined;
+            const filename = std.fmt.bufPrint(&filename_buf, "timeline/memo_{s}.memo", .{ts_str}) catch return;
             if (std.fs.cwd().openFile(filename, .{})) |file| {
                 if (file.readToEndAlloc(self.allocator, 1024 * 1024)) |body| {
                     self.parseContent(body) catch {};
@@ -315,7 +316,6 @@ pub const Hunter = struct {
         const end_y = height - 20;
 
         self.lens.render(buffer, width, height, self.scroll_y);
-
         const timeline_x = width - 20;
         var t_y: usize = start_y;
         for (self.history.items, 0..) |h_url, idx| {
@@ -333,12 +333,11 @@ pub const Hunter = struct {
                 }
             }
             if (weight_px > 40) weight_px = 40;
-            
             var dy: usize = 0;
             while (dy < 8) : (dy += 1) { 
                 var dx: usize = 0;
                 while (dx < weight_px) : (dx += 1) {
-                    const sx = (timeline_x + 18) - dx; 
+                    const sx = (timeline_x + 18) - dx;
                     const sy = t_y + dy;
                     if (sx < width and sy < height) buffer[sy * width + sx] = color;
                 }
