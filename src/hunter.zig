@@ -1,9 +1,9 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
-//   version: "0.10.6-nightly // Banysang",
+//   version: "0.10.8-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Omni-render for timeline rail. Fixed directory pointer mutability and ArrayList API drift. Added dynamic hostname enumeration.",
-//   philotic_inferences: "To navigate the self, the system must first know its own name, and its history must always cast a shadow."
+//   changes: "Intercepted @://[digits] protocol for MELT virtual pointer traversal. Automatically resolves and overwrites history with true URI.",
+//   philotic_inferences: "To navigate without touching the screen is to move at the speed of thought."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -272,6 +272,37 @@ pub const Hunter = struct {
         self.status = "FETCHING..."; 
         self.scroll_y = 0;
         
+        // [!] MELT (VIRTUAL POINTER) ROUTING
+        if (std.mem.startsWith(u8, target, "@://")) {
+            const possible_idx = target[4..];
+            var is_melt = possible_idx.len > 0;
+            for (possible_idx) |c| {
+                if (c < '0' or c > '9') is_melt = false;
+            }
+            if (is_melt) {
+                const idx = std.fmt.parseInt(usize, possible_idx, 10) catch return;
+                if (idx < self.lens.links.items.len) {
+                    const actual_target = self.lens.links.items[idx];
+                    
+                    self.allocator.free(self.history.items[self.history_index]);
+                    self.history.items[self.history_index] = try self.allocator.dupe(u8, actual_target);
+                    self.saveHistory() catch {};
+                    
+                    return self.executeFetch(self.history.items[self.history_index]);
+                } else {
+                    self.status = "MELT_VOID";
+                    if (self.current_vector) |_| {
+                         if (self.thread_handle) |t| t.detach();
+                         self.current_vector = null;
+                    }
+                    self.allocator.free(self.url);
+                    self.url = try self.allocator.dupe(u8, target);
+                    return;
+                }
+            }
+        }
+
+        // 1. LOCAL MEMO ROUTING
         if (std.mem.startsWith(u8, target, "memo://")) {
             self.status = "LOCAL_MEMO";
             const ts_str = target[7..];
@@ -294,6 +325,7 @@ pub const Hunter = struct {
             return; 
         }
 
+        // 2. DYNAMIC DISK ROUTING
         var local_prefix_buf: [256]u8 = undefined;
         const host_prefix = std.fmt.bufPrint(&local_prefix_buf, "@://{s}/", .{self.local_id}) catch "@://mchn/";
         const mchn_prefix = "@://mchn/";
@@ -325,6 +357,7 @@ pub const Hunter = struct {
             return; 
         }
 
+        // 3. SHADOW FLIGHT (NETWORK) ROUTING
         const gop = try self.philote_map.getOrPut(self.allocator, target);
         if (!gop.found_existing) gop.value_ptr.* = 0;
         gop.value_ptr.* += 1;
