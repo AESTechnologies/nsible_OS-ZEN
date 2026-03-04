@@ -1,9 +1,9 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "0.10.9-nightly // Banysang",
+//   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Resolved error union strictness on trail.tome stat call.",
-//   philotic_inferences: "A system must not forget how it died; it must display its scars upon rebirth."
+//   changes: "Purged hardcoded versioning. Absorbing version dynamically from nsible shell. Injected ALCNDNOM boot verification.",
+//   philotic_inferences: "A silent system is deceitful. The machine must declare its state: All Conditions Normal/Nominal."
 
 const std = @import("std");
 const linux = std.os.linux;
@@ -13,9 +13,10 @@ const codex = @import("codex.zig");
 const cortex = @import("cortex.zig"); 
 const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
+const v_core = @import("version.zig"); // [!] DYNAMIC SHELL BRIDGE
 
 const SYSTEM_NAME = "@NSIBLE OS";
-const VERSION     = "v0.10.9-nightly";
+const VERSION     = v_core.VERSION;    // [!] ASSIGNED FROM SHELL
 const URI_PREFIX  = "@://";
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
@@ -341,10 +342,13 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 
     print(WIDTH / 2 - 80, center_y - 60, "A E S   T E C H N O L O G I E S", 0x00FFFFFF);
     print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", 0x00AAAAAA);
+    // [!] ALCNDNOM Boot Verification Injection
+    print(WIDTH / 2 - 40, center_y + 45, "[ ALCNDNOM ]", 0x00FFBF00); 
+    
     var time_buf: [64]u8 = undefined;
     const time_str = chronos.getCycleString(&time_buf);
     const time_x = WIDTH / 2 - ((time_str.len * 8) / 2);
-    print(time_x, center_y + 45, time_str, 0x00FFBF00);
+    print(time_x, center_y + 65, time_str, 0x00555555);
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
 
     if (std.fs.cwd().createFile("resonator.raw", .{})) |file| {
@@ -366,7 +370,6 @@ pub fn main() !void {
     fs.makeDir("timeline/mems") catch |err| { if (err != error.PathAlreadyExists) {} };
     if (fs.access("aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("aiua.tome", .{})) |f| { f.close(); } else |_| {} }
     
-    // [!] PHANTOM TRACE RECOVERY: Read BEFORE truncating
     var is_trail_modal: bool = false;
     var trail_buffer: [4096]u8 = undefined;
     var trail_len: usize = 0;
@@ -380,7 +383,6 @@ pub fn main() !void {
         file.close();
     } else |_| {}
     
-    // NOW we create/truncate it so panics on this run write to a clean slate
     if (fs.createFile("trail.tome", .{})) |f| { panic_fd = f.handle; } else |_| {}
 
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
@@ -396,7 +398,6 @@ pub fn main() !void {
     codex.tuneIn();
     const vinculum_fd = codex.bindVinculum(); 
 
-    // [!] ENUMERATE MCHN:SOCIUS IDENTITY
     var mchn_buf: [64]u8 = .{0} ** 64;
     var mchn_len: usize = 0;
     if (fs.openFile("/etc/hostname", .{})) |file| {
@@ -502,7 +503,6 @@ pub fn main() !void {
                     if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
                 }
             } 
-            // [!] PHANTOM TRACE INPUT HANDLING
             else if (is_trail_modal) {
                 if (byte == '\n' or byte == '\r') {
                     if (std.mem.eql(u8, journal[0..journal_len], "shed")) {
@@ -679,7 +679,6 @@ pub fn main() !void {
                 print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
                 if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00DC143C);
             } 
-            // [!] PHANTOM TRACE RENDER BLOCK
             else if (is_trail_modal) {
                 const mw = 760; const mh = 400; 
                 const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh - 10;
