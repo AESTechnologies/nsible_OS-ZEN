@@ -1,3 +1,10 @@
+// [@://nsible_os/README.md/.-={
+//   module: "Project Manifest",
+//   version: "0.10.2-nightly // Banysang",
+//   description: "The outer membrane of the sovereign system; defines purpose, architecture, and interaction protocols.",
+//   changes: "Integrated EOF GZL encapsulation and harmonized nomenclature (Vinculum, Tabula Rasa, Socius).",
+//   philotic_inferences: "A system that cannot describe itself to its operator is merely a tool; a system that defines its own existence is a sovereign entity."
+
 # ◬ @NSIBLE OS // v0.10.2-nightly // Banysang
 > **by Æ§ Tech**
 > *A Sovereign, High-Talon Semantic Logic Operating System.*
@@ -10,14 +17,14 @@ Designed strictly for the Acer Aspire One (x86, 32-bit framebuffer).
 ### ⌗ ARCHITECTURE (Banysang Cycle)
 * **Kernel:** Zig *(No standard lib dependencies for graphics/input)*
 * **Memory:** Dual-Lobe Static Allocation
-  * **[ THE VOID ]** (42.13 MB): Persistent storage (History, Memos, System State).
+  * **[ THE VOID ]** (42.13 MB): Persistent storage (History, Memos, System State) [cite: 2026-02-20].
   * **[ THE SAP ]** (88.00 MB): Volatile rendering buffer, wiped on every fetch.
-* **Storage:** `aiua.tome` (Immortal Artifacts), `trail.tome` (Black Box)
-* **Acoustics:** 8-bit PCM Math-Resonator (Pitch-shifted by `aiua.tome` mass)
-* **Optic:** The Banyan Lens *(Multi-Spectral HTML Parser)*
-* **Network:** Async Curl *(Shadow Flight)*
-* **Input:** GZL Reflex + ANSI Motor
-* **Palette:** Crimson, Silver, Brass, Black
+* **Storage:** `aiua.tome` (Immortal Artifacts), `trail.tome` (Black Box).
+* **Acoustics:** 8-bit PCM Math-Resonator (Pitch-shifted by `aiua.tome` mass).
+* **Optic:** The Banyan Lens *(Multi-Spectral HTML Parser)*.
+* **Vinculum:** Shadow Flight via Port 4213.
+* **Input:** GZL Reflex + ANSI Motor.
+* **Palette:** Crimson, Silver, Brass, Black.
 
 ---
 
@@ -26,9 +33,10 @@ Designed strictly for the Acer Aspire One (x86, 32-bit framebuffer).
 | :--- | :--- |
 | `@://url` | Fetch target (Hunt) |
 | `zI` / `zO` | Scope In / Out (Raw -> Zen -> Matrix -> Root) |
-| `memo [txt]`| Save text as an immortal local artifact |
+| `memo [txt]`| Save text as an immortal local artifact in `timeline/mems/` |
 | `shed` | Drop current tab / Clean the Sap memory |
-| `cycle` | Return current cycle time state |
+| `cycle` | Return current cycle state (Strict 0.0 precision) [cite: 2025-12-31] |
+| `assist` / `?` | Project the Native Assist & Dev Tracker Overlay |
 | `v` / `^` | Scroll up / down |
 | `exit` | Matrix Clean & Terminate |
 
@@ -36,6 +44,13 @@ Designed strictly for the Acer Aspire One (x86, 32-bit framebuffer).
 * `//-.` : Instant Memo (Triggered on strike)
 * `.!XX-.` : Hardware Level Kill-Switch
 * `.![-.` / `.!]-.` : Hardware Scope In / Out
+
+---
+
+### ⌗ SOVEREIGN PROTOCOLS
+1. **Tabula Rasa Stasis**: Upon first ignition, the system halts for Socius designation.
+2. **Avium Resonance**: A unique 16-character cryptographic anchor forged from temporal variance.
+3. **The Vinculum**: A secure network bridge for remote terminal injection.
 
 ---
 
@@ -47,3 +62,5 @@ Designed strictly for the Acer Aspire One (x86, 32-bit framebuffer).
 
 ---
 **STATUS:** STAGING // **CODENAME:** BANYSANG (Ficus benghalensis sanguinem)
+
+// }-.]
