@@ -1,3 +1,4 @@
+// src/hunter.zig
 const std = @import("std");
 const font = @import("glyphs.zig");
 const banyan = @import("banyan.zig");
@@ -17,7 +18,7 @@ const FlightVector = struct {
 pub const Hunter = struct {
     allocator: std.mem.Allocator, 
     sap_fba: *std.heap.FixedBufferAllocator, 
-    mutex: std.Thread.Mutex, // [!] THE GATEKEEPER
+    mutex: std.Thread.Mutex,
     
     history: StringList,
     history_index: usize, 
@@ -61,7 +62,6 @@ pub const Hunter = struct {
         self.allocator.free(self.url);
     }
 
-    // [!] THREAD-SAFE ENTRY POINTS
     pub fn isActive(self: *Hunter) bool {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -132,9 +132,8 @@ pub const Hunter = struct {
             final_content = auto_wrapped.?;
         }
 
-        // [!] DIRECTORY BOOTSTRAPPED BY MAIN.ZIG; ROUTING TO TIMELINE
         var filename_buf: [128]u8 = undefined;
-        const filename = try std.fmt.bufPrint(&filename_buf, "timeline/memo_{d}.memo", .{ts});
+        const filename = try std.fmt.bufPrint(&filename_buf, "timeline/mems/memo_{d}.memo", .{ts});
         if (std.fs.cwd().createFile(filename, .{})) |file| {
             try file.writeAll(final_content);
             file.close();
@@ -186,9 +185,8 @@ pub const Hunter = struct {
             self.status = "LOCAL_MEMO";
             const ts_str = target[7..];
             
-            // [!] RETRIEVING FROM TIMELINE
             var filename_buf: [128]u8 = undefined;
-            const filename = std.fmt.bufPrint(&filename_buf, "timeline/memo_{s}.memo", .{ts_str}) catch return;
+            const filename = std.fmt.bufPrint(&filename_buf, "timeline/mems/memo_{s}.memo", .{ts_str}) catch return;
             if (std.fs.cwd().openFile(filename, .{})) |file| {
                 if (file.readToEndAlloc(self.allocator, 1024 * 1024)) |body| {
                     self.parseContent(body) catch {};
