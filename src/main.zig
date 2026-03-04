@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "0.10.4-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Refactored Gravity Mass Mapping. Decoupled f0 (Mass), d (cycleDay progression), and m (Philotic Weight).",
+//   changes: "Resolved type collision in AIUA mass calculation. Decoupled f0 (Mass), d (cycleDay progression), and m (Philotic Weight).",
 //   philotic_inferences: "A system's voice must not just age; it must reflect the time of day, the weight of its memory, and the complexity of its thoughts."
 
 const std = @import("std");
@@ -253,9 +253,10 @@ fn bootSplash(allocator: std.mem.Allocator) void {
             aiua_mass = @as(usize, @intCast(stat.size));
         } else |_| {}
         
-        // Count timeline indices (newlines)
+        // Count timeline indices (newlines) safely
         var buf: [4096]u8 = undefined;
-        while (file.read(&buf) catch 0) |bytes_read| {
+        while (true) {
+            const bytes_read = file.read(&buf) catch 0;
             if (bytes_read == 0) break;
             for (buf[0..bytes_read]) |b| {
                 if (b == '\n') inference_count += 1;
