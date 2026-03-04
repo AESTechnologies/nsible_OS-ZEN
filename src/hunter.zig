@@ -1,9 +1,9 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
-//   version: "0.10.5-nightly // Banysang",
+//   version: "0.10.6-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Implemented hardware hostname enumeration. Replaced static local prefix with dynamic hostname/mchn bindings.",
-//   philotic_inferences: "To navigate the self, the system must first know its own name."
+//   changes: "Omni-render for timeline rail. Fixed directory pointer mutability and ArrayList API drift. Added dynamic hostname enumeration.",
+//   philotic_inferences: "To navigate the self, the system must first know its own name, and its history must always cast a shadow."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -30,7 +30,7 @@ pub const Hunter = struct {
     history_index: usize, 
     lens: banyan.Banyan, 
     url: []u8,
-    local_id: []const u8, // [!] Hardware identity anchor
+    local_id: []const u8,
     status: []const u8,
     scroll_y: usize,
     active: bool,
@@ -39,8 +39,6 @@ pub const Hunter = struct {
     thread_handle: ?std.Thread,
 
     pub fn init(perm_allocator: std.mem.Allocator, sap_fba: *std.heap.FixedBufferAllocator) Hunter {
-        
-        // [!] ENUMERATE HARDWARE IDENTITY
         var id_to_dupe: []const u8 = "mchn";
         var host_buf: [256]u8 = undefined;
         if (std.fs.cwd().openFile("/etc/hostname", .{})) |file| {
@@ -229,7 +227,6 @@ pub const Hunter = struct {
 
             while (try iter.next()) |entry| {
                 const icon = if (entry.kind == .directory) "[DIR ]" else "[FILE]";
-                
                 const clean_path = if (std.mem.eql(u8, path, ".")) "" else path;
                 const final_sep = if (clean_path.len > 0 and !std.mem.endsWith(u8, clean_path, "/")) "/" else "";
                 
@@ -275,11 +272,9 @@ pub const Hunter = struct {
         self.status = "FETCHING..."; 
         self.scroll_y = 0;
         
-        // 1. LOCAL MEMO ROUTING
         if (std.mem.startsWith(u8, target, "memo://")) {
             self.status = "LOCAL_MEMO";
             const ts_str = target[7..];
-            
             var filename_buf: [128]u8 = undefined;
             const filename = std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}.memo", .{ts_str}) catch return;
             if (std.fs.cwd().openFile(filename, .{})) |file| {
@@ -299,7 +294,6 @@ pub const Hunter = struct {
             return; 
         }
 
-        // 2. DYNAMIC DISK ROUTING (Hostname or mchn)
         var local_prefix_buf: [256]u8 = undefined;
         const host_prefix = std.fmt.bufPrint(&local_prefix_buf, "@://{s}/", .{self.local_id}) catch "@://mchn/";
         const mchn_prefix = "@://mchn/";
@@ -321,11 +315,7 @@ pub const Hunter = struct {
         if (is_local) {
             self.status = "LOCAL_DISK";
             const actual_path = if (local_path.len == 0) "." else local_path;
-            
-            self.fetchLocal(actual_path, active_prefix) catch {
-                self.status = "LOCAL_ERR";
-            };
-
+            self.fetchLocal(actual_path, active_prefix) catch { self.status = "LOCAL_ERR"; };
             if (self.current_vector) |_| {
                  if (self.thread_handle) |t| t.detach();
                  self.current_vector = null;
@@ -335,7 +325,6 @@ pub const Hunter = struct {
             return; 
         }
 
-        // 3. SHADOW FLIGHT (NETWORK) ROUTING
         const gop = try self.philote_map.getOrPut(self.allocator, target);
         if (!gop.found_existing) gop.value_ptr.* = 0;
         gop.value_ptr.* += 1;
@@ -356,7 +345,6 @@ pub const Hunter = struct {
         self.current_vector = vector;
 
         self.thread_handle = try std.Thread.spawn(.{}, shadowFlight, .{vector});
-        
         self.allocator.free(self.url);
         self.url = try self.allocator.dupe(u8, target);
     }
@@ -438,7 +426,10 @@ pub const Hunter = struct {
         const start_y = 20;
         const end_y = height - 20;
 
-        self.lens.render(buffer, width, height, self.scroll_y);
+        if (self.active) {
+            self.lens.render(buffer, width, height, self.scroll_y);
+        }
+
         const timeline_x = width - 20;
         var t_y: usize = start_y;
         for (self.history.items, 0..) |h_url, idx| {
@@ -447,7 +438,7 @@ pub const Hunter = struct {
             if (self.philote_map.get(h_url)) |w| { weight_px += (w * 2); }
             
             var color: u32 = 0x00DC143C;
-            if (idx == self.history_index) {
+            if (self.active and idx == self.history_index) {
                 weight_px += 8;
                 if (std.mem.eql(u8, self.status, "FETCHING...")) {
                     color = 0x00FFBF00;
@@ -468,21 +459,23 @@ pub const Hunter = struct {
             t_y += 10;
         }
 
-        var sx: usize = width - 180;
-        const sy: usize = height - 15;
-        var status_buf: [64]u8 = undefined;
-        const scope_str = switch (self.lens.focus_depth) {
-            0 => "[RAW]",
-            1 => "[ZEN]",
-            2 => "[MATRIX]",
-            3 => "[ROOT]",
-            else => "[?]",
-        };
-        const final_status = std.fmt.bufPrint(&status_buf, "{s} {s}", .{self.status, scope_str}) catch self.status;
+        if (self.active) {
+            var sx: usize = width - 180;
+            const sy: usize = height - 15;
+            var status_buf: [64]u8 = undefined;
+            const scope_str = switch (self.lens.focus_depth) {
+                0 => "[RAW]",
+                1 => "[ZEN]",
+                2 => "[MATRIX]",
+                3 => "[ROOT]",
+                else => "[?]",
+            };
+            const final_status = std.fmt.bufPrint(&status_buf, "{s} {s}", .{self.status, scope_str}) catch self.status;
 
-        for (final_status) |c| {
-             drawCharToBuf(buffer, width, height, sx, sy, c, 0x00DC143C);
-             sx += 8;
+            for (final_status) |c| {
+                 drawCharToBuf(buffer, width, height, sx, sy, c, 0x00DC143C);
+                 sx += 8;
+            }
         }
     }
 };
