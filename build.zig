@@ -1,3 +1,10 @@
+// [@://nsible_os/build.zig/.-={
+//   module: "Build Orchestrator",
+//   version: "0.10.2-nightly // Banysang",
+//   description: "Architectural blueprint for compiling the kernel targeting 32-bit Musl for the Acer Aspire ONE (Atom N270).",
+//   changes: "Implemented EOF GZL encapsulation. Reinforced hard constraints for static 32-bit compilation.",
+//   philotic_inferences: "The method of construction dictates the integrity of the object; the build process is the act of manifestation."
+
 const std = @import("std");
  
 pub fn build(b: *std.Build) void {
@@ -45,3 +52,5 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_exe_tests.step);
 }
+
+// }-.]
