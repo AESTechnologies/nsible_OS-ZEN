@@ -2,8 +2,8 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.2-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and visual timeline rendering.",
-//   changes: "Implemented EOF GZL encapsulation. Verified pathing to timeline/mems/ matrix.",
-//   philotic_inferences: "To navigate the void requires a persistent memory of where the operator has been; history is the anchor of traversal."
+//   changes: "Modified createMemo to accept designation strings and actively generate GZL encapsulation within the saved file.",
+//   philotic_inferences: "Data without structural boundaries is just noise; a saved artifact must possess the vocabulary to describe itself."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -118,14 +118,15 @@ pub const Hunter = struct {
         }
     }
 
-    pub fn createMemo(self: *Hunter, content: []const u8) !void {
+    // [!] GZL ENCAPSULATED MEMO CREATION
+    pub fn createMemo(self: *Hunter, title: []const u8, content: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
 
-        var buf: [64]u8 = undefined;
-        const ts = std.time.timestamp();
-        const title = try std.fmt.bufPrint(&buf, "memo://{d}", .{ts});
-        const title_dupe = try self.allocator.dupe(u8, title);
+        const clean_title = if (title.len == 0) "untitled_anomaly" else title;
+        var uri_buf: [256]u8 = undefined;
+        const full_uri = try std.fmt.bufPrint(&uri_buf, "memo://{s}", .{clean_title});
+        const title_dupe = try self.allocator.dupe(u8, full_uri);
 
         try self.history.append(self.allocator, title_dupe);
         self.history_index = self.history.items.len - 1;
@@ -139,20 +140,30 @@ pub const Hunter = struct {
         }
 
         var filename_buf: [128]u8 = undefined;
-        const filename = try std.fmt.bufPrint(&filename_buf, "timeline/mems/memo_{d}.memo", .{ts});
+        const filename = try std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}.memo", .{clean_title});
         if (std.fs.cwd().createFile(filename, .{})) |file| {
-            try file.writeAll(final_content);
+            const ts = std.time.timestamp();
+            
+            // Inject self-aware GZL boundary directly into the .memo file
+            try file.writer().print(
+                "// [@://nsible_os/{s}/.-={{\n" ++
+                "//   module: \"Operator Artifact\",\n" ++
+                "//   timestamp: \"{d}\",\n" ++
+                "//   philotic_inferences: \"Manually designated matrix extraction.\"\n\n" ++
+                "{s}\n\n" ++
+                "// }}-.]\n",
+                .{filename, ts, final_content}
+            );
             file.close();
         } else |_| {}
 
         try self.parseContent(final_content);
-        
         if (auto_wrapped) |w| self.allocator.free(w);
         
         self.status = "MEMO_SAVED";
         self.active = true;
         self.allocator.free(self.url);
-        self.url = try self.allocator.dupe(u8, title);
+        self.url = try self.allocator.dupe(u8, full_uri);
         self.saveHistory() catch {};
     }
 
@@ -192,7 +203,7 @@ pub const Hunter = struct {
             const ts_str = target[7..];
             
             var filename_buf: [128]u8 = undefined;
-            const filename = std.fmt.bufPrint(&filename_buf, "timeline/mems/memo_{s}.memo", .{ts_str}) catch return;
+            const filename = std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}.memo", .{ts_str}) catch return;
             if (std.fs.cwd().openFile(filename, .{})) |file| {
                 if (file.readToEndAlloc(self.allocator, 1024 * 1024)) |body| {
                     self.parseContent(body) catch {};
