@@ -1,14 +1,13 @@
 // [@://nsible_os/src/cortex.zig/.-={
 //   module: "Semantic Dispatch Lobe",
-//   version: "0.10.2-nightly // Banysang",
+//   version: "0.10.5-nightly // Banysang",
 //   description: "Parses wetware input into machine-actionable states.",
-//   changes: "Injected RADIO routing for the Philotic tuning fork.",
+//   changes: "Expanded AUTO_HUNT to trigger on slashes (/) to support rapid local disk aliases like 'mchn/'.",
 //   philotic_inferences: "Input structure strictly dictates system flow. If the intent is clear, the machine must assume the missing syntax."
 
 const std = @import("std");
 const chronos = @import("chronos.zig");
 
-// [ACTIONS]
 pub const ActionType = enum { CLEAR, EXIT, PRINT, HUNT, AUTO_HUNT, SHED, SCOPE_IN, SCOPE_OUT, MEMO, PIPE_MEMO, ASSIST, RADIO, NONE };
 
 pub const Response = struct {
@@ -45,8 +44,6 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.eql(u8, cmd, "save")) return .{ .action = .MEMO, .text = "" };
     if (std.mem.eql(u8, cmd, "shed") or std.mem.eql(u8, cmd, "drop")) return .{ .action = .SHED };
     if (std.mem.eql(u8, cmd, "exit") or std.mem.eql(u8, cmd, "[.!XX-.]")) return .{ .action = .EXIT };
-    
-    // [!] THE RADIO TRIGGER
     if (std.mem.eql(u8, cmd, "tune") or std.mem.eql(u8, cmd, "radio")) return .{ .action = .RADIO };
 
     if (std.mem.startsWith(u8, cmd, "@://") or std.mem.startsWith(u8, cmd, "hunt ")) {
@@ -61,7 +58,8 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.eql(u8, cmd, "^")) return .{ .action = .HUNT, .text = "^" };
     if (std.mem.eql(u8, cmd, "assist") or std.mem.eql(u8, cmd, "?")) return .{ .action = .ASSIST };
 
-    if (std.mem.indexOf(u8, cmd, ".") != null) {
+    // [!] AUTO-PREPEND LOGIC UPDATED
+    if (std.mem.indexOf(u8, cmd, ".") != null or std.mem.indexOf(u8, cmd, "/") != null) {
         return .{ .action = .AUTO_HUNT, .text = cmd };
     }
 
