@@ -1,9 +1,9 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
-//   version: "0.10.2-nightly // Banysang",
-//   description: "Manages state history, concurrent data retrieval vectors, and visual timeline rendering.",
-//   changes: "Bypassed Writer interface collision. Deployed sequential writeAll for bulletproof GZL artifact creation.",
-//   philotic_inferences: "Data without structural boundaries is just noise; a saved artifact must possess the vocabulary to describe itself."
+//   version: "0.10.5-nightly // Banysang",
+//   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
+//   changes: "Injected local disk routing via @://local/. Added native directory indexing and auto-line-numbering for the Read-Only IDE Lens.",
+//   philotic_inferences: "To edit the code, the machine must first be able to read itself. The lens turns inward."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -38,7 +38,6 @@ pub const Hunter = struct {
     thread_handle: ?std.Thread,
 
     pub fn init(perm_allocator: std.mem.Allocator, sap_fba: *std.heap.FixedBufferAllocator) Hunter {
-     
         var self = Hunter{
             .allocator = perm_allocator,
             .sap_fba = sap_fba,
@@ -46,7 +45,6 @@ pub const Hunter = struct {
             .history = .{},
             .history_index = 0,
             .lens = banyan.Banyan.init(sap_fba.allocator()),
-          
             .url = perm_allocator.dupe(u8, "WAITING") catch @panic("OOM_INIT"),
             .status = "IDLE",
             .scroll_y = 0,
@@ -118,7 +116,6 @@ pub const Hunter = struct {
         }
     }
 
-    // [!] GZL ENCAPSULATED MEMO CREATION (FIXED PIPELINE)
     pub fn createMemo(self: *Hunter, title: []const u8, content: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -143,8 +140,6 @@ pub const Hunter = struct {
         const filename = try std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}.memo", .{clean_title});
         if (std.fs.cwd().createFile(filename, .{})) |file| {
             const ts = std.time.timestamp();
-            
-            // 1. Build Header
             var header_buf: [512]u8 = undefined;
             const header = std.fmt.bufPrint(&header_buf,
                 "// [@://nsible_os/{s}/.-={{\n" ++
@@ -155,11 +150,9 @@ pub const Hunter = struct {
                 .{filename, ts}
             ) catch "";
 
-            // 2. Sequential writeAll Pipeline (Bypasses Writer interface)
             try file.writeAll(header);
             try file.writeAll(final_content);
             try file.writeAll("\n\n// }-.]\n");
-            
             file.close();
         } else |_| {}
 
@@ -183,10 +176,8 @@ pub const Hunter = struct {
         if (self.history.items.len == 0) {
             self.history_index = 0;
             self.status = "IDLE";
-            
             self.sap_fba.reset();
             self.lens = banyan.Banyan.init(self.sap_fba.allocator());
-            
             self.allocator.free(self.url);
             self.url = self.allocator.dupe(u8, "WAITING") catch return;
             self.active = false;
@@ -199,11 +190,58 @@ pub const Hunter = struct {
         self.saveHistory() catch {};
     }
 
+    // [!] LOCAL DISK INSPECTOR (IDE CORE)
+    fn fetchLocal(self: *Hunter, path: []const u8) !void {
+        var html_buf = std.ArrayList(u8).init(self.allocator);
+        defer html_buf.deinit();
+
+        const is_absolute = std.mem.startsWith(u8, path, "/");
+        
+        var is_dir = false;
+        if (is_absolute) {
+            if (std.fs.openDirAbsolute(path, .{})) |*dir| { is_dir = true; dir.close(); } else |_| {}
+        } else {
+            if (std.fs.cwd().openDir(path, .{})) |*dir| { is_dir = true; dir.close(); } else |_| {}
+        }
+
+        if (is_dir) {
+            var dir = if (is_absolute) try std.fs.openDirAbsolute(path, .{ .iterate = true }) else try std.fs.cwd().openDir(path, .{ .iterate = true });
+            defer dir.close();
+            var iter = dir.iterate();
+
+            try html_buf.writer().print("<b>[ LOCAL DIRECTORY: {s} ]</b><br><br>", .{path});
+            while (try iter.next()) |entry| {
+                const icon = if (entry.kind == .directory) "[DIR ]" else "[FILE]";
+                const sep = if (path.len > 0 and !std.mem.endsWith(u8, path, "/")) "/" else "";
+                try html_buf.writer().print("  {s} <a href=\"@://local/{s}{s}{s}\">{s}</a><br>", .{icon, path, sep, entry.name, entry.name});
+            }
+        } else {
+            const file = if (is_absolute) try std.fs.openFileAbsolute(path, .{}) else try std.fs.cwd().openFile(path, .{});
+            defer file.close();
+            const content = try file.readToEndAlloc(self.allocator, 1024 * 1024 * 5); // 5MB limit
+            defer self.allocator.free(content);
+            
+            try html_buf.writer().print("<b>[ LOCAL ARTIFACT: {s} ]</b><br><br><pre>\n", .{path});
+            
+            // Auto-inject IDE Line Numbers
+            var line_iter = std.mem.splitScalar(u8, content, '\n');
+            var line_no: usize = 1;
+            while (line_iter.next()) |line| {
+                try html_buf.writer().print("{d:0>4} | {s}\n", .{line_no, line});
+                line_no += 1;
+            }
+            try html_buf.writer().print("</pre>", .{});
+        }
+
+        try self.parseContent(html_buf.items);
+    }
+
     fn executeFetch(self: *Hunter, target: []const u8) !void {
         self.active = true;
         self.status = "FETCHING..."; 
         self.scroll_y = 0;
         
+        // 1. LOCAL MEMO ROUTING
         if (std.mem.startsWith(u8, target, "memo://")) {
             self.status = "LOCAL_MEMO";
             const ts_str = target[7..];
@@ -214,24 +252,39 @@ pub const Hunter = struct {
                 if (file.readToEndAlloc(self.allocator, 1024 * 1024)) |body| {
                     self.parseContent(body) catch {};
                     self.allocator.free(body); 
-                } else |_| {
-                    self.status = "MEMO_LOST";
-                }
+                } else |_| { self.status = "MEMO_LOST"; }
                 file.close();
-            } else |_| {
-                self.status = "MEMO_LOST";
-            }
+            } else |_| { self.status = "MEMO_LOST"; }
 
             if (self.current_vector) |_| {
                  if (self.thread_handle) |t| t.detach();
                  self.current_vector = null;
             }
             self.allocator.free(self.url);
-            self.url = self.allocator.dupe(u8, target) catch return;
-
+            self.url = try self.allocator.dupe(u8, target);
             return; 
         }
 
+        // 2. LOCAL DISK ROUTING (@://local/)
+        if (std.mem.startsWith(u8, target, "@://local/")) {
+            self.status = "LOCAL_DISK";
+            const local_path = target[10..];
+            const actual_path = if (local_path.len == 0) "." else local_path;
+            
+            self.fetchLocal(actual_path) catch {
+                self.status = "LOCAL_ERR";
+            };
+
+            if (self.current_vector) |_| {
+                 if (self.thread_handle) |t| t.detach();
+                 self.current_vector = null;
+            }
+            self.allocator.free(self.url);
+            self.url = try self.allocator.dupe(u8, target);
+            return; 
+        }
+
+        // 3. SHADOW FLIGHT (NETWORK) ROUTING
         const gop = try self.philote_map.getOrPut(self.allocator, target);
         if (!gop.found_existing) gop.value_ptr.* = 0;
         gop.value_ptr.* += 1;
@@ -278,7 +331,6 @@ pub const Hunter = struct {
     pub fn navigateHistory(self: *Hunter, direction: i32) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-
         if (self.history.items.len == 0) return;
         if (direction < 0) { 
             if (self.history_index > 0) self.history_index -= 1;
@@ -292,7 +344,6 @@ pub const Hunter = struct {
     pub fn hunt(self: *Hunter, target: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-
         try self.history.append(self.allocator, try self.allocator.dupe(u8, target));
         self.history_index = self.history.items.len - 1;
         self.saveHistory() catch {};
