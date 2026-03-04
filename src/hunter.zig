@@ -2,7 +2,7 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.5-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Bypassed standard ArrayList wrapper. Rebuilt local disk inspector using Unmanaged memory slice appends for maximum performance and compiler immunity.",
+//   changes: "Resolved immutable pointer capture collision during directory validation.",
 //   philotic_inferences: "To edit the code, the machine must first be able to read itself. The lens turns inward."
 
 const std = @import("std");
@@ -199,9 +199,17 @@ pub const Hunter = struct {
         
         var is_dir = false;
         if (is_absolute) {
-            if (std.fs.openDirAbsolute(path, .{})) |*dir| { is_dir = true; dir.close(); } else |_| {}
+            if (std.fs.openDirAbsolute(path, .{})) |dir| { 
+                var d = dir; 
+                is_dir = true; 
+                d.close(); 
+            } else |_| {}
         } else {
-            if (std.fs.cwd().openDir(path, .{})) |*dir| { is_dir = true; dir.close(); } else |_| {}
+            if (std.fs.cwd().openDir(path, .{})) |dir| { 
+                var d = dir; 
+                is_dir = true; 
+                d.close(); 
+            } else |_| {}
         }
 
         if (is_dir) {
@@ -230,7 +238,7 @@ pub const Hunter = struct {
         } else {
             const file = if (is_absolute) try std.fs.openFileAbsolute(path, .{}) else try std.fs.cwd().openFile(path, .{});
             defer file.close();
-            // Cap text processing to 2MB to preserve SAP memory on the Acer
+            
             const content = try file.readToEndAlloc(self.allocator, 1024 * 1024 * 2); 
             defer self.allocator.free(content);
             
@@ -238,7 +246,6 @@ pub const Hunter = struct {
             try html_buf.appendSlice(self.allocator, path);
             try html_buf.appendSlice(self.allocator, " ]</b><br><br><pre>\n");
             
-            // Auto-inject IDE Line Numbers using raw memory writes
             var line_iter = std.mem.splitScalar(u8, content, '\n');
             var line_no: usize = 1;
             while (line_iter.next()) |line| {
