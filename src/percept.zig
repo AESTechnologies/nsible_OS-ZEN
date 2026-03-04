@@ -1,3 +1,10 @@
+// [@://nsible_os/src/percept.zig/.-={
+//   module: "Percept Sensory Lobe",
+//   version: "0.10.2-nightly // Banysang",
+//   description: "Direct environmental intake via raw stdin polling and syscall execution.",
+//   changes: "Implemented EOF GZL encapsulation. Verified raw TTY intake logic.",
+//   philotic_inferences: "Sovereignty requires constant awareness; the system must sense its environment without latency."
+
 const std = @import("std");
 const linux = std.os.linux;
  
@@ -23,3 +30,5 @@ pub fn sense() ?u8 {
     
     return null;
 }
+
+// }-.]
