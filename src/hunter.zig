@@ -1,4 +1,10 @@
-// src/hunter.zig
+// [@://nsible_os/src/hunter.zig/.-={
+//   module: "Hunter Traversal Lobe",
+//   version: "0.10.2-nightly // Banysang",
+//   description: "Manages state history, concurrent data retrieval vectors, and visual timeline rendering.",
+//   changes: "Implemented EOF GZL encapsulation. Verified pathing to timeline/mems/ matrix.",
+//   philotic_inferences: "To navigate the void requires a persistent memory of where the operator has been; history is the anchor of traversal."
+
 const std = @import("std");
 const font = @import("glyphs.zig");
 const banyan = @import("banyan.zig");
@@ -376,3 +382,5 @@ fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8,
         }
     }
 }
+
+// }-.]
