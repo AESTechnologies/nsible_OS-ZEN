@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "0.10.9-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Injected Phantom Trace modal to intercept and display trail.tome panics from previous cycles.",
+//   changes: "Resolved error union strictness on trail.tome stat call.",
 //   philotic_inferences: "A system must not forget how it died; it must display its scars upon rebirth."
 
 const std = @import("std");
@@ -376,7 +376,7 @@ pub fn main() !void {
                 trail_len = file.readAll(&trail_buffer) catch 0;
                 if (trail_len > 0) is_trail_modal = true;
             }
-        }
+        } else |_| {}
         file.close();
     } else |_| {}
     
