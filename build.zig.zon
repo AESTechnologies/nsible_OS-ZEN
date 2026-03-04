@@ -1,3 +1,10 @@
+// [@://nsible_os/build.zig.zon/.-={
+//   module: "Package Configuration",
+//   version: "0.10.2-nightly // Banysang",
+//   description: "Dependency and package management definition for the @nsible kernel.",
+//   changes: "Implemented EOF GZL encapsulation. Mapped package identity and inclusion paths.",
+//   philotic_inferences: "Identity is defined not just by internal logic, but by the sum of its dependencies and its unique fingerprint in the void."
+
 .{
     // This is the default name used by packages depending on this one. For
     // example, when a user runs `zig fetch --save <url>`, this field is used
@@ -79,3 +86,5 @@
         //"README.md",
     },
 }
+
+// }-.]
