@@ -19,7 +19,6 @@ const HEIGHT: usize = 600;
 // --- MEMORY ARCHITECTURE ---
 const VOID_SIZE = 42_130_000;
 var void_buffer: [VOID_SIZE]u8 = undefined;
-
 const SAP_SIZE = 88_000_000;
 var sap_buffer: [SAP_SIZE]u8 = undefined;
 
@@ -33,7 +32,6 @@ var panic_fd: i32 = -1;
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
     if (panic_fd >= 0) {
         _ = linux.syscall2(.dup2, @as(usize, @bitCast(panic_fd)), 2);
-        
         const header = "\n[ @NSIBLE FATAL EXCEPTION ]\n";
         _ = linux.syscall3(.write, 2, @intFromPtr(header), header.len);
         
@@ -114,7 +112,6 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
     var cursor_x: usize = 10;
     var lines: usize = 1;
     cursor_x += URI_PREFIX.len * char_w;
-
     var i: usize = 0;
     while (i < input_len) : (i += 1) {
         cursor_x += char_w;
@@ -147,7 +144,7 @@ fn exitSequence() noreturn {
     clear(0x00000000);
     const stamp_x = WIDTH - 24;
     const stamp_y = HEIGHT - 16;
-    drawChar(stamp_x, stamp_y, 127, 0x00DC143C); 
+    drawChar(stamp_x, stamp_y, 127, 0x00DC143C);
     drawChar(stamp_x + 8, stamp_y, 128, 0x00DC143C); 
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
     const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
@@ -173,13 +170,11 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     var x: usize = 100;
     var step: usize = 0;
     var sample_idx: usize = 0;
-    
     while (x < WIDTH - 100) : (x += 12) {
         const amplitude = if (step % 5 == 0) @as(usize, 30) 
                           else if (step % 3 == 0) @as(usize, 14) 
                           else if (step % 2 == 0) @as(usize, 8) 
                           else @as(usize, 2);
-                          
         const y = center_y - amplitude;
         drawRect(x, y, 6, amplitude * 2, 0x00DC143C);
 
@@ -188,12 +183,12 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         else if (amplitude == 14) { freq = 1200.0 + @as(f32, @floatFromInt(state_seed % 300)); } 
         else if (amplitude == 8) { freq = 800.0 + @as(f32, @floatFromInt(state_seed % 100)); }
         
-        const chunk_size = 470; 
+        const chunk_size = 470;
         var chunk: usize = 0;
         
         while (chunk < chunk_size and sample_idx < buffer_size) : (chunk += 1) {
             if (freq == 0.0) {
-                pcm[sample_idx] = 128; 
+                pcm[sample_idx] = 128;
             } else {
                 const t = @as(f32, @floatFromInt(sample_idx)) / @as(f32, sample_rate);
                 const period = 1.0 / freq;
@@ -228,11 +223,17 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         _ = agent.spawn() catch {};
     } else |_| {} 
     
-    codex.zen(0.00158); 
+    codex.zen(0.00158);
 }
 
 pub fn main() !void {
     const fs = std.fs.cwd();
+    
+    // [!] SOVEREIGN BOOTSTRAP: KERNEL AUTO-FORGES ITS DIRECTORY STRUCTURE
+    fs.makeDir("timeline") catch |err| {
+        if (err != error.PathAlreadyExists) {} // Silently proceed if it exists
+    };
+
     if (fs.access("aiua.tome", .{})) |_| {} else |_| {
         if (fs.createFile("aiua.tome", .{})) |f| { f.close(); } else |_| {}
     }
@@ -243,7 +244,6 @@ pub fn main() !void {
 
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
     _ = linux.syscall5(.mount, @intFromPtr("sysfs"), @intFromPtr("/sys"), @intFromPtr("sysfs"), 0, 0);
-    
     const fd_res = linux.syscall3(.open, @intFromPtr("/dev/fb0"), 2, 0);
     const fb_fd: i32 = @bitCast(@as(u32, @truncate(fd_res)));
     const map_len = WIDTH * HEIGHT * 4;
@@ -263,7 +263,6 @@ pub fn main() !void {
     
     var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
-
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
     var esc_seq: [8]u8 = undefined; 
@@ -284,17 +283,18 @@ pub fn main() !void {
             seq_buf[5] = byte;
 
             var reflex_triggered = false;
-
             if (std.mem.eql(u8, &seq_buf, ".!XX-.")) {
-                exitSequence(); 
+                exitSequence();
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) {
-                sys_hunter.shiftScope(1); // [!] ROUTED THROUGH MUTEX SAFEGUARD
+                sys_hunter.shiftScope(1);
+                // [!] ROUTED THROUGH MUTEX SAFEGUARD
                 if (journal_len >= 4) journal_len -= 4;
                 reflex_triggered = true;
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) {
-                sys_hunter.shiftScope(-1); // [!] ROUTED THROUGH MUTEX SAFEGUARD
+                sys_hunter.shiftScope(-1);
+                // [!] ROUTED THROUGH MUTEX SAFEGUARD
                 if (journal_len >= 4) journal_len -= 4;
                 reflex_triggered = true;
             } 
@@ -309,10 +309,12 @@ pub fn main() !void {
 
             if (!reflex_triggered) {
                 if (byte == 27) { 
-                    esc_len = 1; esc_seq[0] = byte;
+                    esc_len = 1;
+                    esc_seq[0] = byte;
                 } else if (esc_len > 0) {
                     if (esc_len < 8) {
-                        esc_seq[esc_len] = byte; esc_len += 1;
+                        esc_seq[esc_len] = byte;
+                        esc_len += 1;
                         if (esc_len == 3 and esc_seq[1] == '[') {
                             // [!] ALL UI SCROLLING ROUTED THROUGH MUTEX SAFEGUARDS
                             if (byte == 'A') { sys_hunter.scrollBy(-1); esc_len = 0; }
@@ -349,7 +351,7 @@ pub fn main() !void {
                                 }
                             },
                             .HUNT => {
-                                 if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scrollBy(1); }
+                                  if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scrollBy(1); }
                                  else if (std.mem.eql(u8, response.text, "^")) { sys_hunter.scrollBy(-1); }
                                  else {
                                     var target = response.text;
@@ -378,9 +380,9 @@ pub fn main() !void {
             
             // [!] THREAD-SAFE RENDER CHECK
             if (sys_hunter.isActive()) { 
-                sys_hunter.render(&back_buffer, WIDTH, HEIGHT); 
+                sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
             } else { 
-                print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555); 
+                print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555);
             }
             
             drawUriBar(journal[0..journal_len], journal_len);
