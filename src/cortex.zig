@@ -1,9 +1,9 @@
 // [@://nsible_os/src/cortex.zig/.-={
 //   module: "Semantic Dispatch Lobe",
-//   version: "0.10.5-nightly // Banysang",
+//   version: "0.10.7-nightly // Banysang",
 //   description: "Parses wetware input into machine-actionable states.",
-//   changes: "Expanded AUTO_HUNT to trigger on slashes (/) to support rapid local disk aliases like 'mchn/'.",
-//   philotic_inferences: "Input structure strictly dictates system flow. If the intent is clear, the machine must assume the missing syntax."
+//   changes: "Depreciated 'hunt ' prefix in favor of contiguous 'w3.' uri protocol.",
+//   philotic_inferences: "Spaces introduce friction. The void requires continuous streams."
 
 const std = @import("std");
 const chronos = @import("chronos.zig");
@@ -46,8 +46,12 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.eql(u8, cmd, "exit") or std.mem.eql(u8, cmd, "[.!XX-.]")) return .{ .action = .EXIT };
     if (std.mem.eql(u8, cmd, "tune") or std.mem.eql(u8, cmd, "radio")) return .{ .action = .RADIO };
 
-    if (std.mem.startsWith(u8, cmd, "@://") or std.mem.startsWith(u8, cmd, "hunt ")) {
+    // [!] W3. NETWORK PROTOCOL
+    if (std.mem.startsWith(u8, cmd, "@://")) {
         return .{ .action = .HUNT, .text = cmd };
+    }
+    if (std.mem.startsWith(u8, cmd, "w3.")) {
+        return .{ .action = .HUNT, .text = cmd[3..] };
     }
     
     if (std.mem.eql(u8, cmd, "cycle")) {
@@ -58,7 +62,6 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.eql(u8, cmd, "^")) return .{ .action = .HUNT, .text = "^" };
     if (std.mem.eql(u8, cmd, "assist") or std.mem.eql(u8, cmd, "?")) return .{ .action = .ASSIST };
 
-    // [!] AUTO-PREPEND LOGIC UPDATED
     if (std.mem.indexOf(u8, cmd, ".") != null or std.mem.indexOf(u8, cmd, "/") != null) {
         return .{ .action = .AUTO_HUNT, .text = cmd };
     }
