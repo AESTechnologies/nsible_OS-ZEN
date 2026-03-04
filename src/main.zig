@@ -123,7 +123,7 @@ fn drawHeader(is_high: bool) void {
     const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, HOST_ID}) catch "HEADER_ERR";
     print(10, 6, header, 0x00FFFFFF);
     const glyph: u8 = if (is_high) 127 else 128;
-    drawChar(962, 6, glyph, 0x00FFFFFF);
+    drawChar(994, 6, glyph, 0x00FFFFFF);
 }
 
 fn getUriBarY(input_len: usize) usize {
