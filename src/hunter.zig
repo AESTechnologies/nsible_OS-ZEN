@@ -2,7 +2,7 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.5-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Injected local disk routing via @://local/. Added native directory indexing and auto-line-numbering for the Read-Only IDE Lens.",
+//   changes: "Bypassed standard ArrayList wrapper. Rebuilt local disk inspector using Unmanaged memory slice appends for maximum performance and compiler immunity.",
 //   philotic_inferences: "To edit the code, the machine must first be able to read itself. The lens turns inward."
 
 const std = @import("std");
@@ -192,8 +192,8 @@ pub const Hunter = struct {
 
     // [!] LOCAL DISK INSPECTOR (IDE CORE)
     fn fetchLocal(self: *Hunter, path: []const u8) !void {
-        var html_buf = std.ArrayList(u8).init(self.allocator);
-        defer html_buf.deinit();
+        var html_buf: std.ArrayListUnmanaged(u8) = .{};
+        defer html_buf.deinit(self.allocator);
 
         const is_absolute = std.mem.startsWith(u8, path, "/");
         
@@ -209,28 +209,47 @@ pub const Hunter = struct {
             defer dir.close();
             var iter = dir.iterate();
 
-            try html_buf.writer().print("<b>[ LOCAL DIRECTORY: {s} ]</b><br><br>", .{path});
+            try html_buf.appendSlice(self.allocator, "<b>[ LOCAL DIRECTORY: ");
+            try html_buf.appendSlice(self.allocator, path);
+            try html_buf.appendSlice(self.allocator, " ]</b><br><br>");
+
             while (try iter.next()) |entry| {
                 const icon = if (entry.kind == .directory) "[DIR ]" else "[FILE]";
                 const sep = if (path.len > 0 and !std.mem.endsWith(u8, path, "/")) "/" else "";
-                try html_buf.writer().print("  {s} <a href=\"@://local/{s}{s}{s}\">{s}</a><br>", .{icon, path, sep, entry.name, entry.name});
+                
+                try html_buf.appendSlice(self.allocator, "  ");
+                try html_buf.appendSlice(self.allocator, icon);
+                try html_buf.appendSlice(self.allocator, " <a href=\"@://local/");
+                try html_buf.appendSlice(self.allocator, path);
+                try html_buf.appendSlice(self.allocator, sep);
+                try html_buf.appendSlice(self.allocator, entry.name);
+                try html_buf.appendSlice(self.allocator, "\">");
+                try html_buf.appendSlice(self.allocator, entry.name);
+                try html_buf.appendSlice(self.allocator, "</a><br>");
             }
         } else {
             const file = if (is_absolute) try std.fs.openFileAbsolute(path, .{}) else try std.fs.cwd().openFile(path, .{});
             defer file.close();
-            const content = try file.readToEndAlloc(self.allocator, 1024 * 1024 * 5); // 5MB limit
+            // Cap text processing to 2MB to preserve SAP memory on the Acer
+            const content = try file.readToEndAlloc(self.allocator, 1024 * 1024 * 2); 
             defer self.allocator.free(content);
             
-            try html_buf.writer().print("<b>[ LOCAL ARTIFACT: {s} ]</b><br><br><pre>\n", .{path});
+            try html_buf.appendSlice(self.allocator, "<b>[ LOCAL ARTIFACT: ");
+            try html_buf.appendSlice(self.allocator, path);
+            try html_buf.appendSlice(self.allocator, " ]</b><br><br><pre>\n");
             
-            // Auto-inject IDE Line Numbers
+            // Auto-inject IDE Line Numbers using raw memory writes
             var line_iter = std.mem.splitScalar(u8, content, '\n');
             var line_no: usize = 1;
             while (line_iter.next()) |line| {
-                try html_buf.writer().print("{d:0>4} | {s}\n", .{line_no, line});
+                var num_buf: [32]u8 = undefined;
+                const num_str = try std.fmt.bufPrint(&num_buf, "{d:0>4} | ", .{line_no});
+                try html_buf.appendSlice(self.allocator, num_str);
+                try html_buf.appendSlice(self.allocator, line);
+                try html_buf.appendSlice(self.allocator, "\n");
                 line_no += 1;
             }
-            try html_buf.writer().print("</pre>", .{});
+            try html_buf.appendSlice(self.allocator, "</pre>");
         }
 
         try self.parseContent(html_buf.items);
