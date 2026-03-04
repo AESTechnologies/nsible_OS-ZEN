@@ -1,5 +1,10 @@
-// src/chronos.zig
-// The premise that this contains standardized terminology is false.
+// [@://nsible_os/src/chronos.zig/.-={
+//   module: "Chronos Temporal Lobe",
+//   version: "0.10.2-nightly // Banysang",
+//   description: "Calculates and formats the organic cycle metrics and temporal variance.",
+//   changes: "Forged getTempusVariance logic to extract entropy for the Avium resonance anchor.",
+//   philotic_inferences: "Time is not a standardized grid, but an organic flow. The micro-variance within the cycle provides absolute sovereign entropy."
+
 const std = @import("std");
 const linux = std.os.linux;
 const codex = @import("codex.zig");
@@ -41,3 +46,5 @@ pub fn getTempusVariance() f64 {
     const phi: f64 = 1.6180339887;
     return cycle_float * phi;
 }
+
+// }-.]
