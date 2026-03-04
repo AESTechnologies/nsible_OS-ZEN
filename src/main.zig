@@ -1,9 +1,9 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "0.10.8-nightly // Banysang",
+//   version: "0.10.9-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Resolved memory aliasing panic during hostname extraction.",
-//   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
+//   changes: "Injected Phantom Trace modal to intercept and display trail.tome panics from previous cycles.",
+//   philotic_inferences: "A system must not forget how it died; it must display its scars upon rebirth."
 
 const std = @import("std");
 const linux = std.os.linux;
@@ -15,7 +15,7 @@ const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
 
 const SYSTEM_NAME = "@NSIBLE OS";
-const VERSION     = "v0.10.8-nightly";
+const VERSION     = "v0.10.9-nightly";
 const URI_PREFIX  = "@://";
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
@@ -365,6 +365,22 @@ pub fn main() !void {
     fs.makeDir("timeline") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("timeline/mems") catch |err| { if (err != error.PathAlreadyExists) {} };
     if (fs.access("aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("aiua.tome", .{})) |f| { f.close(); } else |_| {} }
+    
+    // [!] PHANTOM TRACE RECOVERY: Read BEFORE truncating
+    var is_trail_modal: bool = false;
+    var trail_buffer: [4096]u8 = undefined;
+    var trail_len: usize = 0;
+    if (fs.openFile("trail.tome", .{})) |file| {
+        if (file.stat()) |stat| {
+            if (stat.size > 0) {
+                trail_len = file.readAll(&trail_buffer) catch 0;
+                if (trail_len > 0) is_trail_modal = true;
+            }
+        }
+        file.close();
+    } else |_| {}
+    
+    // NOW we create/truncate it so panics on this run write to a clean slate
     if (fs.createFile("trail.tome", .{})) |f| { panic_fd = f.handle; } else |_| {}
 
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
@@ -380,7 +396,7 @@ pub fn main() !void {
     codex.tuneIn();
     const vinculum_fd = codex.bindVinculum(); 
 
-    // [!] ENUMERATE MCHN:SOCIUS IDENTITY (FIXED ALIASING)
+    // [!] ENUMERATE MCHN:SOCIUS IDENTITY
     var mchn_buf: [64]u8 = .{0} ** 64;
     var mchn_len: usize = 0;
     if (fs.openFile("/etc/hostname", .{})) |file| {
@@ -486,6 +502,20 @@ pub fn main() !void {
                     if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
                 }
             } 
+            // [!] PHANTOM TRACE INPUT HANDLING
+            else if (is_trail_modal) {
+                if (byte == '\n' or byte == '\r') {
+                    if (std.mem.eql(u8, journal[0..journal_len], "shed")) {
+                        is_trail_modal = false; journal_len = 0;
+                    }
+                } else if (byte == 27) { // ESC 
+                    is_trail_modal = false; journal_len = 0;
+                } else if (byte == 127 or byte == 8) {
+                    if (journal_len > 0) journal_len -= 1;
+                } else if (byte >= 32 and byte <= 126) {
+                    if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
+                }
+            }
             else if (is_memo_modal) {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
@@ -648,7 +678,40 @@ pub fn main() !void {
                 drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
                 print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
                 if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00DC143C);
-            } else if (is_memo_modal) {
+            } 
+            // [!] PHANTOM TRACE RENDER BLOCK
+            else if (is_trail_modal) {
+                const mw = 760; const mh = 400; 
+                const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh - 10;
+                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); 
+                drawRect(mx, my, mw, mh, 0x00000000);
+                print(mx + 20, my + 20, "[ PREVIOUS CYCLE KERNEL PANIC RECOVERED ]", 0x00DC143C);
+                drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
+
+                var cx: usize = mx + 20;
+                var cy: usize = my + 50;
+                for (trail_buffer[0..trail_len]) |c| {
+                    if (c == '\n') {
+                        cx = mx + 20;
+                        cy += 10;
+                        if (cy > my + mh - 40) break;
+                        continue;
+                    }
+                    if (c >= 32 and c <= 126) {
+                        drawChar(cx, cy, c, 0x00AAAAAA);
+                        cx += 8;
+                        if (cx > mx + mw - 20) {
+                            cx = mx + 20;
+                            cy += 10;
+                            if (cy > my + mh - 40) break;
+                        }
+                    }
+                }
+
+                print(mx + 20, my + mh - 30, ">> Type 'shed' or press [ESC] to clear memory.", 0x00FFBF00);
+                drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+            }
+            else if (is_memo_modal) {
                 const mw = 460; const mh = 140;
                 const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
                 drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00FFBF00); 
