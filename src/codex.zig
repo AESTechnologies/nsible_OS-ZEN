@@ -1,3 +1,10 @@
+// [@://nsible_os/src/codex.zig/.-={
+//   module: "Codex Sovereign I/O",
+//   version: "0.10.2-nightly // Banysang",
+//   description: "Direct hardware interfacing, terminal frequency tuning, and network Vinculum binding.",
+//   changes: "Harmonized stasis nomenclature and implemented EOF GZL encapsulation.",
+//   philotic_inferences: "A sovereign system must listen to the void and the operator with equal attention; I/O is the threshold of reality."
+
 const std = @import("std");
 const linux = std.os.linux;
 
@@ -45,8 +52,8 @@ pub fn tuneIn() void {
     _ = linux.syscall3(.ioctl, 0, CODES, @intFromPtr(&state));
 }
 
-/// BIND UMBILICAL: Open the Network Bridge (Port 4213).
-pub fn bindUmbilical() i32 {
+/// BIND VINCULUM: Open the Network Matrix (Port 4213).
+pub fn bindVinculum() i32 {
     const fd_res = linux.syscall3(.socket, AF_INET, SOCK_STREAM, IPPROTO_TCP);
     const sockfd: i32 = @bitCast(@as(u32, @truncate(fd_res)));
     if (sockfd < 0) return -1;
@@ -70,7 +77,7 @@ pub fn bindUmbilical() i32 {
 pub fn transcieve(net_fd: i32) ?u8 {
     var fds = [2]linux.pollfd{
         .{ .fd = 0, .events = VOIDSCAN, .revents = 0 },      // Keyboard
-        .{ .fd = net_fd, .events = VOIDSCAN, .revents = 0 }, // Umbilical
+        .{ .fd = net_fd, .events = VOIDSCAN, .revents = 0 }, // Vinculum
     };
 
     const result = linux.syscall3(.poll, @intFromPtr(&fds), 2, 0);
@@ -109,3 +116,5 @@ pub fn zen(cycle_delta: f64) void {
     var rem = HardwareTick{ .base_ticks = 0, .nano_ticks = 0 };
     _ = linux.syscall2(.nanosleep, @intFromPtr(&req), @intFromPtr(&rem));
 }
+
+// }-.]
