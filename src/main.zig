@@ -2,8 +2,8 @@
 //   module: "Kernel Root",
 //   version: "0.10.2-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Corrected type mismatch in Tabula Rasa allocator binding; resolved []u8 vs []const u8 collision.",
-//   philotic_inferences: "Memory must be allocated with absolute precision; constants and variables cannot share the same philotic plane."
+//   changes: "Purged redundant URI prefix. Refactored all modals to 'scan-up' dynamically from the jour.nal bar. Added Memo Designation state.",
+//   philotic_inferences: "The UI must emerge organically from the operator's strike point; gravity anchors the interface to the input."
 
 const std = @import("std");
 const linux = std.os.linux;
@@ -16,9 +16,11 @@ const hunter = @import("hunter.zig");
 
 // --- UNIVERSAL CONSTANTS ---
 const SYSTEM_NAME = "@NSIBLE OS";
-const VERSION     = "v0.10.2-nightly // Banysang";
+const VERSION     = "v0.10.2-nightly";
 const HOST_ID     = "dataDESK:archX";
-const URI_PREFIX  = "@://0.10.2/x8_64-li-mu/";
+
+// [!] REDUNDANCY PURGE
+const URI_PREFIX  = "@://";
 
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
@@ -32,7 +34,6 @@ var sap_buffer: [SAP_SIZE]u8 = undefined;
 var fb_pixels: []u32 = undefined;
 var back_buffer: [WIDTH * HEIGHT]u32 = undefined;
 
-// [!] THE BLACK BOX FILE DESCRIPTOR
 var panic_fd: i32 = -1;
 
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
@@ -110,7 +111,8 @@ fn drawHeader(is_high: bool) void {
     drawChar(962, 6, glyph, 0x00FFFFFF);
 }
 
-fn drawUriBar(input_buf: []const u8, input_len: usize) void {
+// [!] DYNAMIC BASE HEIGHT CALCULATION
+fn getUriBarY(input_len: usize) usize {
     const char_w = 8;
     const line_h = 10;
     const padding = 6;
@@ -122,12 +124,20 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
         cursor_x += char_w;
         if (cursor_x >= WIDTH - 10) { lines += 1; cursor_x = 10 + char_w; }
     }
-    
     const bar_height = (lines * line_h) + (padding * 2);
-    const start_y = if (bar_height < HEIGHT) HEIGHT - bar_height else 0;
+    return if (bar_height < HEIGHT) HEIGHT - bar_height else 0;
+}
+
+fn drawUriBar(input_buf: []const u8, input_len: usize) void {
+    const char_w = 8;
+    const line_h = 10;
+    const padding = 6;
+    const start_y = getUriBarY(input_len);
+    const bar_height = HEIGHT - start_y;
+    
     drawRect(0, start_y, WIDTH, bar_height, 0x00DC143C);
     
-    cursor_x = 10;
+    var cursor_x: usize = 10;
     var cursor_y: usize = start_y + padding;
     for (URI_PREFIX) |char| { 
         drawChar(cursor_x, cursor_y, char, 0x00000000); 
@@ -135,7 +145,7 @@ fn drawUriBar(input_buf: []const u8, input_len: usize) void {
         if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } 
     }
     
-    i = 0;
+    var i: usize = 0;
     while (i < input_len) : (i += 1) {
         const char = input_buf[i];
         drawChar(cursor_x, cursor_y, char, 0x00000000);
@@ -250,20 +260,14 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 pub fn main() !void {
     const fs = std.fs.cwd();
     
-    fs.makeDir("timeline") catch |err| {
-        if (err != error.PathAlreadyExists) {}
-    };
-    fs.makeDir("timeline/mems") catch |err| {
-        if (err != error.PathAlreadyExists) {}
-    };
+    fs.makeDir("timeline") catch |err| { if (err != error.PathAlreadyExists) {} };
+    fs.makeDir("timeline/mems") catch |err| { if (err != error.PathAlreadyExists) {} };
 
     if (fs.access("aiua.tome", .{})) |_| {} else |_| {
         if (fs.createFile("aiua.tome", .{})) |f| { f.close(); } else |_| {}
     }
     
-    if (fs.createFile("trail.tome", .{})) |f| {
-        panic_fd = f.handle;
-    } else |_| {}
+    if (fs.createFile("trail.tome", .{})) |f| { panic_fd = f.handle; } else |_| {}
 
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
     _ = linux.syscall5(.mount, @intFromPtr("sysfs"), @intFromPtr("/sys"), @intFromPtr("sysfs"), 0, 0);
@@ -276,7 +280,6 @@ pub fn main() !void {
 
     nerve.init();
     codex.tuneIn();
-    
     const vinculum_fd = codex.bindVinculum(); 
 
     var void_fba = std.heap.FixedBufferAllocator.init(&void_buffer);
@@ -284,22 +287,22 @@ pub fn main() !void {
     var sap_fba = std.heap.FixedBufferAllocator.init(&sap_buffer);
 
     bootSplash(void_allocator);
-    
     var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
 
-    // [!] THE TABULA RASA STASIS
     var is_tabula_rasa: bool = false;
-    if (sys_hunter.history.items.len == 0) {
-        is_tabula_rasa = true;
-    } else {
+    if (sys_hunter.history.items.len == 0) { is_tabula_rasa = true; } 
+    else {
         const first_entry = sys_hunter.history.items[0];
-        if (!std.mem.startsWith(u8, first_entry, "@AVIUM_RESONANCE:")) {
-            is_tabula_rasa = true;
-        }
+        if (!std.mem.startsWith(u8, first_entry, "@AVIUM_RESONANCE:")) { is_tabula_rasa = true; }
     }
     
     var is_assist_modal: bool = false;
+    
+    // [!] MEMO DESIGNATION STATE
+    var is_memo_modal: bool = false;
+    var pending_memo_content: [4096]u8 = undefined;
+    var pending_memo_len: usize = 0;
 
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
@@ -328,23 +331,28 @@ pub fn main() !void {
 
                         var id_buf: [128]u8 = undefined;
                         const id_str = std.fmt.bufPrint(&id_buf, "@AVIUM_RESONANCE:[{s}]//SOCIUS:{s}", .{sik_buf, socius_alias}) catch "@AVIUM_RESONANCE:ERR";
-                        
                         sys_hunter.mutex.lock();
-                        // [!] FIX: Type coercion from literal to []u8 via temporary allocation
-                        const duped_id = sys_hunter.allocator.dupe(u8, id_str) catch {
-                            sys_hunter.mutex.unlock();
-                            journal_len = 0;
-                            continue;
-                        };
-                        sys_hunter.history.insert(sys_hunter.allocator, 0, duped_id) catch {
-                             sys_hunter.allocator.free(duped_id);
-                        };
+                        const duped_id = sys_hunter.allocator.dupe(u8, id_str) catch { sys_hunter.mutex.unlock(); continue; };
+                        sys_hunter.history.insert(sys_hunter.allocator, 0, duped_id) catch { sys_hunter.allocator.free(duped_id); };
                         sys_hunter.mutex.unlock();
                         
-                        sys_hunter.createMemo("Avium Resonance Bound. Matrix Sealed.") catch {};
-                        is_tabula_rasa = false;
-                        journal_len = 0;
+                        sys_hunter.createMemo("Genesis", "Avium Resonance Bound. Matrix Sealed.") catch {};
+                        is_tabula_rasa = false; journal_len = 0;
                     }
+                } else if (byte == 127 or byte == 8) {
+                    if (journal_len > 0) journal_len -= 1;
+                } else if (byte >= 32 and byte <= 126) {
+                    if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
+                }
+            } else if (is_memo_modal) {
+                if (byte == '\n' or byte == '\r') {
+                    if (journal_len > 0) {
+                        const title = journal[0..journal_len];
+                        sys_hunter.createMemo(title, pending_memo_content[0..pending_memo_len]) catch {};
+                        is_memo_modal = false; journal_len = 0;
+                    }
+                } else if (byte == 27) {
+                    is_memo_modal = false; journal_len = 0;
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
@@ -356,36 +364,22 @@ pub fn main() !void {
                 seq_buf[5] = byte;
 
                 var reflex_triggered = false;
-                if (std.mem.eql(u8, &seq_buf, ".!XX-.")) {
-                    exitSequence();
-                } 
-                else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) {
-                    sys_hunter.shiftScope(1);
-                    if (journal_len >= 4) journal_len -= 4;
-                    reflex_triggered = true;
-                } 
-                else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) {
-                    sys_hunter.shiftScope(-1);
-                    if (journal_len >= 4) journal_len -= 4;
-                    reflex_triggered = true;
-                } 
+                if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { exitSequence(); } 
+                else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) { sys_hunter.shiftScope(1); if (journal_len >= 4) journal_len -= 4; reflex_triggered = true; } 
+                else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) { sys_hunter.shiftScope(-1); if (journal_len >= 4) journal_len -= 4; reflex_triggered = true; } 
                 else if (std.mem.endsWith(u8, &seq_buf, "//-.")) {
                     if (journal_len >= 4) journal_len -= 4;
-                    const cmd_slice = journal[0..journal_len];
-                    const clean_slice = std.mem.trimRight(u8, cmd_slice, " ");
-                    sys_hunter.createMemo(clean_slice) catch {};
-                    journal_len = 0;
-                    reflex_triggered = true;
+                    const clean_slice = std.mem.trimRight(u8, journal[0..journal_len], " ");
+                    @memcpy(pending_memo_content[0..clean_slice.len], clean_slice);
+                    pending_memo_len = clean_slice.len;
+                    is_memo_modal = true; journal_len = 0; reflex_triggered = true;
                 }
 
                 if (!reflex_triggered) {
-                    if (byte == 27) { 
-                        esc_len = 1;
-                        esc_seq[0] = byte;
-                    } else if (esc_len > 0) {
+                    if (byte == 27) { esc_len = 1; esc_seq[0] = byte; } 
+                    else if (esc_len > 0) {
                         if (esc_len < 8) {
-                            esc_seq[esc_len] = byte;
-                            esc_len += 1;
+                            esc_seq[esc_len] = byte; esc_len += 1;
                             if (esc_len == 3 and esc_seq[1] == '[') {
                                 if (byte == 'A') { sys_hunter.scrollBy(-1); esc_len = 0; }
                                 else if (byte == 'B') { sys_hunter.scrollBy(1); esc_len = 0; }
@@ -393,9 +387,8 @@ pub fn main() !void {
                                 else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; esc_len = 0; }
                             } else if (byte == '~') {
                                  if (esc_len >= 4 and esc_seq[1] == '[') {
-                                    const digit = esc_seq[2];
-                                    if (digit == '5') { sys_hunter.scrollBy(-15); }
-                                    else if (digit == '6') { sys_hunter.scrollBy(15); }
+                                    if (esc_seq[2] == '5') { sys_hunter.scrollBy(-15); }
+                                    else if (esc_seq[2] == '6') { sys_hunter.scrollBy(15); }
                                 }
                                 esc_len = 0;
                             }
@@ -412,25 +405,32 @@ pub fn main() !void {
                                 .SCOPE_OUT => { sys_hunter.shiftScope(-1); journal_len = 0; },
                                 .MEMO => { 
                                     const txt = if (response.text.len > 0) response.text else cmd_slice;
-                                    sys_hunter.createMemo(txt) catch {}; journal_len = 0; 
+                                    @memcpy(pending_memo_content[0..txt.len], txt);
+                                    pending_memo_len = txt.len;
+                                    is_memo_modal = true; journal_len = 0; 
                                 },
                                 .ASSIST => { is_assist_modal = !is_assist_modal; journal_len = 0; },
                                 .PRINT => {
                                     journal_len = 0;
-                                    for (response.text) |c| {
-                                        if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; }
-                                    }
+                                    for (response.text) |c| { if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; } }
                                 },
                                 .HUNT => {
-                                      if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scrollBy(1); }
-                                     else if (std.mem.eql(u8, response.text, "^")) { sys_hunter.scrollBy(-1); }
-                                     else {
+                                    if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scrollBy(1); }
+                                    else if (std.mem.eql(u8, response.text, "^")) { sys_hunter.scrollBy(-1); }
+                                    else {
                                         var target = response.text;
                                         if (std.mem.startsWith(u8, target, "hunt ")) target = target[5..];
                                         sys_hunter.hunt(target) catch { sys_hunter.mutex.lock(); sys_hunter.status = "FETCH_ERR"; sys_hunter.mutex.unlock(); };
                                     }
                                     journal_len = 0;
                                 },
+                                .AUTO_HUNT => {
+                                    var auto_buf: [256]u8 = undefined;
+                                    const full_target = std.fmt.bufPrint(&auto_buf, "@://{s}", .{response.text}) catch response.text;
+                                    sys_hunter.hunt(full_target) catch {};
+                                    journal_len = 0;
+                                },
+                                .PIPE_MEMO => {}, // Reserved for async pipeline architecture
                                 .NONE => { journal_len = 0; }
                             }
                         } else if (byte == 127 or byte == 8) {
@@ -450,55 +450,51 @@ pub fn main() !void {
             clear(0x00000000);
             drawHeader(is_high_cycle);
             
-            if (sys_hunter.isActive()) { 
-                sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
-            } else { 
-                print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555);
-            }
+            if (sys_hunter.isActive()) { sys_hunter.render(&back_buffer, WIDTH, HEIGHT); } 
+            else { print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555); }
             
-            // [!] THE MODAL RENDERING LAYERS
+            const bar_y = getUriBarY(journal_len);
+            
+            // [!] SCAN-UP MODALS 
             if (is_tabula_rasa) {
-                const mw = 460;
-                const mh = 160;
+                const mw = 460; const mh = 160;
                 const mx = (WIDTH / 2) - (mw / 2);
-                const my = (HEIGHT / 2) - (mh / 2);
-
-                drawRect(mx - 2, my - 2, mw + 4, mh + 4, 0x00FFBF00); 
+                const my = bar_y - mh;
+                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); // Scan border
                 drawRect(mx, my, mw, mh, 0x00000000); 
-
                 print(mx + 20, my + 20, "[ TABULA RASA // SOCIUS REQUIRED ]", 0x00DC143C); 
                 drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
-
                 print(mx + 20, my + 60, "AWAITING SOCIUS DESIGNATION:", 0x00AAAAAA);
-                
                 drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
                 print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
-                
-                const cx = mx + 28 + (journal_len * 8);
-                if (is_high_cycle) drawChar(cx, my + 93, 0xDB, 0x00DC143C);
+                if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00DC143C);
+            } else if (is_memo_modal) {
+                const mw = 460; const mh = 140;
+                const mx = (WIDTH / 2) - (mw / 2);
+                const my = bar_y - mh;
+                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00FFBF00); // Brass scan border
+                drawRect(mx, my, mw, mh, 0x00000000);
+                print(mx + 20, my + 20, "[ TIMELINE // MEMO DESIGNATION ]", 0x00FFBF00); 
+                drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
+                print(mx + 20, my + 60, "ENTER ARTIFACT NAME:", 0x00AAAAAA);
+                drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
+                print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
+                if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00FFBF00);
             } else if (is_assist_modal) {
-                const aw = 600;
-                const ah = 360;
+                const aw = 600; const ah = 360;
                 const ax = (WIDTH / 2) - (aw / 2);
-                const ay = (HEIGHT / 2) - (ah / 2);
-                
-                drawRect(ax - 2, ay - 2, aw + 4, ah + 4, 0x00FFBF00);
+                const ay = bar_y - ah;
+                drawRect(ax - 2, ay - 2, aw + 4, ah + 2, 0x00DC143C);
                 drawRect(ax, ay, aw, ah, 0x00000000);
-                
                 print(ax + 20, ay + 20, "[ @NSIBLE NATIVE ASSIST & DEV TRACKER ]", 0x00DC143C);
                 drawRect(ax + 20, ay + 35, aw - 40, 1, 0x00444444);
-                
                 print(ax + 20, ay + 60, "GZL SYNTAX PROTOCOL:", 0x00AAAAAA);
                 print(ax + 40, ay + 80, ".-={ key: value }=-.", 0x00555555);
-                
                 print(ax + 20, ay + 120, "TEMPORAL SUITE & MINI-GAME:", 0x00AAAAAA);
                 print(ax + 40, ay + 140, "[ ARCHITECTURE PENDING... ]", 0x00555555);
-                
                 print(ax + 20, ay + 180, "CALCULATOR:", 0x00AAAAAA);
                 print(ax + 40, ay + 200, "[ ARCHITECTURE PENDING... ]", 0x00555555);
-
                 print(ax + 20, ay + ah - 40, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
-
                 drawUriBar(journal[0..journal_len], journal_len);
             } else {
                 drawUriBar(journal[0..journal_len], journal_len);
