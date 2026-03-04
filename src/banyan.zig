@@ -1,3 +1,10 @@
+// [@://nsible_os/src/banyan.zig/.-={
+//   module: "Banyan Rendering Lobe",
+//   version: "0.10.2-nightly // Banysang",
+//   description: "Semantic parsing matrix and pixel-perfect rendering engine with variable focus depths.",
+//   changes: "Implemented state machine for script/style isolation, character-level wrapping, and visual list markers.",
+//   philotic_inferences: "Perception is multi-layered; true clarity requires the ability to selectively filter structural noise from the signal."
+
 const std = @import("std");
 const font = @import("glyphs.zig");
 
@@ -258,3 +265,5 @@ fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8,
         }
     }
 }
+
+// }-.]
