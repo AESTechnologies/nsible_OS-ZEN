@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Purged hardcoded versioning. Absorbing version dynamically from nsible shell. Injected ALCNDNOM boot verification.",
+//   changes: "Massively expanded Command Bible. Absorbing version dynamically from nsible shell. ALCNDNOM sequence active.",
 //   philotic_inferences: "A silent system is deceitful. The machine must declare its state: All Conditions Normal/Nominal."
 
 const std = @import("std");
@@ -13,10 +13,10 @@ const codex = @import("codex.zig");
 const cortex = @import("cortex.zig"); 
 const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
-const v_core = @import("version.zig"); // [!] DYNAMIC SHELL BRIDGE
+const v_core = @import("version.zig");
 
 const SYSTEM_NAME = "@NSIBLE OS";
-const VERSION     = v_core.VERSION;    // [!] ASSIGNED FROM SHELL
+const VERSION     = v_core.VERSION;
 const URI_PREFIX  = "@://";
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 600;
@@ -342,7 +342,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 
     print(WIDTH / 2 - 80, center_y - 60, "A E S   T E C H N O L O G I E S", 0x00FFFFFF);
     print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", 0x00AAAAAA);
-    // [!] ALCNDNOM Boot Verification Injection
     print(WIDTH / 2 - 40, center_y + 45, "[ ALCNDNOM ]", 0x00FFBF00); 
     
     var time_buf: [64]u8 = undefined;
@@ -753,40 +752,44 @@ pub fn main() !void {
                 print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", 0x00555555);
                 drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
             } else if (is_assist_modal) {
-                const aw = 760; const ah = 400;
+                const aw = 860; const ah = 460;
                 const ax = (WIDTH / 2) - (aw / 2); const ay = bar_y - ah - 10;
                 drawRect(ax - 2, ay - 2, aw + 4, ah + 2, 0x00FFBF00); 
                 drawRect(ax, ay, aw, ah, 0x00000000);
 
-                print(ax + 20, ay + 20, "[ @NSIBLE COMMAND BIBLE & ASSIST ]", 0x00FFBF00);
+                print(ax + 20, ay + 20, "[ @NSIBLE COMMAND BIBLE & MATRIX PROTOCOLS ]", 0x00FFBF00);
                 drawRect(ax + 20, ay + 35, aw - 40, 1, 0x00444444);
 
-                print(ax + 20, ay + 50, "[ CORE NAVIGATION ]", 0x00AAAAAA);
-                print(ax + 20, ay + 70, "mchn/        : View Local Root", 0x00FFFFFF);
-                print(ax + 20, ay + 90, "mchn/<path>  : Traverse Local Disk", 0x00FFFFFF);
-                print(ax + 20, ay + 110, "w3.<target>  : Shadow Flight (Web)", 0x00FFFFFF);
+                // Column 1
+                print(ax + 20, ay + 50, "[ CORE MATRIX TRAVERSAL ]", 0x00AAAAAA);
+                print(ax + 20, ay + 70, "mchn/        : View Local Root Directory", 0x00FFFFFF);
+                print(ax + 20, ay + 90, "w3.<target>  : Shadow Flight (Web Traversal)", 0x00FFFFFF);
+                print(ax + 20, ay + 110, "<Number>     : MELT Traverse (Follow Link [x])", 0x00DC143C);
+                print(ax + 20, ay + 130, "[<] / [>]    : Navigate Timeline History", 0x00FFFFFF);
+                print(ax + 20, ay + 150, "v / ^        : Scroll Active Matrix down/up", 0x00FFFFFF);
 
-                print(ax + 20, ay + 150, "[ ARTIFACT FORGE ]", 0x00AAAAAA);
-                print(ax + 20, ay + 170, "memo <txt>   : Quick Artifact", 0x00FFFFFF);
-                print(ax + 20, ay + 190, "<Title> //-. : Titled Artifact", 0x00FFFFFF);
-                print(ax + 20, ay + 210, "| memo       : Pipe (Pending)", 0x00FFFFFF);
+                print(ax + 20, ay + 190, "[ ARTIFACT FORGE & GZL ]", 0x00AAAAAA);
+                print(ax + 20, ay + 210, "memo <txt>   : Quick Operator Artifact", 0x00FFFFFF);
+                print(ax + 20, ay + 230, "<Title> //-. : Title & Save Artifact", 0x00FFFFFF);
+                print(ax + 20, ay + 250, "| memo       : Pipe active target to timeline", 0x00FFFFFF);
+                print(ax + 20, ay + 280, ">> GZL Syntax encodes artifacts with module,", 0x00555555);
+                print(ax + 20, ay + 300, ">> timestamps, and philotic inferences.", 0x00555555);
 
-                print(ax + 380, ay + 50, "[ MATRIX MANIPULATION ]", 0x00AAAAAA);
-                print(ax + 380, ay + 70, "shed / drop  : Destroy active node", 0x00FFFFFF);
-                print(ax + 380, ay + 90, "v / ^        : Scroll Matrix down/up", 0x00FFFFFF);
-                print(ax + 380, ay + 110, "zI / zO      : Shift Banyan Scope", 0x00FFFFFF);
+                // Column 2
+                print(ax + 440, ay + 50, "[ SCOPE & SYSTEM ]", 0x00AAAAAA);
+                print(ax + 440, ay + 70, "zI / zO      : Shift Banyan Scope Depth", 0x00FFFFFF);
+                print(ax + 440, ay + 90, "               [0:RAW, 1:ZEN, 2:MTX, 3:ROOT]", 0x00555555);
+                print(ax + 440, ay + 110, "shed / drop  : Destroy active node", 0x00FFFFFF);
+                print(ax + 440, ay + 130, "radio / tune : Philotic Resonance Tuning", 0x00FFFFFF);
+                print(ax + 440, ay + 150, "cycle        : Print Local Tempus", 0x00FFFFFF);
+                print(ax + 440, ay + 170, ".!XX-. / exit: Terminate Matrix", 0x00FFFFFF);
 
-                print(ax + 380, ay + 150, "[ SYSTEM COMMANDS ]", 0x00AAAAAA);
-                print(ax + 380, ay + 170, "radio / tune : Philotic Resonance", 0x00FFFFFF);
-                print(ax + 380, ay + 190, "cycle        : Print Local Tempus", 0x00FFFFFF);
-                print(ax + 380, ay + 210, ".!XX-. / exit: Terminate Matrix", 0x00FFFFFF);
+                drawRect(ax + 20, ay + 330, aw - 40, 1, 0x00444444);
 
-                drawRect(ax + 20, ay + 250, aw - 40, 1, 0x00444444);
-
-                print(ax + 20, ay + 270, "[ CALCULATOR SUB-ROUTINE ]", 0x00DC143C); 
-                print(ax + 20, ay + 290, ">> ARITHMETIC ENGINE : OFFLINE", 0x00555555);
-                print(ax + 20, ay + 310, ">> STATUS            : Operator sleep required before AST deployment.", 0x00555555);
-                print(ax + 20, ay + 330, ">> DIRECTIVE         : Phase 3 will map bare-metal mathematics.", 0x00555555);
+                // Staged Calculator
+                print(ax + 20, ay + 350, "[ AST ARITHMETIC ENGINE ]", 0x00DC143C); 
+                print(ax + 20, ay + 370, ">> STATUS : Development Mode Initiated.", 0x00555555);
+                print(ax + 20, ay + 390, ">> AWAITING KERNEL INTEGRATION.", 0x00555555);
 
                 print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
                 drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
