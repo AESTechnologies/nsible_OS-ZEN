@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Unified AST Calculator modal, Expanded Command Bible, Phantom Trace, and ALCNDNOM states.",
+//   changes: "Resolved comptime_int panic on AST calculator modal height variable.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -783,7 +783,7 @@ pub fn main() !void {
                 drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
             } else if (is_calc_modal) {
                 const cw = WIDTH - 40;
-                const ch = if (is_calc_graph) 200 else 30;
+                const ch: usize = if (is_calc_graph) 200 else 30;
                 const cx = 20;
                 const cy = bar_y - ch - 10;
                 
