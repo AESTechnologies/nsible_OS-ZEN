@@ -1,9 +1,9 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
-//   version: "0.10.8-nightly // Banysang",
+//   version: "0.10.11-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Intercepted @://[digits] protocol for MELT virtual pointer traversal. Automatically resolves and overwrites history with true URI.",
-//   philotic_inferences: "To navigate without touching the screen is to move at the speed of thought."
+//   changes: "Deployed True Pipe (pipeMemo) encapsulation logic via background FlightVector mutation.",
+//   philotic_inferences: "To navigate the self, the system must first know its own name, and its history must always cast a shadow."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -19,6 +19,7 @@ const FlightVector = struct {
     result_payload: ?[]u8, 
     is_complete: bool,    
     success: bool,
+    is_pipe: bool, // [!] TRUE PIPE FLAG
 };
 
 pub const Hunter = struct {
@@ -115,10 +116,52 @@ pub const Hunter = struct {
                 if (vector.success and vector.result_payload != null) {
                     const body = vector.result_payload.?;
                     defer self.allocator.free(body); 
-                    try self.parseContent(body);
-                    self.status = "LOCKED";
+
+                    // [!] TRUE PIPE BACKGROUND ENCAPSULATION
+                    if (vector.is_pipe) {
+                        const ts = std.time.timestamp();
+                        var title_buf: [128]u8 = undefined;
+                        const title = std.fmt.bufPrint(&title_buf, "pipe_{d}", .{ts}) catch "pipe_anomaly";
+                        
+                        var uri_buf: [256]u8 = undefined;
+                        if (std.fmt.bufPrint(&uri_buf, "memo://{s}", .{title})) |full_uri| {
+                            if (self.allocator.dupe(u8, full_uri)) |title_dupe| {
+                                if (self.history.append(self.allocator, title_dupe)) |_| {
+                                    self.history_index = self.history.items.len - 1;
+                                    
+                                    var filename_buf: [256]u8 = undefined;
+                                    if (std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}.memo", .{title})) |filename| {
+                                        if (std.fs.cwd().createFile(filename, .{})) |file| {
+                                            var header_buf: [1024]u8 = undefined;
+                                            const safe_url = if (vector.url.len > 256) vector.url[0..256] else vector.url;
+                                            const header = std.fmt.bufPrint(&header_buf,
+                                                "// [@://nsible_os/{s}/.-={{\n" ++
+                                                "//   module: \"Operator Artifact (Pipe)\",\n" ++
+                                                "//   timestamp: \"{d}\",\n" ++
+                                                "//   source_url: \"{s}\",\n" ++
+                                                "//   philotic_inferences: \"Automatically extracted via True Pipe routing.\"\n" ++
+                                                "// }}-.]\n\n",
+                                                .{filename, ts, safe_url}
+                                            ) catch "";
+
+                                            file.writeAll(header) catch {};
+                                            file.writeAll(body) catch {};
+                                            file.writeAll("\n\n// }-.]\n") catch {};
+                                            file.close();
+                                        }
+                                    }
+                                    self.saveHistory() catch {};
+                                    self.status = "PIPE_SEALED";
+                                } else |_| { self.allocator.free(title_dupe); self.status = "PIPE_FAIL_MEM"; }
+                            } else |_| { self.status = "PIPE_FAIL_MEM"; }
+                        } else |_| { self.status = "PIPE_FAIL_MEM"; }
+                    } else {
+                        // NORMAL MATRIX RENDER
+                        try self.parseContent(body);
+                        self.status = "LOCKED";
+                    }
                 } else {
-                    self.status = "NO_SIGNAL";
+                    if (vector.is_pipe) self.status = "PIPE_FAILED" else self.status = "NO_SIGNAL";
                 }
                 if (self.thread_handle) |t| t.detach();
                 self.thread_handle = null;
@@ -201,6 +244,45 @@ pub const Hunter = struct {
             self.executeFetch(self.history.items[self.history_index]) catch {};
         }
         self.saveHistory() catch {};
+    }
+
+    // [!] EXPOSED TRUE PIPE METHOD
+    pub fn pipeMemo(self: *Hunter, target: []const u8) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
+        var actual_target: []const u8 = target;
+        var is_melt = target.len > 0;
+        for (target) |c| { if (c < '0' or c > '9') is_melt = false; }
+        
+        if (is_melt) {
+            const idx = std.fmt.parseInt(usize, target, 10) catch return;
+            if (idx < self.lens.links.items.len) {
+                actual_target = self.lens.links.items[idx];
+            } else {
+                self.status = "PIPE_ERR_VOID";
+                return;
+            }
+        }
+
+        if (self.current_vector) |_| {
+             if (self.thread_handle) |t| t.detach();
+             self.current_vector = null;
+        }
+
+        const vector = try self.allocator.create(FlightVector);
+        vector.* = .{
+            .allocator = self.allocator,
+            .url = try self.allocator.dupe(u8, actual_target),
+            .result_payload = null,
+            .is_complete = false,
+            .success = false,
+            .is_pipe = true, // [!] SET TRUE PIPE FLAG
+        };
+        self.current_vector = vector;
+
+        self.thread_handle = try std.Thread.spawn(.{}, shadowFlight, .{vector});
+        self.status = "PIPING...";
     }
 
     fn fetchLocal(self: *Hunter, path: []const u8, prefix: []const u8) !void {
@@ -374,6 +456,7 @@ pub const Hunter = struct {
             .result_payload = null,
             .is_complete = false,
             .success = false,
+            .is_pipe = false, // [!] SET FALSE FOR NORMAL FLIGHT
         };
         self.current_vector = vector;
 
@@ -473,7 +556,7 @@ pub const Hunter = struct {
             var color: u32 = 0x00DC143C;
             if (self.active and idx == self.history_index) {
                 weight_px += 8;
-                if (std.mem.eql(u8, self.status, "FETCHING...")) {
+                if (std.mem.eql(u8, self.status, "FETCHING...") or std.mem.eql(u8, self.status, "PIPING...")) {
                     color = 0x00FFBF00;
                 } else {
                     color = 0x00FFFFFF;
