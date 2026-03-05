@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Resolved comptime_int panic on AST calculator modal height variable.",
+//   changes: "Wired PIPE_MEMO dispatcher to True Pipe encapsulation thread.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -644,6 +644,15 @@ pub fn main() !void {
                                     pending_memo_len = txt.len;
                                     is_memo_modal = true; journal_len = 0; 
                                 },
+                                // [!] TRUE PIPE KEYBOARD ROUTING
+                                .PIPE_MEMO => {
+                                    sys_hunter.pipeMemo(response.text) catch {
+                                        sys_hunter.mutex.lock();
+                                        sys_hunter.status = "PIPE_ERR";
+                                        sys_hunter.mutex.unlock();
+                                    };
+                                    journal_len = 0;
+                                },
                                 .ASSIST => { is_assist_modal = !is_assist_modal; journal_len = 0; },
                                 .RADIO => { is_radio_modal = true; journal_len = 0; },
                                 .PRINT => {
@@ -666,7 +675,6 @@ pub fn main() !void {
                                     sys_hunter.hunt(full_target) catch {};
                                     journal_len = 0;
                                 },
-                                .PIPE_MEMO => {},
                                 .NONE => { journal_len = 0; }
                             }
                         } else if (byte == 127 or byte == 8) {
