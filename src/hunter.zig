@@ -2,7 +2,7 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.11-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Deployed True Pipe (pipeMemo) encapsulation logic via background FlightVector mutation.",
+//   changes: "Deployed True Pipe (pipeMemo) encapsulation logic via background FlightVector mutation. Resolved Error Union strictness on bufPrint.",
 //   philotic_inferences: "To navigate the self, the system must first know its own name, and its history must always cast a shadow."
 
 const std = @import("std");
@@ -19,7 +19,7 @@ const FlightVector = struct {
     result_payload: ?[]u8, 
     is_complete: bool,    
     success: bool,
-    is_pipe: bool, // [!] TRUE PIPE FLAG
+    is_pipe: bool, 
 };
 
 pub const Hunter = struct {
@@ -117,7 +117,6 @@ pub const Hunter = struct {
                     const body = vector.result_payload.?;
                     defer self.allocator.free(body); 
 
-                    // [!] TRUE PIPE BACKGROUND ENCAPSULATION
                     if (vector.is_pipe) {
                         const ts = std.time.timestamp();
                         var title_buf: [128]u8 = undefined;
@@ -148,15 +147,14 @@ pub const Hunter = struct {
                                             file.writeAll(body) catch {};
                                             file.writeAll("\n\n// }-.]\n") catch {};
                                             file.close();
-                                        }
-                                    }
+                                        } else |_| {} 
+                                    } else |_| {} // [!] FIXED ERROR UNION HANDLING
                                     self.saveHistory() catch {};
                                     self.status = "PIPE_SEALED";
                                 } else |_| { self.allocator.free(title_dupe); self.status = "PIPE_FAIL_MEM"; }
                             } else |_| { self.status = "PIPE_FAIL_MEM"; }
                         } else |_| { self.status = "PIPE_FAIL_MEM"; }
                     } else {
-                        // NORMAL MATRIX RENDER
                         try self.parseContent(body);
                         self.status = "LOCKED";
                     }
@@ -246,7 +244,6 @@ pub const Hunter = struct {
         self.saveHistory() catch {};
     }
 
-    // [!] EXPOSED TRUE PIPE METHOD
     pub fn pipeMemo(self: *Hunter, target: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -277,7 +274,7 @@ pub const Hunter = struct {
             .result_payload = null,
             .is_complete = false,
             .success = false,
-            .is_pipe = true, // [!] SET TRUE PIPE FLAG
+            .is_pipe = true, 
         };
         self.current_vector = vector;
 
@@ -354,7 +351,6 @@ pub const Hunter = struct {
         self.status = "FETCHING..."; 
         self.scroll_y = 0;
         
-        // [!] MELT (VIRTUAL POINTER) ROUTING
         if (std.mem.startsWith(u8, target, "@://")) {
             const possible_idx = target[4..];
             var is_melt = possible_idx.len > 0;
@@ -384,7 +380,6 @@ pub const Hunter = struct {
             }
         }
 
-        // 1. LOCAL MEMO ROUTING
         if (std.mem.startsWith(u8, target, "memo://")) {
             self.status = "LOCAL_MEMO";
             const ts_str = target[7..];
@@ -407,7 +402,6 @@ pub const Hunter = struct {
             return; 
         }
 
-        // 2. DYNAMIC DISK ROUTING
         var local_prefix_buf: [256]u8 = undefined;
         const host_prefix = std.fmt.bufPrint(&local_prefix_buf, "@://{s}/", .{self.local_id}) catch "@://mchn/";
         const mchn_prefix = "@://mchn/";
@@ -439,7 +433,6 @@ pub const Hunter = struct {
             return; 
         }
 
-        // 3. SHADOW FLIGHT (NETWORK) ROUTING
         const gop = try self.philote_map.getOrPut(self.allocator, target);
         if (!gop.found_existing) gop.value_ptr.* = 0;
         gop.value_ptr.* += 1;
@@ -456,7 +449,7 @@ pub const Hunter = struct {
             .result_payload = null,
             .is_complete = false,
             .success = false,
-            .is_pipe = false, // [!] SET FALSE FOR NORMAL FLIGHT
+            .is_pipe = false, 
         };
         self.current_vector = vector;
 
