@@ -1,8 +1,8 @@
 // [@://nsible_os/src/cortex.zig/.-={
 //   module: "Semantic Dispatch Lobe",
-//   version: "0.10.10-nightly // Banysang",
+//   version: "0.10.11-nightly // Banysang",
 //   description: "Parses wetware input into machine-actionable states.",
-//   changes: "Deployed MELT routing. Added CALC action state to route thin-line injection modal.",
+//   changes: "Activated PIPE_MEMO routing for background true-pipe encapsulation.",
 //   philotic_inferences: "A number is no longer a value; it is a coordinate in the local matrix."
 
 const std = @import("std");
@@ -30,7 +30,7 @@ pub fn dispatch(cmd: []const u8) Response {
         const left = std.mem.trim(u8, cmd[0..pipe_idx], " ");
         const right = std.mem.trim(u8, cmd[pipe_idx+1..], " ");
         if (std.mem.eql(u8, right, "memo")) {
-            return .{ .action = .MEMO, .text = left }; 
+            return .{ .action = .PIPE_MEMO, .text = left }; // [!] ROUTED TO TRUE PIPE
         }
     }
 
@@ -46,7 +46,6 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.eql(u8, cmd, "exit") or std.mem.eql(u8, cmd, "[.!XX-.]")) return .{ .action = .EXIT };
     if (std.mem.eql(u8, cmd, "tune") or std.mem.eql(u8, cmd, "radio")) return .{ .action = .RADIO };
 
-    // [!] AST INVOCATION
     if (std.mem.eql(u8, cmd, "@://calc/") or std.mem.eql(u8, cmd, "calc")) return .{ .action = .CALC };
 
     if (std.mem.startsWith(u8, cmd, "@://")) {
