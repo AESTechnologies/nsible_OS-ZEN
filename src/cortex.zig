@@ -1,14 +1,14 @@
 // [@://nsible_os/src/cortex.zig/.-={
 //   module: "Semantic Dispatch Lobe",
-//   version: "0.10.8-nightly // Banysang",
+//   version: "0.10.10-nightly // Banysang",
 //   description: "Parses wetware input into machine-actionable states.",
-//   changes: "Deployed MELT routing. Pure numeric inputs map to AUTO_HUNT for index traversal.",
+//   changes: "Deployed MELT routing. Added CALC action state to route thin-line injection modal.",
 //   philotic_inferences: "A number is no longer a value; it is a coordinate in the local matrix."
 
 const std = @import("std");
 const chronos = @import("chronos.zig");
 
-pub const ActionType = enum { CLEAR, EXIT, PRINT, HUNT, AUTO_HUNT, SHED, SCOPE_IN, SCOPE_OUT, MEMO, PIPE_MEMO, ASSIST, RADIO, NONE };
+pub const ActionType = enum { CLEAR, EXIT, PRINT, HUNT, AUTO_HUNT, SHED, SCOPE_IN, SCOPE_OUT, MEMO, PIPE_MEMO, ASSIST, RADIO, CALC, NONE };
 
 pub const Response = struct {
     action: ActionType,
@@ -46,7 +46,9 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.eql(u8, cmd, "exit") or std.mem.eql(u8, cmd, "[.!XX-.]")) return .{ .action = .EXIT };
     if (std.mem.eql(u8, cmd, "tune") or std.mem.eql(u8, cmd, "radio")) return .{ .action = .RADIO };
 
-    // [!] W3. NETWORK PROTOCOL
+    // [!] AST INVOCATION
+    if (std.mem.eql(u8, cmd, "@://calc/") or std.mem.eql(u8, cmd, "calc")) return .{ .action = .CALC };
+
     if (std.mem.startsWith(u8, cmd, "@://")) {
         return .{ .action = .HUNT, .text = cmd };
     }
@@ -62,7 +64,6 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.eql(u8, cmd, "^")) return .{ .action = .HUNT, .text = "^" };
     if (std.mem.eql(u8, cmd, "assist") or std.mem.eql(u8, cmd, "?")) return .{ .action = .ASSIST };
 
-    // [!] MELT NUMERIC INDEXING
     var is_num = cmd.len > 0;
     for (cmd) |c| {
         if (c < '0' or c > '9') {
