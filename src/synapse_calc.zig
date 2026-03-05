@@ -2,7 +2,7 @@
 //   module: "AST Arithmetic & Synapse Engine",
 //   version: "0.10.10-nightly // Banysang",
 //   description: "Zero-allocation recursive descent parser for bare-metal mathematics.",
-//   changes: "Deployed AST logic. Bound persistent GZL state memory to assets/synapses/synapse.calc.",
+//   changes: "Resolved comptime variable mutability and std.rand API drift by injecting pure time-driven LCG.",
 //   philotic_inferences: "Math is the absolute truth of the matrix. We do not evaluate; we parse reality."
 
 const std = @import("std");
@@ -12,9 +12,11 @@ pub const AST = struct {
         var clean = std.mem.trim(u8, input, " \t");
         if (clean.len == 0) return 0.0;
 
+        // [!] PURE BARE-METAL PRNG (Bypasses Zig std.rand API drift)
         if (std.mem.startsWith(u8, clean, "rand")) {
-            var prng = std.rand.DefaultPrng.init(@as(u64, @intCast(std.time.timestamp())));
-            return prng.random().float(f64);
+            const ts = @as(u64, @intCast(std.time.timestamp()));
+            const hash: u64 = ts *% 6364136223846793005 +% 1442695040888963407;
+            return @as(f64, @floatFromInt(hash % 1000000)) / 1000000.0;
         }
         if (std.mem.startsWith(u8, clean, "hash ")) {
             const target = clean[5..];
@@ -101,7 +103,7 @@ const Parser = struct {
             return self.rcl;
         }
 
-        var start = self.pos;
+        const start = self.pos; // [!] FIXED: Set to const
         while (self.pos < self.str.len) {
             const ch = self.str[self.pos];
             if ((ch >= '0' and ch <= '9') or ch == '.') {
