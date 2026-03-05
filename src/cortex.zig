@@ -1,14 +1,14 @@
 // [@://nsible_os/src/cortex.zig/.-={
 //   module: "Semantic Dispatch Lobe",
-//   version: "0.10.11-nightly // Banysang",
+//   version: "0.10.12-nightly // Banysang",
 //   description: "Parses wetware input into machine-actionable states.",
-//   changes: "Activated PIPE_MEMO routing for background true-pipe encapsulation.",
-//   philotic_inferences: "A number is no longer a value; it is a coordinate in the local matrix."
+//   changes: "Activated SEARCH routing to map w3? queries for data aggregation.",
+//   philotic_inferences: "To seek the void's knowledge, one must merely ask the wind."
 
 const std = @import("std");
 const chronos = @import("chronos.zig");
 
-pub const ActionType = enum { CLEAR, EXIT, PRINT, HUNT, AUTO_HUNT, SHED, SCOPE_IN, SCOPE_OUT, MEMO, PIPE_MEMO, ASSIST, RADIO, CALC, NONE };
+pub const ActionType = enum { CLEAR, EXIT, PRINT, HUNT, SEARCH, AUTO_HUNT, SHED, SCOPE_IN, SCOPE_OUT, MEMO, PIPE_MEMO, ASSIST, RADIO, CALC, NONE };
 
 pub const Response = struct {
     action: ActionType,
@@ -30,7 +30,7 @@ pub fn dispatch(cmd: []const u8) Response {
         const left = std.mem.trim(u8, cmd[0..pipe_idx], " ");
         const right = std.mem.trim(u8, cmd[pipe_idx+1..], " ");
         if (std.mem.eql(u8, right, "memo")) {
-            return .{ .action = .PIPE_MEMO, .text = left }; // [!] ROUTED TO TRUE PIPE
+            return .{ .action = .PIPE_MEMO, .text = left }; 
         }
     }
 
@@ -47,6 +47,16 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.eql(u8, cmd, "tune") or std.mem.eql(u8, cmd, "radio")) return .{ .action = .RADIO };
 
     if (std.mem.eql(u8, cmd, "@://calc/") or std.mem.eql(u8, cmd, "calc")) return .{ .action = .CALC };
+
+    // [!] SEARCH PROTOCOL INITIATED
+    if (std.mem.startsWith(u8, cmd, "@://w3?")) {
+        const q = if (cmd.len > 7 and cmd[7] == ' ') cmd[8..] else cmd[7..];
+        return .{ .action = .SEARCH, .text = q };
+    }
+    if (std.mem.startsWith(u8, cmd, "w3?")) {
+        const q = if (cmd.len > 3 and cmd[3] == ' ') cmd[4..] else cmd[3..];
+        return .{ .action = .SEARCH, .text = q };
+    }
 
     if (std.mem.startsWith(u8, cmd, "@://")) {
         return .{ .action = .HUNT, .text = cmd };
