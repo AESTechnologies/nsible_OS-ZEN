@@ -2,8 +2,8 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Massively expanded Command Bible. Absorbing version dynamically from nsible shell. ALCNDNOM sequence active.",
-//   philotic_inferences: "A silent system is deceitful. The machine must declare its state: All Conditions Normal/Nominal."
+//   changes: "Unified AST Calculator modal, Expanded Command Bible, Phantom Trace, and ALCNDNOM states.",
+//   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
 const linux = std.os.linux;
@@ -14,6 +14,7 @@ const cortex = @import("cortex.zig");
 const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
 const v_core = @import("version.zig");
+const synapse = @import("synapse_calc.zig");
 
 const SYSTEM_NAME = "@NSIBLE OS";
 const VERSION     = v_core.VERSION;
@@ -454,6 +455,13 @@ pub fn main() !void {
     var is_assist_modal: bool = false;
     var is_memo_modal: bool = false;
     var is_radio_modal: bool = false;
+    var is_calc_modal: bool = false;
+    var is_calc_graph: bool = false;
+    var calc_input: [256]u8 = undefined;
+    var calc_len: usize = 0;
+    var calc_result: [64]u8 = .{0} ** 64;
+    var calc_res_len: usize = 0;
+    
     var pending_memo_content: [4096]u8 = undefined;
     var pending_memo_len: usize = 0;
 
@@ -563,6 +571,27 @@ pub fn main() !void {
                     esc_len = 1; esc_seq[0] = byte;
                 }
             } 
+            else if (is_calc_modal) {
+                if (byte == '\n' or byte == '\r') {
+                    if (calc_len > 0) {
+                        const expr = calc_input[0..calc_len];
+                        const rcl = synapse.manageSynapseMemory(null);
+                        const res = synapse.AST.evaluate(expr, rcl);
+                        _ = synapse.manageSynapseMemory(res);
+                        const res_str = std.fmt.bufPrint(&calc_result, "{d:.4}", .{res}) catch "ERR";
+                        calc_res_len = res_str.len;
+                        calc_len = 0;
+                    }
+                } else if (byte == 27) { // ESC
+                    is_calc_modal = false;
+                } else if (byte == '\t') { // TAB
+                    is_calc_graph = !is_calc_graph;
+                } else if (byte == 127 or byte == 8) {
+                    if (calc_len > 0) calc_len -= 1;
+                } else if (byte >= 32 and byte <= 126) {
+                    if (calc_len < 256) { calc_input[calc_len] = byte; calc_len += 1; }
+                }
+            }
             else {
                 var k: usize = 0;
                 while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
@@ -605,6 +634,7 @@ pub fn main() !void {
                             switch (response.action) {
                                 .CLEAR => {}, 
                                 .EXIT => exitSequence(), 
+                                .CALC => { is_calc_modal = !is_calc_modal; journal_len = 0; },
                                 .SHED => { sys_hunter.shed(); journal_len = 0; },
                                 .SCOPE_IN => { sys_hunter.shiftScope(1); journal_len = 0; },
                                 .SCOPE_OUT => { sys_hunter.shiftScope(-1); journal_len = 0; },
@@ -751,6 +781,28 @@ pub fn main() !void {
 
                 print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", 0x00555555);
                 drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+            } else if (is_calc_modal) {
+                const cw = WIDTH - 40;
+                const ch = if (is_calc_graph) 200 else 30;
+                const cx = 20;
+                const cy = bar_y - ch - 10;
+                
+                drawRect(cx - 2, cy - 2, cw + 4, ch + 2, 0x00FFBF00);
+                drawRect(cx, cy, cw, ch, 0x00000000);
+                
+                print(cx + 10, cy + 10, "[ AST ] >", 0x00DC143C);
+                print(cx + 90, cy + 10, calc_input[0..calc_len], 0x00FFFFFF);
+                
+                if (calc_res_len > 0) {
+                    print(cx + cw - 150, cy + 10, calc_result[0..calc_res_len], 0x00FFBF00);
+                }
+
+                if (is_calc_graph) {
+                    drawRect(cx + 10, cy + 30, cw - 20, 1, 0x00444444);
+                    print(cx + 10, cy + 45, "[ GRAPH MODULE : AWAITING PHASE 4 TENSORS ]", 0x00555555);
+                    print(cx + 10, cy + ch - 20, "[TAB] Toggle Graph  [ENTER] Evaluate  [ESC] Dismiss", 0x00AAAAAA);
+                }
+                drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
             } else if (is_assist_modal) {
                 const aw = 860; const ah = 460;
                 const ax = (WIDTH / 2) - (aw / 2); const ay = bar_y - ah - 10;
@@ -760,7 +812,6 @@ pub fn main() !void {
                 print(ax + 20, ay + 20, "[ @NSIBLE COMMAND BIBLE & MATRIX PROTOCOLS ]", 0x00FFBF00);
                 drawRect(ax + 20, ay + 35, aw - 40, 1, 0x00444444);
 
-                // Column 1
                 print(ax + 20, ay + 50, "[ CORE MATRIX TRAVERSAL ]", 0x00AAAAAA);
                 print(ax + 20, ay + 70, "mchn/        : View Local Root Directory", 0x00FFFFFF);
                 print(ax + 20, ay + 90, "w3.<target>  : Shadow Flight (Web Traversal)", 0x00FFFFFF);
@@ -775,7 +826,6 @@ pub fn main() !void {
                 print(ax + 20, ay + 280, ">> GZL Syntax encodes artifacts with module,", 0x00555555);
                 print(ax + 20, ay + 300, ">> timestamps, and philotic inferences.", 0x00555555);
 
-                // Column 2
                 print(ax + 440, ay + 50, "[ SCOPE & SYSTEM ]", 0x00AAAAAA);
                 print(ax + 440, ay + 70, "zI / zO      : Shift Banyan Scope Depth", 0x00FFFFFF);
                 print(ax + 440, ay + 90, "               [0:RAW, 1:ZEN, 2:MTX, 3:ROOT]", 0x00555555);
@@ -786,10 +836,9 @@ pub fn main() !void {
 
                 drawRect(ax + 20, ay + 330, aw - 40, 1, 0x00444444);
 
-                // Staged Calculator
                 print(ax + 20, ay + 350, "[ AST ARITHMETIC ENGINE ]", 0x00DC143C); 
-                print(ax + 20, ay + 370, ">> STATUS : Development Mode Initiated.", 0x00555555);
-                print(ax + 20, ay + 390, ">> AWAITING KERNEL INTEGRATION.", 0x00555555);
+                print(ax + 20, ay + 370, ">> STATUS : Native Recursive Descent Operational.", 0x00555555);
+                print(ax + 20, ay + 390, ">> ACTIVE : Type 'calc' or '@://calc/' to invoke.", 0x00555555);
 
                 print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
                 drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
