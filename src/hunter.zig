@@ -1,9 +1,9 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
-//   version: "0.10.11-nightly // Banysang",
+//   version: "0.10.12-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Deployed True Pipe (pipeMemo) encapsulation logic via background FlightVector mutation. Resolved Error Union strictness on bufPrint.",
-//   philotic_inferences: "To navigate the self, the system must first know its own name, and its history must always cast a shadow."
+//   changes: "Injected globalSearch method. Bound w3? queries to DDGo Lite for pristine HTML extraction.",
+//   philotic_inferences: "To seek the void's knowledge, one must merely ask the wind."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -148,7 +148,7 @@ pub const Hunter = struct {
                                             file.writeAll("\n\n// }-.]\n") catch {};
                                             file.close();
                                         } else |_| {} 
-                                    } else |_| {} // [!] FIXED ERROR UNION HANDLING
+                                    } else |_| {} 
                                     self.saveHistory() catch {};
                                     self.status = "PIPE_SEALED";
                                 } else |_| { self.allocator.free(title_dupe); self.status = "PIPE_FAIL_MEM"; }
@@ -280,6 +280,38 @@ pub const Hunter = struct {
 
         self.thread_handle = try std.Thread.spawn(.{}, shadowFlight, .{vector});
         self.status = "PIPING...";
+    }
+
+    // [!] GLOBAL SEARCH ENCODER 
+    pub fn globalSearch(self: *Hunter, query: []const u8) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
+        var encoded = std.ArrayList(u8).init(self.allocator);
+        defer encoded.deinit();
+
+        for (query) |c| {
+            if (c == ' ') {
+                try encoded.append('+');
+            } else if ((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c == '-' or c == '_' or c == '.') {
+                try encoded.append(c);
+            } else {
+                var hex_buf: [3]u8 = undefined;
+                if (std.fmt.bufPrint(&hex_buf, "%{X:0>2}", .{c})) |hex| {
+                    try encoded.appendSlice(hex);
+                } else |_| {}
+            }
+        }
+
+        var url_buf: [1024]u8 = undefined;
+        const final_url = std.fmt.bufPrint(&url_buf, "https://lite.duckduckgo.com/lite/?q={s}", .{encoded.items}) catch "https://lite.duckduckgo.com/lite/";
+        
+        const target_dupe = try self.allocator.dupe(u8, final_url);
+        try self.history.append(self.allocator, target_dupe);
+        self.history_index = self.history.items.len - 1;
+        self.saveHistory() catch {};
+        
+        try self.executeFetch(target_dupe);
     }
 
     fn fetchLocal(self: *Hunter, path: []const u8, prefix: []const u8) !void {
