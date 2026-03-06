@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Deployed Global Escape Interceptor. Fixed reflex cleanup math. Masked HTTP protocols in URI bar for aesthetic continuity.",
+//   changes: "Fixed Zig strict block syntax in Escape sequence interceptors to resolve compile error.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -129,7 +129,6 @@ fn drawHeader(is_high: bool) void {
     drawChar(994, 6, glyph, 0x00FFFFFF);
 }
 
-// [!] CONTINUITY PATCH: getUriBarY updated to pre-calculate the masked prefix
 fn getUriBarY(input_len: usize, current_url: []const u8) usize {
     const char_w = 8; const line_h = 10; const padding = 6;
     var cursor_x: usize = 10; var lines: usize = 1;
@@ -156,7 +155,6 @@ fn getUriBarY(input_len: usize, current_url: []const u8) usize {
     return if (bar_height < HEIGHT) HEIGHT - bar_height else 0;
 }
 
-// [!] CONTINUITY PATCH: URI Bar dynamically strips HTTP for @://w3.
 fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) void {
     const char_w = 8; const line_h = 10; const padding = 6;
     const start_y = getUriBarY(input_len, current_url);
@@ -500,7 +498,6 @@ pub fn main() !void {
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
     
-    // [!] ESCAPE SEQUENCE INTERCEPTORS
     var esc_seq: [8]u8 = undefined; 
     var esc_len: usize = 0;
     var esc_timer: usize = 0; 
@@ -518,15 +515,15 @@ pub fn main() !void {
             dirty = true;
         }
 
-        // [!] BARE ESCAPE KEY TIMEOUT
         if (esc_len == 1) {
             esc_timer += 1;
             if (esc_timer > 5000) {
-                if (is_calc_modal) is_calc_modal = false;
+                // [!] SYNTAX FIX: ENFORCED BLOCK BRACES
+                if (is_calc_modal) { is_calc_modal = false; }
                 else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
-                else if (is_memo_modal) is_memo_modal = false;
-                else if (is_trail_modal) is_trail_modal = false;
-                else if (is_assist_modal) is_assist_modal = false;
+                else if (is_memo_modal) { is_memo_modal = false; }
+                else if (is_trail_modal) { is_trail_modal = false; }
+                else if (is_assist_modal) { is_assist_modal = false; }
                 
                 esc_len = 0;
                 esc_timer = 0;
@@ -537,7 +534,6 @@ pub fn main() !void {
         if (codex.transcieve(vinculum_fd)) |byte| {
             dirty = true;
             
-            // 1. GLOBAL ESCAPE SEQUENCE TRAP (Bug 1 Fix)
             if (byte == 27) {
                 esc_len = 1; esc_seq[0] = byte;
                 esc_timer = 0;
@@ -575,13 +571,13 @@ pub fn main() !void {
                         esc_len = 0;
                         continue;
                     } else if (esc_len == 2 and byte != '[') {
-                        if (is_calc_modal) is_calc_modal = false;
+                        // [!] SYNTAX FIX: ENFORCED BLOCK BRACES
+                        if (is_calc_modal) { is_calc_modal = false; }
                         else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
-                        else if (is_memo_modal) is_memo_modal = false;
-                        else if (is_trail_modal) is_trail_modal = false;
-                        else if (is_assist_modal) is_assist_modal = false;
+                        else if (is_memo_modal) { is_memo_modal = false; }
+                        else if (is_trail_modal) { is_trail_modal = false; }
+                        else if (is_assist_modal) { is_assist_modal = false; }
                         esc_len = 0;
-                        // Falls through to process the bare byte
                     } else {
                         continue;
                     }
@@ -591,7 +587,6 @@ pub fn main() !void {
                 }
             }
 
-            // 2. GZL REFLEX TRAP
             var k: usize = 0;
             while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
             seq_buf[5] = byte;
@@ -602,7 +597,6 @@ pub fn main() !void {
             else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) { sys_hunter.shiftScope(-1); if (journal_len >= 4) journal_len -= 4; reflex_triggered = true; } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!@&-.")) {
                 sys_hunter.refresh() catch {};
-                // [!] CACHE REFLEX MATH FIX (Bug 2)
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
                 reflex_triggered = true;
             }
@@ -616,7 +610,6 @@ pub fn main() !void {
 
             if (reflex_triggered) continue;
 
-            // 3. MODAL & JOURNAL PROCESSING
             if (is_tabula_rasa) {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
@@ -690,7 +683,7 @@ pub fn main() !void {
                         calc_res_len = res_str.len;
                         calc_len = 0;
                     } else {
-                        is_calc_modal = false; // Empty Enter closes AST
+                        is_calc_modal = false; 
                     }
                 } else if (byte == '\t') { 
                     is_calc_graph = !is_calc_graph;
