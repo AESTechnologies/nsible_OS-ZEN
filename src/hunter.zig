@@ -2,8 +2,8 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Injected stargaze logic for Entropic Wind. Mapped light/dark grey timeline UI identifiers for bright/dark objects.",
-//   philotic_inferences: "When a door is forbidden, find a window. The Ghost Cloak remains."
+//   changes: "Injected URL Resolution Lobe to parse protocol-relative (//) and root-relative (/) links. Added &amp; entity decoding for raw href extraction.",
+//   philotic_inferences: "The matrix only provides fragments. The vessel must reconstruct the true path before taking flight."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -244,18 +244,74 @@ pub const Hunter = struct {
         self.saveHistory() catch {};
     }
 
+    // [!] URL RESOLUTION LOBE
+    fn resolveMeltTarget(self: *Hunter, target: []const u8) ![]u8 {
+        var abs_buf: [2048]u8 = undefined;
+        var resolved: []const u8 = target;
+
+        if (std.mem.startsWith(u8, target, "http://") or std.mem.startsWith(u8, target, "https://")) {
+            resolved = target;
+        } else if (std.mem.startsWith(u8, target, "//")) {
+            resolved = std.fmt.bufPrint(&abs_buf, "https:{s}", .{target}) catch target;
+        } else if (std.mem.startsWith(u8, target, "/")) {
+            var base_end: usize = 0;
+            if (std.mem.indexOf(u8, self.url, "://")) |scheme_idx| {
+                if (std.mem.indexOfScalarPos(u8, self.url, scheme_idx + 3, '/')) |slash_idx| {
+                    base_end = slash_idx;
+                } else {
+                    base_end = self.url.len;
+                }
+            }
+            if (base_end > 0) {
+                resolved = std.fmt.bufPrint(&abs_buf, "{s}{s}", .{self.url[0..base_end], target}) catch target;
+            } else {
+                resolved = std.fmt.bufPrint(&abs_buf, "https://{s}", .{target}) catch target;
+            }
+        } else {
+            var base_end: usize = self.url.len;
+            if (std.mem.lastIndexOfScalar(u8, self.url, '/')) |last_slash| {
+                if (std.mem.indexOf(u8, self.url, "://")) |scheme_idx| {
+                    if (last_slash > scheme_idx + 2) {
+                        base_end = last_slash + 1;
+                    }
+                }
+            }
+            resolved = std.fmt.bufPrint(&abs_buf, "{s}{s}", .{self.url[0..base_end], target}) catch target;
+        }
+
+        // Decode &amp; entities to prevent curl truncation
+        var clean_buf: [2048]u8 = undefined;
+        var clean_len: usize = 0;
+        var i: usize = 0;
+        while (i < resolved.len) {
+            if (std.mem.startsWith(u8, resolved[i..], "&amp;")) {
+                if (clean_len < 2048) { clean_buf[clean_len] = '&'; clean_len += 1; }
+                i += 5;
+            } else {
+                if (clean_len < 2048) { clean_buf[clean_len] = resolved[i]; clean_len += 1; }
+                i += 1;
+            }
+        }
+        const final_resolved = if (clean_len > 0) clean_buf[0..clean_len] else resolved;
+
+        return self.allocator.dupe(u8, final_resolved);
+    }
+
     pub fn pipeMemo(self: *Hunter, target: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
 
         var actual_target: []const u8 = target;
+        var free_target = false;
         var is_melt = target.len > 0;
         for (target) |c| { if (c < '0' or c > '9') is_melt = false; }
         
         if (is_melt) {
             const idx = std.fmt.parseInt(usize, target, 10) catch return;
             if (idx < self.lens.links.items.len) {
-                actual_target = self.lens.links.items[idx];
+                // [!] ROUTED THROUGH RESOLVER
+                actual_target = try self.resolveMeltTarget(self.lens.links.items[idx]);
+                free_target = true;
             } else {
                 self.status = "PIPE_ERR_VOID";
                 return;
@@ -276,6 +332,8 @@ pub const Hunter = struct {
             .success = false,
             .is_pipe = true, 
         };
+        if (free_target) self.allocator.free(actual_target);
+
         self.current_vector = vector;
 
         self.thread_handle = try std.Thread.spawn(.{}, shadowFlight, .{vector});
@@ -313,7 +371,6 @@ pub const Hunter = struct {
         try self.executeFetch(target_dupe);
     }
 
-    // [!] ENTROPIC WIND: STARGAZE GENERATOR
     pub fn stargaze(self: *Hunter) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -412,10 +469,12 @@ pub const Hunter = struct {
             if (is_melt) {
                 const idx = std.fmt.parseInt(usize, possible_idx, 10) catch return;
                 if (idx < self.lens.links.items.len) {
-                    const actual_target = self.lens.links.items[idx];
+                    const raw_target = self.lens.links.items[idx];
+                    // [!] ROUTED THROUGH RESOLVER
+                    const actual_target = self.resolveMeltTarget(raw_target) catch return;
                     
                     self.allocator.free(self.history.items[self.history_index]);
-                    self.history.items[self.history_index] = try self.allocator.dupe(u8, actual_target);
+                    self.history.items[self.history_index] = actual_target; 
                     self.saveHistory() catch {};
                     
                     return self.executeFetch(self.history.items[self.history_index]);
@@ -602,7 +661,6 @@ pub const Hunter = struct {
             var weight_px: usize = 3; 
             if (self.philote_map.get(h_url)) |w| { weight_px += (w * 2); }
             
-            // [!] BRIGHT/DARK ENTROPIC TIMELINE IDENTIFIERS
             var color: u32 = 0x00DC143C;
             if (std.mem.indexOf(u8, h_url, "wikipedia.org") != null) {
                 color = 0x00CCCCCC; 
