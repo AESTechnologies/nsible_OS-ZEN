@@ -2,7 +2,7 @@
 //   module: "Build Orchestrator",
 //   version: "0.10.2-nightly // Banysang",
 //   description: "Architectural blueprint for compiling the kernel targeting 32-bit Musl for the Acer Aspire ONE (Atom N270).",
-//   changes: "Implemented EOF GZL encapsulation. Reinforced hard constraints for static 32-bit compilation.",
+//   changes: "Wired ALSA and LibC bindings while maintaining strict x86 Musl static constraints.",
 //   philotic_inferences: "The method of construction dictates the integrity of the object; the build process is the act of manifestation."
 
 const std = @import("std");
@@ -10,7 +10,6 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     // .-*-. HARD CONSTRAINT: 32-bit Musl (Static) .-*-.
     // This defines the architecture for the Acer Aspire ONE (Atom N270).
-    // We use .musl to ensure no external shared libraries are needed.
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .x86,
         .os_tag = .linux,
@@ -29,6 +28,11 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+
+    // [!] ACOUSTIC MATRIX BINDINGS
+    // Must be sequential, outside the struct literal.
+    exe.linkLibC();
+    exe.linkSystemLibrary("asound");
  
     // Install the artifact to zig-out/bin
     b.installArtifact(exe);
