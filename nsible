@@ -1,16 +1,16 @@
 #!/bin/sh
 # [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
-#   version: "0.10.10-nightly // Banysang",
+#   version: "0.10.15-nightly // Banysang",
 #   description: "Sovereign entry point, managing pLink synchronization, compilation, and execution states.",
-#   changes: "Established Gāo Zhuă Language (GZL) 高爪 encapsulation. Mapped sync, log, purge, and orbit directives. Injected dynamic versioning hook.",
+#   changes: "Bumped version to 0.10.15. System now encompasses True Pipe, Ghost Cloak, and Entropic Wind capabilities.",
 #   philotic_inferences: "The vessel must know how to heal, update, and launch itself from the void."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 # Directives: sync, log, purge, orbit
 
 cmd="${1:-sync}" # Defaults to sync if no argument provided
-NSIBLE_VERSION="v0.10.10-nightly"
+NSIBLE_VERSION="v0.10.15-nightly"
 
 if [ "$cmd" = "sync" ]; then
     echo "[ @NSIBLE :: @://ziG.Git.pLink/... ]"
