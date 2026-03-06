@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Wired sys_composer instance. Routed ASCII, ANSI arrows, and .!ED-. / .!SV-. reflexes to the Composer Lobe.",
+//   changes: "Wired sys_composer, .MOUNT / .UNMOUNT logic, and Zero-Journal Backspace reflex.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -13,7 +13,7 @@ const codex = @import("codex.zig");
 const cortex = @import("cortex.zig"); 
 const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
-const composer = @import("composer.zig"); // [!] THE COMPOSER LOBE
+const composer = @import("composer.zig");
 const v_core = @import("version.zig");
 const synapse = @import("synapse_calc.zig");
 
@@ -476,7 +476,6 @@ pub fn main() !void {
     var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
 
-    // [!] INSTANTIATE THE COMPOSER
     var sys_composer = composer.Composer.init();
 
     var is_tabula_rasa: bool = false;
@@ -548,7 +547,6 @@ pub fn main() !void {
                     esc_seq[esc_len] = byte; esc_len += 1;
                     if (esc_len == 3 and esc_seq[1] == '[') {
                         if (sys_composer.active) {
-                            // [!] COMPOSER: ANSI ARROW ROUTING
                             if (byte == 'A') { sys_composer.moveCursor(0, -1); }
                             else if (byte == 'B') { sys_composer.moveCursor(0, 1); }
                             else if (byte == 'C') { sys_composer.moveCursor(1, 0); }
@@ -575,7 +573,6 @@ pub fn main() !void {
                         continue;
                     } else if (esc_len == 4 and esc_seq[1] == '[' and esc_seq[2] >= '0' and esc_seq[2] <= '9' and byte == '~') {
                         if (sys_composer.active) {
-                            // [!] COMPOSER: PAGE UP/DOWN & DELETE ROUTING
                             if (esc_seq[2] == '3') { sys_composer.deleteChar(); }
                             else if (esc_seq[2] == '5') { sys_composer.moveCursor(0, -15); }
                             else if (esc_seq[2] == '6') { sys_composer.moveCursor(0, 15); }
@@ -615,7 +612,6 @@ pub fn main() !void {
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
                 reflex_triggered = true;
             }
-            // [!] COMPOSER REFLEX: OPEN (.!ED-.)
             else if (std.mem.endsWith(u8, &seq_buf, ".!ED-.")) {
                 if (!sys_composer.active) {
                     if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
@@ -625,7 +621,6 @@ pub fn main() !void {
                     reflex_triggered = true;
                 }
             }
-            // [!] COMPOSER REFLEX: SAVE (.!SV-.)
             else if (std.mem.endsWith(u8, &seq_buf, ".!SV-.")) {
                 if (sys_composer.active) {
                     var b_idx: usize = 0;
@@ -644,8 +639,6 @@ pub fn main() !void {
 
             if (reflex_triggered) continue;
 
-            // [!] COMPOSER: RAW BYTE INTERCEPTOR
-            // If the composer is open, text typing bypasses the journal entirely.
             if (sys_composer.active) {
                 if (byte == 127 or byte == 8) {
                     sys_composer.backspace();
@@ -810,10 +803,22 @@ pub fn main() !void {
                             sys_hunter.hunt(full_target) catch {};
                             journal_len = 0;
                         },
+                        .MOUNT => {
+                            sys_hunter.mountDrives();
+                            journal_len = 0;
+                        },
+                        .UNMOUNT => {
+                            sys_hunter.unmountDrives();
+                            journal_len = 0;
+                        },
                         .NONE => { journal_len = 0; }
                     }
                 } else if (byte == 127 or byte == 8) {
-                    if (journal_len > 0) journal_len -= 1;
+                    if (journal_len > 0) {
+                        journal_len -= 1;
+                    } else {
+                        sys_hunter.shed();
+                    }
                 } else if (byte >= 32 and byte <= 126) {
                     if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
                 }
@@ -826,7 +831,6 @@ pub fn main() !void {
         if (dirty) {
             clear(0x00000000);
             
-            // [!] COMPOSER: RENDER BRANCHING
             if (sys_composer.active) {
                 sys_composer.render(&back_buffer, WIDTH, HEIGHT);
                 drawPulseOverlay();
