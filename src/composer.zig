@@ -2,8 +2,8 @@
 //   module: "The Composer Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Native, full-screen text editor lobe operating in a dedicated 64KB RAM buffer.",
-//   changes: "Fortified prefix stripping to properly resolve absolute files even when @:// is omitted.",
-//   philotic_inferences: "The matrix must be able to reach across the entire physical vessel."
+//   changes: "UI updated to reflect the new strict structural discard reflex (.!XX-.).",
+//   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -21,6 +21,7 @@ pub const Composer = struct {
     status: [64]u8,
     status_len: usize,
     dirty: bool,
+    confirm_discard: bool, 
 
     pub fn init() Composer {
         return .{
@@ -34,6 +35,7 @@ pub const Composer = struct {
             .status = .{0} ** 64,
             .status_len = 0,
             .dirty = false,
+            .confirm_discard = false,
         };
     }
 
@@ -49,6 +51,7 @@ pub const Composer = struct {
         self.cursor_idx = 0;
         self.scroll_y = 0;
         self.dirty = false;
+        self.confirm_discard = false;
         
         const p_len = @min(path.len, 256);
         @memcpy(self.filepath[0..p_len], path[0..p_len]);
@@ -56,7 +59,6 @@ pub const Composer = struct {
 
         var clean_path: []const u8 = path;
         
-        // [!] PREFIX STRIPPER UPGRADE: Handles raw "mchn/" inputs perfectly.
         if (std.mem.startsWith(u8, clean_path, "@://mchn/")) {
             clean_path = clean_path[9..];
         } else if (std.mem.startsWith(u8, clean_path, "mchn/")) {
@@ -82,9 +84,9 @@ pub const Composer = struct {
     }
 
     pub fn save(self: *Composer) void {
+        self.confirm_discard = false;
         var clean_path: []const u8 = self.filepath[0..self.filepath_len];
         
-        // [!] PREFIX STRIPPER UPGRADE
         if (std.mem.startsWith(u8, clean_path, "@://mchn/")) {
             clean_path = clean_path[9..];
         } else if (std.mem.startsWith(u8, clean_path, "mchn/")) {
@@ -114,10 +116,17 @@ pub const Composer = struct {
     }
 
     pub fn close(self: *Composer) void {
+        if (self.dirty and !self.confirm_discard) {
+            self.setStatus("UNSAVED! .!XX-. AGAIN TO DISCARD");
+            self.confirm_discard = true;
+            return;
+        }
         self.active = false;
+        self.confirm_discard = false;
     }
 
     pub fn insert(self: *Composer, c: u8) void {
+        self.confirm_discard = false;
         if (self.len >= COMPOSER_SIZE) return;
         if (c < 32 and c != '\n' and c != '\t') return; 
         
@@ -132,6 +141,7 @@ pub const Composer = struct {
     }
 
     pub fn backspace(self: *Composer) void {
+        self.confirm_discard = false;
         if (self.cursor_idx == 0) return;
         var i: usize = self.cursor_idx;
         while (i < self.len) : (i += 1) {
@@ -143,6 +153,7 @@ pub const Composer = struct {
     }
     
     pub fn deleteChar(self: *Composer) void {
+        self.confirm_discard = false;
         if (self.cursor_idx >= self.len) return;
         var i: usize = self.cursor_idx + 1;
         while (i < self.len) : (i += 1) {
@@ -153,6 +164,7 @@ pub const Composer = struct {
     }
 
     pub fn moveCursor(self: *Composer, dx: isize, dy: isize) void {
+        self.confirm_discard = false;
         if (dx < 0 and self.cursor_idx > 0) self.cursor_idx -= 1;
         if (dx > 0 and self.cursor_idx < self.len) self.cursor_idx += 1;
         
@@ -288,8 +300,10 @@ pub const Composer = struct {
         
         drawRect(buffer, width, height, 0, height - 20, width, 20, 0x00222222);
         var b_cx: usize = 10;
+        
+        const status_color: u32 = if (self.confirm_discard) 0x00DC143C else 0x00FFFFFF;
         for (self.status[0..self.status_len]) |c| {
-            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00FFFFFF);
+            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, status_color);
             b_cx += 8;
         }
         
@@ -301,7 +315,7 @@ pub const Composer = struct {
             b_cx += 8;
         }
         
-        const help_str = "[ESC] Discard   .!SV-. Save to Disk";
+        const help_str = ".!XX-. Discard   .!SV-. Save to Disk";
         b_cx = width - (help_str.len * 8) - 10;
         for (help_str) |c| {
             drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00555555);
