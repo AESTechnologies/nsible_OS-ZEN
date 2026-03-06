@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Expanded debounce to 750ms to defeat hardware typematic delay and added punch-through protection.",
+//   changes: "Secured IDE reflexes with temporal lock and exact undo extraction to fix buffer dirty paradox.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -607,11 +607,21 @@ pub fn main() !void {
 
             var reflex_triggered = false;
             
+            // [!] THE UNDO_REFLEX LOCK
             if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { 
                 if (sys_composer.active) {
-                    var b_idx: usize = 0;
-                    while (b_idx < 5) : (b_idx += 1) { sys_composer.backspace(); }
-                    sys_composer.close();
+                    sys_composer.undo_reflex(5);
+                    if (sys_composer.dirty) {
+                        const now = std.time.milliTimestamp();
+                        if (now - sys_composer.last_xx_ms < 3000) {
+                            sys_composer.active = false;
+                        } else {
+                            sys_composer.setStatus("UNSAVED! .!XX-. AGAIN TO DISCARD");
+                            sys_composer.last_xx_ms = now;
+                        }
+                    } else {
+                        sys_composer.active = false;
+                    }
                     reflex_triggered = true;
                 } else {
                     exitSequence(); 
@@ -656,10 +666,10 @@ pub fn main() !void {
                     reflex_triggered = true;
                 }
             }
+            // [!] THE UNDO_REFLEX SAVE
             else if (std.mem.endsWith(u8, &seq_buf, ".!SV-.")) {
                 if (sys_composer.active) {
-                    var b_idx: usize = 0;
-                    while (b_idx < 5) : (b_idx += 1) { sys_composer.backspace(); }
+                    sys_composer.undo_reflex(5);
                     sys_composer.save();
                     reflex_triggered = true;
                 }
@@ -848,11 +858,9 @@ pub fn main() !void {
                         },
                         .NONE => { journal_len = 0; }
                     }
-                // [!] SYNTHETIC KEY-UP: STATE-AWARE DEBOUNCE
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) {
                         journal_len -= 1;
-                        // [!] PUNCH-THROUGH PROTECTION: Lock immediately if text empties
                         if (journal_len == 0) shed_lock = true; 
                     } else {
                         if (!shed_lock) { 
@@ -866,8 +874,6 @@ pub fn main() !void {
                 }
             }
         } else {
-            // [!] THE KEY-UP SENSOR
-            // Pushed to 750ms to outlast the hardware's initial 500ms typematic delay.
             if (shed_lock) {
                 if (std.time.milliTimestamp() - last_rx_ms > 750) {
                     shed_lock = false;
