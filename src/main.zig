@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Wired .STARGAZE dispatcher. Updated w3?. syntax in Bible. Bumped version to 0.10.15.",
+//   changes: "Wired .REFRESH dispatcher and .!@&-. reflex sequence to force page cache reload.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -601,6 +601,12 @@ pub fn main() !void {
                 if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { exitSequence(); } 
                 else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) { sys_hunter.shiftScope(1); if (journal_len >= 4) journal_len -= 4; reflex_triggered = true; } 
                 else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) { sys_hunter.shiftScope(-1); if (journal_len >= 4) journal_len -= 4; reflex_triggered = true; } 
+                // [!] CACHE OVERRIDE REFLEX
+                else if (std.mem.endsWith(u8, &seq_buf, ".!@&-.")) {
+                    sys_hunter.refresh() catch {};
+                    if (journal_len >= 6) journal_len -= 6;
+                    reflex_triggered = true;
+                }
                 else if (std.mem.endsWith(u8, &seq_buf, "//-.")) {
                     if (journal_len >= 4) journal_len -= 4;
                     const clean_slice = std.mem.trimRight(u8, journal[0..journal_len], " ");
@@ -660,11 +666,19 @@ pub fn main() !void {
                                     };
                                     journal_len = 0;
                                 },
-                                // [!] STARGAZE DISPATCHER
                                 .STARGAZE => {
                                     sys_hunter.stargaze() catch {
                                         sys_hunter.mutex.lock();
                                         sys_hunter.status = "STARGAZE_ERR";
+                                        sys_hunter.mutex.unlock();
+                                    };
+                                    journal_len = 0;
+                                },
+                                // [!] REFRESH DISPATCH
+                                .REFRESH => {
+                                    sys_hunter.refresh() catch {
+                                        sys_hunter.mutex.lock();
+                                        sys_hunter.status = "CACHE_ERR";
                                         sys_hunter.mutex.unlock();
                                     };
                                     journal_len = 0;
@@ -841,7 +855,7 @@ pub fn main() !void {
                 print(ax + 20, ay + 90, "w3.<target>  : Shadow Flight (Web Traversal)", 0x00FFFFFF);
                 print(ax + 20, ay + 110, "w3?. <query> : Global Matrix Search", 0x00FFFFFF); 
                 print(ax + 20, ay + 130, "<Number>     : MELT Traverse (Follow Link [x])", 0x00DC143C);
-                print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", 0x00FFBF00); // [!] ADDED STARGAZE
+                print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", 0x00FFBF00); 
                 print(ax + 20, ay + 170, "[<] / [>]    : Navigate Timeline History", 0x00FFFFFF);
                 print(ax + 20, ay + 190, "v / ^        : Scroll Active Matrix down/up", 0x00FFFFFF);
 
@@ -857,8 +871,9 @@ pub fn main() !void {
                 print(ax + 440, ay + 90, "               [0:RAW, 1:ZEN, 2:MTX, 3:ROOT]", 0x00555555);
                 print(ax + 440, ay + 110, "shed / drop  : Destroy active node", 0x00FFFFFF);
                 print(ax + 440, ay + 130, "radio / tune : Philotic Resonance Tuning", 0x00FFFFFF);
-                print(ax + 440, ay + 150, "cycle        : Print Local Tempus", 0x00FFFFFF);
-                print(ax + 440, ay + 170, ".!XX-. / exit: Terminate Matrix", 0x00FFFFFF);
+                print(ax + 440, ay + 150, ".!@&-.       : Force Cache Reload", 0x00FFBF00); // [!] ADDED CACHE REFLEX
+                print(ax + 440, ay + 170, "cycle        : Print Local Tempus", 0x00FFFFFF);
+                print(ax + 440, ay + 190, ".!XX-. / exit: Terminate Matrix", 0x00FFFFFF);
 
                 drawRect(ax + 20, ay + 370, aw - 40, 1, 0x00444444);
 
