@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Wired .SEARCH action to globalSearch encoder. Added search protocol to Command Bible.",
+//   changes: "Wired .STARGAZE dispatcher. Updated w3?. syntax in Bible. Bumped version to 0.10.15.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -652,11 +652,19 @@ pub fn main() !void {
                                     };
                                     journal_len = 0;
                                 },
-                                // [!] SEARCH DISPATCHER
                                 .SEARCH => {
                                     sys_hunter.globalSearch(response.text) catch {
                                         sys_hunter.mutex.lock();
                                         sys_hunter.status = "SEARCH_ERR";
+                                        sys_hunter.mutex.unlock();
+                                    };
+                                    journal_len = 0;
+                                },
+                                // [!] STARGAZE DISPATCHER
+                                .STARGAZE => {
+                                    sys_hunter.stargaze() catch {
+                                        sys_hunter.mutex.lock();
+                                        sys_hunter.status = "STARGAZE_ERR";
                                         sys_hunter.mutex.unlock();
                                     };
                                     journal_len = 0;
@@ -828,21 +836,21 @@ pub fn main() !void {
                 print(ax + 20, ay + 20, "[ @NSIBLE COMMAND BIBLE & MATRIX PROTOCOLS ]", 0x00FFBF00);
                 drawRect(ax + 20, ay + 35, aw - 40, 1, 0x00444444);
 
-                // Column 1
                 print(ax + 20, ay + 50, "[ CORE MATRIX TRAVERSAL ]", 0x00AAAAAA);
                 print(ax + 20, ay + 70, "mchn/        : View Local Root Directory", 0x00FFFFFF);
                 print(ax + 20, ay + 90, "w3.<target>  : Shadow Flight (Web Traversal)", 0x00FFFFFF);
-                print(ax + 20, ay + 110, "w3? <query>  : Global Matrix Search", 0x00FFFFFF); // [!] ADDED TO BIBLE
+                print(ax + 20, ay + 110, "w3?. <query> : Global Matrix Search", 0x00FFFFFF); 
                 print(ax + 20, ay + 130, "<Number>     : MELT Traverse (Follow Link [x])", 0x00DC143C);
-                print(ax + 20, ay + 150, "[<] / [>]    : Navigate Timeline History", 0x00FFFFFF);
-                print(ax + 20, ay + 170, "v / ^        : Scroll Active Matrix down/up", 0x00FFFFFF);
+                print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", 0x00FFBF00); // [!] ADDED STARGAZE
+                print(ax + 20, ay + 170, "[<] / [>]    : Navigate Timeline History", 0x00FFFFFF);
+                print(ax + 20, ay + 190, "v / ^        : Scroll Active Matrix down/up", 0x00FFFFFF);
 
-                print(ax + 20, ay + 210, "[ ARTIFACT FORGE & GZL ]", 0x00AAAAAA);
-                print(ax + 20, ay + 230, "memo <txt>   : Quick Operator Artifact", 0x00FFFFFF);
-                print(ax + 20, ay + 250, "<Title> //-. : Title & Save Artifact", 0x00FFFFFF);
-                print(ax + 20, ay + 270, "| memo       : Pipe active target to timeline", 0x00FFFFFF);
-                print(ax + 20, ay + 300, ">> GZL Syntax encodes artifacts with module,", 0x00555555);
-                print(ax + 20, ay + 320, ">> timestamps, and philotic inferences.", 0x00555555);
+                print(ax + 20, ay + 230, "[ ARTIFACT FORGE & GZL ]", 0x00AAAAAA);
+                print(ax + 20, ay + 250, "memo <txt>   : Quick Operator Artifact", 0x00FFFFFF);
+                print(ax + 20, ay + 270, "<Title> //-. : Title & Save Artifact", 0x00FFFFFF);
+                print(ax + 20, ay + 290, "| memo       : Pipe active target to timeline", 0x00FFFFFF);
+                print(ax + 20, ay + 320, ">> GZL Syntax encodes artifacts with module,", 0x00555555);
+                print(ax + 20, ay + 340, ">> timestamps, and philotic inferences.", 0x00555555);
 
                 print(ax + 440, ay + 50, "[ SCOPE & SYSTEM ]", 0x00AAAAAA);
                 print(ax + 440, ay + 70, "zI / zO      : Shift Banyan Scope Depth", 0x00FFFFFF);
@@ -852,11 +860,11 @@ pub fn main() !void {
                 print(ax + 440, ay + 150, "cycle        : Print Local Tempus", 0x00FFFFFF);
                 print(ax + 440, ay + 170, ".!XX-. / exit: Terminate Matrix", 0x00FFFFFF);
 
-                drawRect(ax + 20, ay + 330, aw - 40, 1, 0x00444444);
+                drawRect(ax + 20, ay + 370, aw - 40, 1, 0x00444444);
 
-                print(ax + 20, ay + 350, "[ AST ARITHMETIC ENGINE ]", 0x00DC143C); 
-                print(ax + 20, ay + 370, ">> STATUS : Native Recursive Descent Operational.", 0x00555555);
-                print(ax + 20, ay + 390, ">> ACTIVE : Type 'calc' or '@://calc/' to invoke.", 0x00555555);
+                print(ax + 20, ay + 390, "[ AST ARITHMETIC ENGINE ]", 0x00DC143C); 
+                print(ax + 20, ay + 410, ">> STATUS : Native Recursive Descent Operational.", 0x00555555);
+                print(ax + 20, ay + 430, ">> ACTIVE : Type 'calc' or '@://calc/' to invoke.", 0x00555555);
 
                 print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
                 drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
