@@ -1,9 +1,9 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
-//   version: "0.10.12-nightly // Banysang",
+//   version: "0.10.13-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Pristine alignment. Resolved copy/paste corruption at thread_handle initialization.",
-//   philotic_inferences: "When the matrix fractures, we must burn the local reality and reconstruct from the void."
+//   changes: "Deployed Ghost Cloak (User-Agent spoofing) to bypass WAFs. Rerouted global search to decentralized SearxNG.",
+//   philotic_inferences: "To move undetected through the corporate web, the vessel must project a ghost of the old world."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -302,8 +302,9 @@ pub const Hunter = struct {
             }
         }
 
+        // [!] ROUTING TO SEARXNG DECENTRALIZED MATRIX
         var url_buf: [1024]u8 = undefined;
-        const final_url = std.fmt.bufPrint(&url_buf, "https://lite.duckduckgo.com/lite/?q={s}", .{encoded.items}) catch "https://lite.duckduckgo.com/lite/";
+        const final_url = std.fmt.bufPrint(&url_buf, "https://searx.be/search?q={s}", .{encoded.items}) catch "https://searx.be/";
         
         const target_dupe = try self.allocator.dupe(u8, final_url);
         try self.history.append(self.allocator, target_dupe);
@@ -489,8 +490,13 @@ pub const Hunter = struct {
         self.url = try self.allocator.dupe(u8, target);
     }
 
+    // [!] GHOST CLOAK: INJECTING FIREFOX USER-AGENT INTO CURL
     fn shadowFlight(vector: *FlightVector) void {
-        const argv = [_][]const u8{ "curl", "-L", "-s", "-k", vector.url };
+        const argv = [_][]const u8{ 
+            "curl", "-L", "-s", "-k", 
+            "-A", "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0", 
+            vector.url 
+        };
         var agent = ExternalAgent.init(&argv, vector.allocator);
         agent.stdout_behavior = .Pipe;
         agent.stderr_behavior = .Ignore;
