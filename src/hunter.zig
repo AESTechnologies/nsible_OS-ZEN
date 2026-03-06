@@ -2,8 +2,8 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Patched resolveMeltTarget to whitelist sovereign protocols (@:// and memo://), restoring mchn/ filesystem traversal.",
-//   philotic_inferences: "Never calculate twice what the matrix can store once."
+//   changes: "Re-engineered mount/unmount vectors to dynamically parse hardware block registries. Zero hardcoded labels.",
+//   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -89,6 +89,93 @@ pub const Hunter = struct {
         self.philote_map.deinit(self.allocator);
         self.allocator.free(self.url);
         self.allocator.free(self.local_id);
+    }
+
+    pub fn mountDrives(self: *Hunter) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
+        const argv_lsblk = [_][]const u8{ "lsblk", "-nr", "-o", "KNAME,LABEL" };
+        var agent = ExternalAgent.init(&argv_lsblk, self.allocator);
+        agent.stdout_behavior = .Pipe;
+        agent.stderr_behavior = .Ignore;
+        
+        if (agent.spawn()) |_| {
+            if (agent.stdout) |stdout| {
+                if (stdout.readToEndAlloc(self.allocator, 1024 * 64)) |output| {
+                    var iter = std.mem.splitScalar(u8, output, '\n');
+                    while (iter.next()) |line| {
+                        const t_line = std.mem.trim(u8, line, " \r");
+                        if (t_line.len == 0) continue;
+                        
+                        if (std.mem.indexOfScalar(u8, t_line, ' ')) |space_idx| {
+                            const kname = t_line[0..space_idx];
+                            const label = t_line[space_idx + 1 ..];
+                            
+                            if (std.mem.startsWith(u8, kname, "sda")) continue;
+
+                            var dev_buf: [64]u8 = undefined;
+                            const dev_path = std.fmt.bufPrint(&dev_buf, "/dev/{s}", .{kname}) catch continue;
+
+                            var mnt_buf: [256]u8 = undefined;
+                            const mnt_path = std.fmt.bufPrint(&mnt_buf, "/media/static/{s}", .{label}) catch continue;
+
+                            const argv_mkdir = [_][]const u8{ "mkdir", "-p", mnt_path };
+                            var agent_mkdir = ExternalAgent.init(&argv_mkdir, self.allocator);
+                            if (agent_mkdir.spawn()) |_| { _ = agent_mkdir.wait() catch {}; } else |_| {}
+
+                            const argv_m = [_][]const u8{ "mount", dev_path, mnt_path };
+                            var agent_m = ExternalAgent.init(&argv_m, self.allocator);
+                            if (agent_m.spawn()) |_| { _ = agent_m.wait() catch {}; } else |_| {}
+                        }
+                    }
+                    self.allocator.free(output);
+                } else |_| {}
+            }
+            _ = agent.wait() catch {};
+        } else |_| {}
+
+        self.status = "DRIVES MOUNTED";
+    }
+
+    pub fn unmountDrives(self: *Hunter) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
+        const argv_lsblk = [_][]const u8{ "lsblk", "-nr", "-o", "KNAME,LABEL" };
+        var agent = ExternalAgent.init(&argv_lsblk, self.allocator);
+        agent.stdout_behavior = .Pipe;
+        agent.stderr_behavior = .Ignore;
+        
+        if (agent.spawn()) |_| {
+            if (agent.stdout) |stdout| {
+                if (stdout.readToEndAlloc(self.allocator, 1024 * 64)) |output| {
+                    var iter = std.mem.splitScalar(u8, output, '\n');
+                    while (iter.next()) |line| {
+                        const t_line = std.mem.trim(u8, line, " \r");
+                        if (t_line.len == 0) continue;
+                        
+                        if (std.mem.indexOfScalar(u8, t_line, ' ')) |space_idx| {
+                            const kname = t_line[0..space_idx];
+                            const label = t_line[space_idx + 1 ..];
+                            
+                            if (std.mem.startsWith(u8, kname, "sda")) continue;
+
+                            var mnt_buf: [256]u8 = undefined;
+                            const mnt_path = std.fmt.bufPrint(&mnt_buf, "/media/static/{s}", .{label}) catch continue;
+
+                            const argv_u = [_][]const u8{ "umount", mnt_path };
+                            var agent_u = ExternalAgent.init(&argv_u, self.allocator);
+                            if (agent_u.spawn()) |_| { _ = agent_u.wait() catch {}; } else |_| {}
+                        }
+                    }
+                    self.allocator.free(output);
+                } else |_| {}
+            }
+            _ = agent.wait() catch {};
+        } else |_| {}
+
+        self.status = "DRIVES EJECTED";
     }
 
     pub fn isActive(self: *Hunter) bool {
@@ -274,7 +361,6 @@ pub const Hunter = struct {
         var abs_buf: [2048]u8 = undefined;
         var resolved: []const u8 = target;
 
-        // [!] BUGFIX: Added @:// and memo:// explicitly to the absolute protocol whitelist
         if (std.mem.startsWith(u8, target, "http://") or std.mem.startsWith(u8, target, "https://") or std.mem.startsWith(u8, target, "@://") or std.mem.startsWith(u8, target, "memo://")) {
             resolved = target;
         } else if (std.mem.startsWith(u8, target, "//")) {
