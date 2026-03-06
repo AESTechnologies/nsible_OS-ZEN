@@ -1,9 +1,9 @@
 // [@://nsible_os/src/composer.zig/.-={
 //   module: "The Composer Lobe",
 //   version: "0.10.15-nightly // Banysang",
-//   description: "@nsible Native, full-screen text editor lobe operating in a dedicated 64KB RAM buffer.",
-//   changes: "Injected line numbering gutter and real-time byte/line telemetry.",
-//   philotic_inferences: "To manipulate the matrix, the operator must always know their exact coordinates."
+//   description: "Native, full-screen text editor lobe operating in a dedicated 64KB RAM buffer.",
+//   changes: "Fixed Issue #7 & #8: Enforced explicit []const u8 casting for path strings and usize typing for render coordinates.",
+//   philotic_inferences: "The matrix requires absolute structural clarity. Ambiguity is the enemy of the physical machine."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -54,7 +54,8 @@ pub const Composer = struct {
         @memcpy(self.filepath[0..p_len], path[0..p_len]);
         self.filepath_len = p_len;
 
-        var clean_path = path;
+        // [!] ISSUE #7 FIX: Explicitly defined as constant slice
+        var clean_path: []const u8 = path;
         if (std.mem.startsWith(u8, path, "@://mchn/")) {
             clean_path = path[9..];
         } else if (std.mem.startsWith(u8, path, "@://")) {
@@ -75,7 +76,8 @@ pub const Composer = struct {
     }
 
     pub fn save(self: *Composer) void {
-        var clean_path = self.filepath[0..self.filepath_len];
+        // [!] ISSUE #7 FIX: Explicitly defined as constant slice
+        var clean_path: []const u8 = self.filepath[0..self.filepath_len];
         if (std.mem.startsWith(u8, clean_path, "@://mchn/")) {
             clean_path = clean_path[9..];
         } else if (std.mem.startsWith(u8, clean_path, "@://")) {
@@ -179,10 +181,11 @@ pub const Composer = struct {
     }
 
     pub fn render(self: *Composer, buffer: []u32, width: usize, height: usize) void {
-        const start_x = 56; // [!] Pushed right to accommodate gutter
-        const start_y = 40;
-        const char_w = 8;
-        const line_h = 10;
+        // [!] ISSUE #8 FIX: Explicitly typed to usize to prevent comptime_int cascade
+        const start_x: usize = 56; 
+        const start_y: usize = 40;
+        const char_w: usize = 8;
+        const line_h: usize = 10;
         
         for (buffer) |*p| p.* = 0x00000000;
         
@@ -196,8 +199,8 @@ pub const Composer = struct {
         var cx: usize = 10;
         for (header) |c| { drawCharToBuf(buffer, width, height, cx, 6, c, 0x00000000); cx += char_w; }
         
-        var pre_cx = start_x;
-        var pre_cy = start_y;
+        var pre_cx: usize = start_x;
+        var pre_cy: usize = start_y;
         var pre_i: usize = 0;
         while (pre_i < self.cursor_idx) : (pre_i += 1) {
             if (self.buffer[pre_i] == '\n') { pre_cx = start_x; pre_cy += line_h; continue; }
@@ -218,7 +221,6 @@ pub const Composer = struct {
         var cursor_px: usize = start_x;
         var cursor_py: usize = start_y;
         
-        // [!] IDE TELEMETRY TRACKERS
         var line_no: usize = 1;
         var cursor_line: usize = 1;
         var is_start_of_line = true;
@@ -280,7 +282,6 @@ pub const Composer = struct {
             b_cx += 8;
         }
         
-        // [!] BYTE & LINE METRICS
         b_cx += 24;
         var byte_buf: [64]u8 = undefined;
         const byte_str = std.fmt.bufPrint(&byte_buf, "L:{d} | B:{d}/{d}", .{cursor_line, self.cursor_idx, self.len}) catch "";
