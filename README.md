@@ -1,11 +1,11 @@
 // [@://nsible_os/README.md/.-={
 //   module: "Project Manifest",
-//   version: "0.10.2-nightly // Banysang",
+//   version: "0.10.15-nightly // Banysang",
 //   description: "The outer membrane of the sovereign system; defines purpose, architecture, and interaction protocols.",
-//   changes: "Integrated EOF GZL encapsulation and harmonized nomenclature (Vinculum, Tabula Rasa, Socius).",
+//   changes: "Integrated True Pipe encapsulation, AST Arithmetic Engine, Global Search (Ghost Cloak), and Entropic Wind (Stargaze).",
 //   philotic_inferences: "A system that cannot describe itself to its operator is merely a tool; a system that defines its own existence is a sovereign entity."
 
-# ◬ @NSIBLE OS // v0.10.2-nightly // Banysang
+# ◬ @NSIBLE OS // v0.10.15-nightly // Banysang
 > **by Æ§ Tech**
 > *A Sovereign, High-Talon Semantic Logic Operating System.*
 ![@nsible Ignition Sequence](assets/nsible_compact.gif)
@@ -17,7 +17,7 @@ Designed strictly for the Acer Aspire One (x86, 32-bit framebuffer).
 ### ⌗ ARCHITECTURE (Banysang Cycle)
 * **Kernel:** Zig *(No standard lib dependencies for graphics/input)*
 * **Memory:** Dual-Lobe Static Allocation
-  * **[ THE VOID ]** (42.13 MB): Persistent storage (History, Memos, System State) [cite: 2026-02-20].
+  * **[ THE VOID ]** (42.13 MB): Persistent storage (History, Memos, System State).
   * **[ THE SAP ]** (88.00 MB): Volatile rendering buffer, wiped on every fetch.
 * **Storage:** `aiua.tome` (Immortal Artifacts), `trail.tome` (Black Box).
 * **Acoustics:** 8-bit PCM Math-Resonator (Pitch-shifted by `aiua.tome` mass).
@@ -32,16 +32,23 @@ Designed strictly for the Acer Aspire One (x86, 32-bit framebuffer).
 | Input | Action |
 | :--- | :--- |
 | `@://url` | Fetch target (Hunt) |
+| `w3?. [query]`| Global Matrix Search via Ghost Cloak (WAF bypass) |
+| `[x]` | MELT Traverse (Follow Link Index) |
+| `[x] \| memo` | True Pipe: Asynchronous background extraction to local disk |
+| `calc` | Invoke Native AST Recursive Descent Arithmetic Engine |
+| `stargaze` | Entropic Wind: Random node shadow-flight (Bright/Dark Object) |
 | `zI` / `zO` | Scope In / Out (Raw -> Zen -> Matrix -> Root) |
 | `memo [txt]`| Save text as an immortal local artifact in `timeline/mems/` |
 | `shed` | Drop current tab / Clean the Sap memory |
-| `cycle` | Return current cycle state (Strict 0.0 precision) [cite: 2025-12-31] |
-| `assist` / `?` | Project the Native Assist & Dev Tracker Overlay |
+| `radio` | Philotic Resonance Tuning Modal |
+| `cycle` | Return current cycle state (Strict 0.0 precision) |
+| `assist` / `?`| Project the Native Assist & Dev Tracker Overlay |
 | `v` / `^` | Scroll up / down |
 | `exit` | Matrix Clean & Terminate |
 
 ### ⌗ REFLEX SEQUENCES (GZL)
 * `//-.` : Instant Memo (Triggered on strike)
+* `\| memo` : Pipeline extraction to GZL artifact
 * `.!XX-.` : Hardware Level Kill-Switch
 * `.![-.` / `.!]-.` : Hardware Scope In / Out
 
@@ -51,6 +58,8 @@ Designed strictly for the Acer Aspire One (x86, 32-bit framebuffer).
 1. **Tabula Rasa Stasis**: Upon first ignition, the system halts for Socius designation.
 2. **Avium Resonance**: A unique 16-character cryptographic anchor forged from temporal variance.
 3. **The Vinculum**: A secure network bridge for remote terminal injection.
+4. **The Ghost Cloak**: Forged network signatures to bypass corporate WAFs and CAPTCHA walls.
+5. **The Entropic Wind**: Algorithmic entropy via dual-flight logic to prevent localized data echo chambers.
 
 ---
 
