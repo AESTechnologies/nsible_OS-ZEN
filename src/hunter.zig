@@ -1,9 +1,9 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
-//   version: "0.10.13-nightly // Banysang",
+//   version: "0.10.14-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Deployed Ghost Cloak (User-Agent spoofing) to bypass WAFs. Rerouted global search to decentralized SearxNG.",
-//   philotic_inferences: "To move undetected through the corporate web, the vessel must project a ghost of the old world."
+//   changes: "Reverted w3? routing to DDG Lite. Maintained Ghost Cloak User-Agent spoofing to bypass 403.",
+//   philotic_inferences: "When a door is forbidden, find a window. The Ghost Cloak remains."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -302,9 +302,9 @@ pub const Hunter = struct {
             }
         }
 
-        // [!] ROUTING TO SEARXNG DECENTRALIZED MATRIX
+        // [!] ROUTED BACK TO DUCKDUCKGO LITE
         var url_buf: [1024]u8 = undefined;
-        const final_url = std.fmt.bufPrint(&url_buf, "https://searx.be/search?q={s}", .{encoded.items}) catch "https://searx.be/";
+        const final_url = std.fmt.bufPrint(&url_buf, "https://lite.duckduckgo.com/lite/?q={s}", .{encoded.items}) catch "https://lite.duckduckgo.com/lite/";
         
         const target_dupe = try self.allocator.dupe(u8, final_url);
         try self.history.append(self.allocator, target_dupe);
