@@ -341,7 +341,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         sik_file.close();
     } else |_| {}
 
-    print(WIDTH / 2 - 80, center_y - 60, "A E S   T E C H N O L O G I E S", 0x00FFFFFF);
+    print(WIDTH / 2 - 80, center_y - 60, "\xC6\xA7   T E C H N O L O G I E S", 0x00FFFFFF);
     print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", 0x00AAAAAA);
     print(WIDTH / 2 - 40, center_y + 45, "[ ALCNDNOM ]", 0x00FFBF00); 
     
