@@ -2,7 +2,7 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Injected Ghost Cloak URL decoder to bypass DDG tracker endpoints.",
+//   changes: "Exposed resolveMeltTarget to the public namespace for Composer integration.",
 //   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
 
 const std = @import("std");
@@ -357,11 +357,11 @@ pub const Hunter = struct {
         self.saveHistory() catch {};
     }
 
-    fn resolveMeltTarget(self: *Hunter, target: []const u8) ![]u8 {
+    // [!] EXPOSED RESOLVER: Allows main.zig to dynamically unpack MELT links for the Composer.
+    pub fn resolveMeltTarget(self: *Hunter, target: []const u8) ![]u8 {
         var actual_target = target;
         var ddg_dec_buf: [2048]u8 = undefined;
 
-        // [!] GHOST CLOAK: DDG TRACKER UNWRAPPER
         if (std.mem.indexOf(u8, target, "uddg=")) |uddg_idx| {
             const start = uddg_idx + 5;
             var end = start;
