@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Wired sys_composer, .MOUNT / .UNMOUNT logic, and Zero-Journal Backspace reflex.",
+//   changes: "Wired .!ED-. reflex to dynamically intercept and unpack MELT index arrays into absolute paths.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -612,11 +612,35 @@ pub fn main() !void {
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
                 reflex_triggered = true;
             }
+            // [!] COMPOSER REFLEX: MELT INDEX PARSER UPGRADE
             else if (std.mem.endsWith(u8, &seq_buf, ".!ED-.")) {
                 if (!sys_composer.active) {
                     if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
-                    const target_path = std.mem.trim(u8, journal[0..journal_len], " ");
+                    var target_path = std.mem.trim(u8, journal[0..journal_len], " ");
+
+                    var is_melt = target_path.len > 0;
+                    for (target_path) |c| { if (c < '0' or c > '9') is_melt = false; }
+
+                    var resolved_alloc: ?[]u8 = null;
+
+                    if (is_melt) {
+                        const idx = std.fmt.parseInt(usize, target_path, 10) catch std.math.maxInt(usize);
+                        sys_hunter.mutex.lock();
+                        if (idx < sys_hunter.lens.links.items.len) {
+                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
+                                resolved_alloc = res;
+                                target_path = res;
+                            } else |_| {}
+                        }
+                        sys_hunter.mutex.unlock();
+                    }
+
                     sys_composer.open(target_path);
+                    
+                    if (resolved_alloc) |res| {
+                        sys_hunter.allocator.free(res);
+                    }
+                    
                     journal_len = 0;
                     reflex_triggered = true;
                 }
