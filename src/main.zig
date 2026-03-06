@@ -977,7 +977,7 @@ pub fn main() !void {
                     }
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else if (is_assist_modal) {
-                    const aw = 860; const ah = 460;
+                    const aw = 860; const ah = 480; // [!] Increased height by 20px to 480
                     const ax = (WIDTH / 2) - (aw / 2); const ay = bar_y - ah - 10;
                     drawRect(ax - 2, ay - 2, aw + 4, ah + 2, 0x00FFBF00); 
                     drawRect(ax, ay, aw, ah, 0x00000000);
@@ -1016,6 +1016,7 @@ pub fn main() !void {
                     print(ax + 20, ay + 410, ">> STATUS : Native Recursive Descent Operational.", 0x00555555);
                     print(ax + 20, ay + 430, ">> ACTIVE : Type 'calc' or '@://calc/' to invoke.", 0x00555555);
 
+                    // [!] MATH COLLISION AVOIDED
                     print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else {
