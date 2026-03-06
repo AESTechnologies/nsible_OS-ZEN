@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Secured IDE reflexes with temporal lock and exact undo extraction to fix buffer dirty paradox.",
+//   changes: "Forged Bash Modal, Option A pipe prompt, and file-descriptor offloading for shell commands.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -399,6 +399,7 @@ pub fn main() !void {
     const fs = std.fs.cwd();
     fs.makeDir("timeline") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("timeline/mems") catch |err| { if (err != error.PathAlreadyExists) {} };
+    fs.makeDir("assets") catch |err| { if (err != error.PathAlreadyExists) {} };
     if (fs.access("aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("aiua.tome", .{})) |f| { f.close(); } else |_| {} }
     
     var is_trail_modal: bool = false;
@@ -495,6 +496,11 @@ pub fn main() !void {
     var calc_result: [64]u8 = .{0} ** 64;
     var calc_res_len: usize = 0;
     
+    // [!] BASH MODAL STATE
+    var is_bash_modal: bool = false;
+    var is_bash_pipe: bool = false;
+    var bash_scroll_y: usize = 0;
+
     var pending_memo_content: [4096]u8 = undefined;
     var pending_memo_len: usize = 0;
 
@@ -566,7 +572,11 @@ pub fn main() !void {
                                 else if (radio_sel == 2) { radio_diss += 0.05; }
                                 else if (radio_sel == 3) { radio_phi += 0.05; }
                             }
-                        } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal) {
+                        } else if (is_bash_modal and !is_bash_pipe) {
+                            // [!] BASH MODAL SCROLLING
+                            if (byte == 'A') { if (bash_scroll_y > 0) bash_scroll_y -= 1; }
+                            else if (byte == 'B') { bash_scroll_y += 1; }
+                        } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal and !is_bash_modal) {
                             if (byte == 'A') { sys_hunter.scrollBy(-1); }
                             else if (byte == 'B') { sys_hunter.scrollBy(1); }
                             else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; }
@@ -579,14 +589,19 @@ pub fn main() !void {
                             if (esc_seq[2] == '3') { sys_composer.deleteChar(); }
                             else if (esc_seq[2] == '5') { sys_composer.moveCursor(0, -15); }
                             else if (esc_seq[2] == '6') { sys_composer.moveCursor(0, 15); }
-                        } else if (!is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal) {
+                        } else if (is_bash_modal and !is_bash_pipe) {
+                            if (esc_seq[2] == '5') { if (bash_scroll_y > 15) bash_scroll_y -= 15 else bash_scroll_y = 0; }
+                            else if (esc_seq[2] == '6') { bash_scroll_y += 15; }
+                        } else if (!is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal and !is_bash_modal) {
                             if (esc_seq[2] == '5') { sys_hunter.scrollBy(-15); }
                             else if (esc_seq[2] == '6') { sys_hunter.scrollBy(15); }
                         }
                         esc_len = 0;
                         continue;
                     } else if (esc_len == 2 and byte != '[') {
-                        if (is_calc_modal) { is_calc_modal = false; }
+                        if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
+                        else if (is_bash_modal) { is_bash_modal = false; }
+                        else if (is_calc_modal) { is_calc_modal = false; }
                         else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
                         else if (is_memo_modal) { is_memo_modal = false; }
                         else if (is_trail_modal) { is_trail_modal = false; }
@@ -607,7 +622,6 @@ pub fn main() !void {
 
             var reflex_triggered = false;
             
-            // [!] THE UNDO_REFLEX LOCK
             if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { 
                 if (sys_composer.active) {
                     sys_composer.undo_reflex(5);
@@ -666,7 +680,6 @@ pub fn main() !void {
                     reflex_triggered = true;
                 }
             }
-            // [!] THE UNDO_REFLEX SAVE
             else if (std.mem.endsWith(u8, &seq_buf, ".!SV-.")) {
                 if (sys_composer.active) {
                     sys_composer.undo_reflex(5);
@@ -777,11 +790,77 @@ pub fn main() !void {
                     if (calc_len < 256) { calc_input[calc_len] = byte; calc_len += 1; }
                 }
             }
+            // [!] BASH PIPE PROMPT
+            else if (is_bash_pipe) {
+                if (byte == '\n' or byte == '\r') {
+                    if (journal_len > 0) {
+                        const dest = std.mem.trim(u8, journal[0..journal_len], " ");
+                        if (std.fs.cwd().openFile("assets/bash_buffer.txt", .{})) |src| {
+                            if (std.fs.cwd().createFile(dest, .{})) |dst| {
+                                const data = src.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
+                                dst.writeAll(data) catch {};
+                                void_allocator.free(data);
+                                dst.close();
+                            } else |_| {}
+                            src.close();
+                        } else |_| {}
+                    }
+                    is_bash_pipe = false;
+                    journal_len = 0;
+                } else if (byte == 127 or byte == 8) {
+                    if (journal_len > 0) journal_len -= 1;
+                } else if (byte >= 32 and byte <= 126) {
+                    if (journal_len < 256) { journal[journal_len] = byte; journal_len += 1; }
+                }
+            }
+            else if (is_bash_modal) {
+                if (byte == '\t') {
+                    is_bash_pipe = true;
+                    journal_len = 0;
+                } else if (byte == '\n' or byte == '\r') {
+                    // Do nothing if enter hit while not piping
+                }
+            }
             else {
                 if (byte == '\n' or byte == '\r') {
                     const cmd_slice = journal[0..journal_len];
                     const response = cortex.dispatch(cmd_slice);
                     switch (response.action) {
+                        // [!] BASH EXECUTION ROUTINE
+                        .BASH_EXEC => {
+                            var args = std.ArrayList([]const u8).init(void_allocator);
+                            var iter = std.mem.splitScalar(u8, response.text, '/');
+                            while (iter.next()) |arg| {
+                                if (arg.len > 0) args.append(arg) catch {};
+                            }
+                            if (args.items.len > 0) {
+                                var agent = std.process.Child.init(args.items, void_allocator);
+                                agent.stdout_behavior = .Pipe;
+                                agent.stderr_behavior = .Pipe;
+                                
+                                if (agent.spawn()) |_| {
+                                    const out_file = std.fs.cwd().createFile("assets/bash_buffer.txt", .{}) catch null;
+                                    if (out_file) |f| {
+                                        if (agent.stdout) |stdout| {
+                                            const out_data = stdout.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
+                                            f.writeAll(out_data) catch {};
+                                            void_allocator.free(out_data);
+                                        }
+                                        if (agent.stderr) |stderr| {
+                                            const err_data = stderr.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
+                                            f.writeAll(err_data) catch {};
+                                            void_allocator.free(err_data);
+                                        }
+                                        f.close();
+                                    }
+                                    _ = agent.wait() catch {};
+                                    is_bash_modal = true;
+                                    bash_scroll_y = 0;
+                                } else |_| {}
+                            }
+                            args.deinit();
+                            journal_len = 0;
+                        },
                         .CLEAR => {}, 
                         .EXIT => exitSequence(), 
                         .CALC => { is_calc_modal = !is_calc_modal; journal_len = 0; },
@@ -1050,6 +1129,55 @@ pub fn main() !void {
 
                     print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+                } else if (is_bash_modal) {
+                    // [!] THE BASH MODAL UI
+                    const mw = WIDTH - 40; 
+                    const mh = 300; 
+                    const mx = 20; 
+                    const my = bar_y - mh - 10;
+                    
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00FFBF00); 
+                    drawRect(mx, my, mw, mh, 0x00000000);
+                    print(mx + 20, my + 10, "[ SHELL OUTPUT ]", 0x00FFBF00);
+                    drawRect(mx + 20, my + 25, mw - 40, 1, 0x00444444);
+
+                    if (std.fs.cwd().openFile("assets/bash_buffer.txt", .{})) |file| {
+                        const f_content = file.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
+                        defer void_allocator.free(f_content);
+                        
+                        var line_iter = std.mem.splitScalar(u8, f_content, '\n');
+                        var curr_line: usize = 0;
+                        var draw_y: usize = my + 35;
+                        
+                        while (line_iter.next()) |line| {
+                            if (curr_line >= bash_scroll_y) {
+                                if (draw_y > my + mh - 30) break;
+                                var dx = mx + 20;
+                                for (line) |c| {
+                                    if (dx > mx + mw - 20) break;
+                                    drawChar(dx, draw_y, c, 0x00AAAAAA);
+                                    dx += 8;
+                                }
+                                draw_y += 10;
+                            }
+                            curr_line += 1;
+                        }
+                        file.close();
+                    } else |_| {}
+                    
+                    drawRect(mx + 20, my + mh - 25, mw - 40, 1, 0x00444444);
+                    print(mx + 20, my + mh - 18, "[ESC] Dismiss   [TAB] Pipe to File   [UP/DOWN] Scroll", 0x00555555);
+                    
+                    // [!] OPTION A: THE [TAB] PIPE PROMPT
+                    if (is_bash_pipe) {
+                        const p_y = getUriBarY(journal_len + 14, "");
+                        drawRect(0, p_y, WIDTH, HEIGHT - p_y, 0x00FFBF00);
+                        print(10, p_y + 6, "DESTINATION > ", 0x00000000);
+                        print(122, p_y + 6, journal[0..journal_len], 0x00000000);
+                        if (is_high_cycle) drawChar(122 + (journal_len * 8), p_y + 6, 0xDB, 0x00000000);
+                    } else {
+                        drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+                    }
                 } else {
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 }
