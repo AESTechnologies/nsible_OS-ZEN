@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Severed Composer from fragile ESC timeouts. Mapped strict .!XX-. reflex to close Composer safely.",
+//   changes: "Replaced blind timeout with state-aware Synthetic Key-Up lock for zero-journal backspace.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -501,7 +501,8 @@ pub fn main() !void {
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
     
-    var last_shed_ms: i64 = 0;
+    var last_rx_ms: i64 = 0;      // [!] SYNTHETIC KEY-UP TRACKER
+    var shed_lock: bool = false;  // [!] STATE-AWARE DEBOUNCE
     
     var esc_seq: [8]u8 = undefined; 
     var esc_len: usize = 0;
@@ -528,7 +529,6 @@ pub fn main() !void {
                 else if (is_memo_modal) { is_memo_modal = false; }
                 else if (is_trail_modal) { is_trail_modal = false; }
                 else if (is_assist_modal) { is_assist_modal = false; }
-                // [!] REMOVED COMPOSER FROM TIMEOUT FALLBACK
                 
                 esc_len = 0;
                 esc_timer = 0;
@@ -538,6 +538,7 @@ pub fn main() !void {
 
         if (codex.transcieve(vinculum_fd)) |byte| {
             dirty = true;
+            last_rx_ms = std.time.milliTimestamp(); // [!] RECORD BYTE ARRIVAL
             
             if (byte == 27) {
                 esc_len = 1; esc_seq[0] = byte;
@@ -585,7 +586,6 @@ pub fn main() !void {
                         esc_len = 0;
                         continue;
                     } else if (esc_len == 2 and byte != '[') {
-                        // [!] REMOVED COMPOSER FROM ESC FALLBACK
                         if (is_calc_modal) { is_calc_modal = false; }
                         else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
                         else if (is_memo_modal) { is_memo_modal = false; }
@@ -607,7 +607,6 @@ pub fn main() !void {
 
             var reflex_triggered = false;
             
-            // [!] THE UNIFIED EXIT REFLEX
             if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { 
                 if (sys_composer.active) {
                     var b_idx: usize = 0;
@@ -849,18 +848,29 @@ pub fn main() !void {
                         },
                         .NONE => { journal_len = 0; }
                     }
+                // [!] SYNTHETIC KEY-UP: STATE-AWARE DEBOUNCE
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) {
                         journal_len -= 1;
+                        shed_lock = false;
                     } else {
-                        const now = std.time.milliTimestamp();
-                        if (now - last_shed_ms > 500) { 
+                        if (!shed_lock) { 
                             sys_hunter.shed();
-                            last_shed_ms = now;
+                            shed_lock = true;
                         }
                     }
                 } else if (byte >= 32 and byte <= 126) {
+                    shed_lock = false;
                     if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
+                }
+            }
+        } else {
+            // [!] THE KEY-UP SENSOR
+            // If the data stream goes silent for > 200ms, the hardware auto-repeater 
+            // has stopped. You have physically released the key. Unlatch the lock.
+            if (shed_lock) {
+                if (std.time.milliTimestamp() - last_rx_ms > 200) {
+                    shed_lock = false;
                 }
             }
         }
