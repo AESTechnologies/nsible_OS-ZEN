@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Replaced blind timeout with state-aware Synthetic Key-Up lock for zero-journal backspace.",
+//   changes: "Expanded debounce to 750ms to defeat hardware typematic delay and added punch-through protection.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -501,8 +501,8 @@ pub fn main() !void {
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
     
-    var last_rx_ms: i64 = 0;      // [!] SYNTHETIC KEY-UP TRACKER
-    var shed_lock: bool = false;  // [!] STATE-AWARE DEBOUNCE
+    var last_rx_ms: i64 = 0;      
+    var shed_lock: bool = false;  
     
     var esc_seq: [8]u8 = undefined; 
     var esc_len: usize = 0;
@@ -538,7 +538,7 @@ pub fn main() !void {
 
         if (codex.transcieve(vinculum_fd)) |byte| {
             dirty = true;
-            last_rx_ms = std.time.milliTimestamp(); // [!] RECORD BYTE ARRIVAL
+            last_rx_ms = std.time.milliTimestamp(); 
             
             if (byte == 27) {
                 esc_len = 1; esc_seq[0] = byte;
@@ -852,7 +852,8 @@ pub fn main() !void {
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) {
                         journal_len -= 1;
-                        shed_lock = false;
+                        // [!] PUNCH-THROUGH PROTECTION: Lock immediately if text empties
+                        if (journal_len == 0) shed_lock = true; 
                     } else {
                         if (!shed_lock) { 
                             sys_hunter.shed();
@@ -866,10 +867,9 @@ pub fn main() !void {
             }
         } else {
             // [!] THE KEY-UP SENSOR
-            // If the data stream goes silent for > 200ms, the hardware auto-repeater 
-            // has stopped. You have physically released the key. Unlatch the lock.
+            // Pushed to 750ms to outlast the hardware's initial 500ms typematic delay.
             if (shed_lock) {
-                if (std.time.milliTimestamp() - last_rx_ms > 200) {
+                if (std.time.milliTimestamp() - last_rx_ms > 750) {
                     shed_lock = false;
                 }
             }
