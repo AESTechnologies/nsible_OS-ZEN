@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Wired .!ED-. reflex, expanded Assist modal height, and injected Temporal Lock for zero-journal backspace.",
+//   changes: "Severed Composer from fragile ESC timeouts. Mapped strict .!XX-. reflex to close Composer safely.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -501,7 +501,7 @@ pub fn main() !void {
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
     
-    var last_shed_ms: i64 = 0; // [!] THE TEMPORAL LOCK
+    var last_shed_ms: i64 = 0;
     
     var esc_seq: [8]u8 = undefined; 
     var esc_len: usize = 0;
@@ -528,7 +528,7 @@ pub fn main() !void {
                 else if (is_memo_modal) { is_memo_modal = false; }
                 else if (is_trail_modal) { is_trail_modal = false; }
                 else if (is_assist_modal) { is_assist_modal = false; }
-                else if (sys_composer.active) { sys_composer.close(); }
+                // [!] REMOVED COMPOSER FROM TIMEOUT FALLBACK
                 
                 esc_len = 0;
                 esc_timer = 0;
@@ -585,8 +585,8 @@ pub fn main() !void {
                         esc_len = 0;
                         continue;
                     } else if (esc_len == 2 and byte != '[') {
-                        if (sys_composer.active) { sys_composer.close(); }
-                        else if (is_calc_modal) { is_calc_modal = false; }
+                        // [!] REMOVED COMPOSER FROM ESC FALLBACK
+                        if (is_calc_modal) { is_calc_modal = false; }
                         else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
                         else if (is_memo_modal) { is_memo_modal = false; }
                         else if (is_trail_modal) { is_trail_modal = false; }
@@ -606,7 +606,18 @@ pub fn main() !void {
             seq_buf[5] = byte;
 
             var reflex_triggered = false;
-            if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { exitSequence(); } 
+            
+            // [!] THE UNIFIED EXIT REFLEX
+            if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { 
+                if (sys_composer.active) {
+                    var b_idx: usize = 0;
+                    while (b_idx < 5) : (b_idx += 1) { sys_composer.backspace(); }
+                    sys_composer.close();
+                    reflex_triggered = true;
+                } else {
+                    exitSequence(); 
+                }
+            } 
             else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) { sys_hunter.shiftScope(1); if (journal_len >= 4) journal_len -= 4; reflex_triggered = true; } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) { sys_hunter.shiftScope(-1); if (journal_len >= 4) journal_len -= 4; reflex_triggered = true; } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!@&-.")) {
@@ -614,7 +625,6 @@ pub fn main() !void {
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
                 reflex_triggered = true;
             }
-            // [!] COMPOSER REFLEX: MELT INDEX PARSER UPGRADE
             else if (std.mem.endsWith(u8, &seq_buf, ".!ED-.")) {
                 if (!sys_composer.active) {
                     if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
@@ -843,7 +853,6 @@ pub fn main() !void {
                     if (journal_len > 0) {
                         journal_len -= 1;
                     } else {
-                        // [!] TEMPORAL LOCK: Ignore hardware auto-repeat spam
                         const now = std.time.milliTimestamp();
                         if (now - last_shed_ms > 500) { 
                             sys_hunter.shed();
@@ -984,7 +993,7 @@ pub fn main() !void {
                     }
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else if (is_assist_modal) {
-                    const aw = 860; const ah = 480; // [!] Increased height by 20px to 480
+                    const aw = 860; const ah = 480; 
                     const ax = (WIDTH / 2) - (aw / 2); const ay = bar_y - ah - 10;
                     drawRect(ax - 2, ay - 2, aw + 4, ah + 2, 0x00FFBF00); 
                     drawRect(ax, ay, aw, ah, 0x00000000);
@@ -1023,7 +1032,6 @@ pub fn main() !void {
                     print(ax + 20, ay + 410, ">> STATUS : Native Recursive Descent Operational.", 0x00555555);
                     print(ax + 20, ay + 430, ">> ACTIVE : Type 'calc' or '@://calc/' to invoke.", 0x00555555);
 
-                    // [!] MATH COLLISION AVOIDED
                     print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else {
