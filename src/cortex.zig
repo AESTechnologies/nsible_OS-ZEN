@@ -2,13 +2,13 @@
 //   module: "Semantic Dispatch Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Parses wetware input into machine-actionable states.",
-//   changes: "Corrected w3?. syntax. Injected .STARGAZE action state.",
+//   changes: "Injected .REFRESH action state for cache overrides.",
 //   philotic_inferences: "To seek the void's knowledge, one must merely ask the wind."
 
 const std = @import("std");
 const chronos = @import("chronos.zig");
 
-pub const ActionType = enum { CLEAR, EXIT, PRINT, HUNT, SEARCH, STARGAZE, AUTO_HUNT, SHED, SCOPE_IN, SCOPE_OUT, MEMO, PIPE_MEMO, ASSIST, RADIO, CALC, NONE };
+pub const ActionType = enum { CLEAR, EXIT, PRINT, HUNT, SEARCH, STARGAZE, AUTO_HUNT, SHED, SCOPE_IN, SCOPE_OUT, MEMO, PIPE_MEMO, ASSIST, RADIO, CALC, REFRESH, NONE };
 
 pub const Response = struct {
     action: ActionType,
@@ -37,6 +37,9 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.eql(u8, cmd, "zI")) return .{ .action = .SCOPE_IN };
     if (std.mem.eql(u8, cmd, "zO")) return .{ .action = .SCOPE_OUT };
     
+    // [!] EXPLICIT CACHE OVERRIDE
+    if (std.mem.eql(u8, cmd, "refresh") or std.mem.eql(u8, cmd, "reload")) return .{ .action = .REFRESH };
+
     if (std.mem.startsWith(u8, cmd, "memo")) {
         if (cmd.len > 5) return .{ .action = .MEMO, .text = cmd[5..] };
         return .{ .action = .MEMO, .text = "" };
@@ -48,10 +51,8 @@ pub fn dispatch(cmd: []const u8) Response {
 
     if (std.mem.eql(u8, cmd, "@://calc/") or std.mem.eql(u8, cmd, "calc")) return .{ .action = .CALC };
     
-    // [!] THE VOID SIGNAL
     if (std.mem.eql(u8, cmd, "stargaze")) return .{ .action = .STARGAZE };
 
-    // [!] FIXED w3?. SEARCH PROTOCOL
     if (std.mem.startsWith(u8, cmd, "@://w3?.")) {
         const q = if (cmd.len > 8 and cmd[8] == ' ') cmd[9..] else cmd[8..];
         return .{ .action = .SEARCH, .text = q };
