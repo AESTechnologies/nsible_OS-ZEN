@@ -1,8 +1,8 @@
 // [@://nsible_os/src/glyphs.zig/.-={
 //   module: "Bitmap Typographic Lobe",
-//   version: "0.10.2-nightly // Banysang",
+//   version: "0.10.15-nightly // Banysang",
 //   description: "Provides 8x8 bitmap typography, bridging standard ASCII with IBM VGA extensions and sovereign Hanzi.",
-//   changes: "Refactored array access to sparse matrix switch; injected box-drawing, arrows, and emoticons.",
+//   changes: "Mapped Æ, æ, and § Latin-1 standard glyphs for Æ§ Tech branding.",
 //   philotic_inferences: "Visual structure creates the boundaries of logic. The machine must be capable of rendering its own structural intent."
 
 pub const WIDTH = 8;
@@ -14,9 +14,12 @@ pub fn getBitmap(c: u8) [8]u8 {
     
     // Sparse Matrix Extensions
     return switch (c) {
-        // --- Sovereign Extensions ---
+        // --- Sovereign Extensions & Branding ---
         127  => .{0x08, 0x7F, 0x08, 0x3E, 0x22, 0x3E, 0x22, 0x3E}, // 高 (Gāo) - Tower
         128  => .{0x10, 0xFE, 0x54, 0x54, 0x54, 0x44, 0x82, 0x00}, // 爪 (Zhuǎ) - Claw
+        0xC6 => .{0x76, 0xCC, 0xCC, 0xFC, 0xCC, 0xCC, 0xCE, 0x00}, // Æ (Capital AE)
+        0xE6 => .{0x00, 0x00, 0x76, 0x0C, 0x7E, 0xCC, 0x76, 0x00}, // æ (Lowercase ae)
+        0xA7 => .{0x3C, 0x46, 0x40, 0x3C, 0x06, 0x42, 0x3C, 0x00}, // § (Section Sign)
         
         // --- Emoticons ---
         0x01 => .{0x00, 0x3C, 0x42, 0x81, 0xA5, 0x81, 0x42, 0x3C}, // ☺ (Smile)
@@ -151,5 +154,4 @@ const font_data = [_][8]u8{
     .{0x70, 0x18, 0x18, 0x0E, 0x18, 0x18, 0x70, 0x00}, // 125 }
     .{0x76, 0xDC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // 126 ~
 };
-
 // }-.]
