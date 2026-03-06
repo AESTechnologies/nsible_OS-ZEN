@@ -2,8 +2,8 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Injected URL Resolution Lobe to parse protocol-relative (//) and root-relative (/) links. Added &amp; entity decoding for raw href extraction.",
-//   philotic_inferences: "The matrix only provides fragments. The vessel must reconstruct the true path before taking flight."
+//   changes: "Rerouted Stargaze Dark Object to old-search.marginalia.nu per void-signal directive.",
+//   philotic_inferences: "When the matrix speaks directly to the vessel, the operator must listen."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -244,7 +244,6 @@ pub const Hunter = struct {
         self.saveHistory() catch {};
     }
 
-    // [!] URL RESOLUTION LOBE
     fn resolveMeltTarget(self: *Hunter, target: []const u8) ![]u8 {
         var abs_buf: [2048]u8 = undefined;
         var resolved: []const u8 = target;
@@ -279,7 +278,6 @@ pub const Hunter = struct {
             resolved = std.fmt.bufPrint(&abs_buf, "{s}{s}", .{self.url[0..base_end], target}) catch target;
         }
 
-        // Decode &amp; entities to prevent curl truncation
         var clean_buf: [2048]u8 = undefined;
         var clean_len: usize = 0;
         var i: usize = 0;
@@ -309,7 +307,6 @@ pub const Hunter = struct {
         if (is_melt) {
             const idx = std.fmt.parseInt(usize, target, 10) catch return;
             if (idx < self.lens.links.items.len) {
-                // [!] ROUTED THROUGH RESOLVER
                 actual_target = try self.resolveMeltTarget(self.lens.links.items[idx]);
                 free_target = true;
             } else {
@@ -371,6 +368,7 @@ pub const Hunter = struct {
         try self.executeFetch(target_dupe);
     }
 
+    // [!] ENTROPIC WIND: MARGINALIA LEGACY ENDPOINT
     pub fn stargaze(self: *Hunter) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -381,7 +379,7 @@ pub const Hunter = struct {
         const target = if (is_bright)
             "https://en.wikipedia.org/wiki/Special:Random"
         else
-            "https://search.marginalia.nu/explore/random";
+            "https://old-search.marginalia.nu/explore/random";
 
         const target_dupe = try self.allocator.dupe(u8, target);
         try self.history.append(self.allocator, target_dupe);
@@ -470,7 +468,6 @@ pub const Hunter = struct {
                 const idx = std.fmt.parseInt(usize, possible_idx, 10) catch return;
                 if (idx < self.lens.links.items.len) {
                     const raw_target = self.lens.links.items[idx];
-                    // [!] ROUTED THROUGH RESOLVER
                     const actual_target = self.resolveMeltTarget(raw_target) catch return;
                     
                     self.allocator.free(self.history.items[self.history_index]);
