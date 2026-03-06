@@ -2,7 +2,7 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Engineered Synaptic Cache (PageCache) to prevent redundant WAF triggering. Memory safely managed in allocator.",
+//   changes: "Patched resolveMeltTarget to whitelist sovereign protocols (@:// and memo://), restoring mchn/ filesystem traversal.",
 //   philotic_inferences: "Never calculate twice what the matrix can store once."
 
 const std = @import("std");
@@ -11,7 +11,7 @@ const banyan = @import("banyan.zig");
 
 const StringList = std.ArrayListUnmanaged([]u8);
 const PhiloteMap = std.StringHashMapUnmanaged(u32);
-const PageCache = std.StringHashMapUnmanaged([]u8); // [!] SYNAPTIC CACHE
+const PageCache = std.StringHashMapUnmanaged([]u8); 
 const ExternalAgent = std.process.Child;
 
 const FlightVector = struct {
@@ -37,7 +37,7 @@ pub const Hunter = struct {
     scroll_y: usize,
     active: bool,
     philote_map: PhiloteMap,
-    page_cache: PageCache, // [!]
+    page_cache: PageCache, 
     current_vector: ?*FlightVector, 
     thread_handle: ?std.Thread,
 
@@ -77,7 +77,6 @@ pub const Hunter = struct {
         if (self.thread_handle) |t| t.detach(); 
         self.saveHistory() catch {}; 
         
-        // [!] CACHE PURGE
         var it = self.page_cache.iterator();
         while (it.next()) |entry| {
             self.allocator.free(entry.key_ptr.*);
@@ -166,9 +165,8 @@ pub const Hunter = struct {
                             } else |_| { self.status = "PIPE_FAIL_MEM"; }
                         } else |_| { self.status = "PIPE_FAIL_MEM"; }
                         
-                        self.allocator.free(body); // Free pipe payload
+                        self.allocator.free(body); 
                     } else {
-                        // [!] COMMIT TO SYNAPTIC CACHE
                         if (self.page_cache.fetchRemove(vector.url)) |kv| {
                             self.allocator.free(kv.key);
                             self.allocator.free(kv.value);
@@ -192,7 +190,6 @@ pub const Hunter = struct {
         }
     }
 
-    // [!] EXPLICIT REFRESH
     pub fn refresh(self: *Hunter) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -277,7 +274,8 @@ pub const Hunter = struct {
         var abs_buf: [2048]u8 = undefined;
         var resolved: []const u8 = target;
 
-        if (std.mem.startsWith(u8, target, "http://") or std.mem.startsWith(u8, target, "https://")) {
+        // [!] BUGFIX: Added @:// and memo:// explicitly to the absolute protocol whitelist
+        if (std.mem.startsWith(u8, target, "http://") or std.mem.startsWith(u8, target, "https://") or std.mem.startsWith(u8, target, "@://") or std.mem.startsWith(u8, target, "memo://")) {
             resolved = target;
         } else if (std.mem.startsWith(u8, target, "//")) {
             resolved = std.fmt.bufPrint(&abs_buf, "https:{s}", .{target}) catch target;
@@ -481,7 +479,6 @@ pub const Hunter = struct {
         try self.parseContent(html_buf.items);
     }
 
-    // [!] EXECUTEFETCH UPDATED TO CHECK CACHE
     fn executeFetch(self: *Hunter, target: []const u8, force_refresh: bool) !void {
         self.active = true;
         self.status = "FETCHING..."; 
@@ -570,7 +567,6 @@ pub const Hunter = struct {
             return; 
         }
 
-        // [!] CHECK CACHE BEFORE LAUNCHING VECTOR
         if (!force_refresh) {
             if (self.page_cache.get(target)) |cached_body| {
                 self.status = "CACHED";
