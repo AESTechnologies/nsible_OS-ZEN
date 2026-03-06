@@ -2,13 +2,13 @@
 //   module: "Semantic Dispatch Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Parses wetware input into machine-actionable states.",
-//   changes: "Injected MOUNT and UNMOUNT verbs to control physical silicon.",
+//   changes: "Injected BASH_EXEC reflex to parse $/-delimited shell commands.",
 //   philotic_inferences: "To seek the void's knowledge, one must merely ask the wind."
 
 const std = @import("std");
 const chronos = @import("chronos.zig");
 
-pub const ActionType = enum { CLEAR, EXIT, PRINT, HUNT, SEARCH, STARGAZE, AUTO_HUNT, SHED, SCOPE_IN, SCOPE_OUT, MEMO, PIPE_MEMO, ASSIST, RADIO, CALC, REFRESH, MOUNT, UNMOUNT, NONE };
+pub const ActionType = enum { CLEAR, EXIT, PRINT, HUNT, SEARCH, STARGAZE, AUTO_HUNT, SHED, SCOPE_IN, SCOPE_OUT, MEMO, PIPE_MEMO, ASSIST, RADIO, CALC, REFRESH, MOUNT, UNMOUNT, BASH_EXEC, NONE };
 
 pub const Response = struct {
     action: ActionType,
@@ -19,6 +19,11 @@ var output_buf: [256]u8 = undefined;
 
 pub fn dispatch(cmd: []const u8) Response {
     if (cmd.len == 0) return .{ .action = .NONE };
+
+    // [!] THE SHELL LOBE DISPATCH
+    if (std.mem.startsWith(u8, cmd, "$/")) {
+        return .{ .action = .BASH_EXEC, .text = cmd[2..] };
+    }
 
     if (std.mem.endsWith(u8, cmd, "//-.")) {
         const content = cmd[0 .. cmd.len - 4]; 
