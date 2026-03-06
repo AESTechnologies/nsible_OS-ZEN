@@ -2,13 +2,13 @@
 //   module: "Semantic Dispatch Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Parses wetware input into machine-actionable states.",
-//   changes: "Injected .REFRESH action state for cache overrides.",
+//   changes: "Injected MOUNT and UNMOUNT verbs to control physical silicon.",
 //   philotic_inferences: "To seek the void's knowledge, one must merely ask the wind."
 
 const std = @import("std");
 const chronos = @import("chronos.zig");
 
-pub const ActionType = enum { CLEAR, EXIT, PRINT, HUNT, SEARCH, STARGAZE, AUTO_HUNT, SHED, SCOPE_IN, SCOPE_OUT, MEMO, PIPE_MEMO, ASSIST, RADIO, CALC, REFRESH, NONE };
+pub const ActionType = enum { CLEAR, EXIT, PRINT, HUNT, SEARCH, STARGAZE, AUTO_HUNT, SHED, SCOPE_IN, SCOPE_OUT, MEMO, PIPE_MEMO, ASSIST, RADIO, CALC, REFRESH, MOUNT, UNMOUNT, NONE };
 
 pub const Response = struct {
     action: ActionType,
@@ -37,8 +37,10 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.eql(u8, cmd, "zI")) return .{ .action = .SCOPE_IN };
     if (std.mem.eql(u8, cmd, "zO")) return .{ .action = .SCOPE_OUT };
     
-    // [!] EXPLICIT CACHE OVERRIDE
     if (std.mem.eql(u8, cmd, "refresh") or std.mem.eql(u8, cmd, "reload")) return .{ .action = .REFRESH };
+
+    if (std.mem.eql(u8, cmd, "mount")) return .{ .action = .MOUNT };
+    if (std.mem.eql(u8, cmd, "unmount") or std.mem.eql(u8, cmd, "eject")) return .{ .action = .UNMOUNT };
 
     if (std.mem.startsWith(u8, cmd, "memo")) {
         if (cmd.len > 5) return .{ .action = .MEMO, .text = cmd[5..] };
@@ -94,5 +96,4 @@ pub fn dispatch(cmd: []const u8) Response {
 
     return .{ .action = .NONE };
 }
-
 // }-.]
