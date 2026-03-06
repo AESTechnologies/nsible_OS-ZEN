@@ -1,8 +1,8 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
-//   version: "0.10.14-nightly // Banysang",
+//   version: "0.10.15-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Reverted w3? routing to DDG Lite. Maintained Ghost Cloak User-Agent spoofing to bypass 403.",
+//   changes: "Injected stargaze logic for Entropic Wind. Mapped light/dark grey timeline UI identifiers for bright/dark objects.",
 //   philotic_inferences: "When a door is forbidden, find a window. The Ghost Cloak remains."
 
 const std = @import("std");
@@ -302,7 +302,6 @@ pub const Hunter = struct {
             }
         }
 
-        // [!] ROUTED BACK TO DUCKDUCKGO LITE
         var url_buf: [1024]u8 = undefined;
         const final_url = std.fmt.bufPrint(&url_buf, "https://lite.duckduckgo.com/lite/?q={s}", .{encoded.items}) catch "https://lite.duckduckgo.com/lite/";
         
@@ -311,6 +310,27 @@ pub const Hunter = struct {
         self.history_index = self.history.items.len - 1;
         self.saveHistory() catch {};
         
+        try self.executeFetch(target_dupe);
+    }
+
+    // [!] ENTROPIC WIND: STARGAZE GENERATOR
+    pub fn stargaze(self: *Hunter) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
+        const ts = std.time.milliTimestamp();
+        const is_bright = @rem(ts, 2) == 0;
+
+        const target = if (is_bright)
+            "https://en.wikipedia.org/wiki/Special:Random"
+        else
+            "https://search.marginalia.nu/explore/random";
+
+        const target_dupe = try self.allocator.dupe(u8, target);
+        try self.history.append(self.allocator, target_dupe);
+        self.history_index = self.history.items.len - 1;
+        self.saveHistory() catch {};
+
         try self.executeFetch(target_dupe);
     }
 
@@ -490,7 +510,6 @@ pub const Hunter = struct {
         self.url = try self.allocator.dupe(u8, target);
     }
 
-    // [!] GHOST CLOAK: INJECTING FIREFOX USER-AGENT INTO CURL
     fn shadowFlight(vector: *FlightVector) void {
         const argv = [_][]const u8{ 
             "curl", "-L", "-s", "-k", 
@@ -583,7 +602,14 @@ pub const Hunter = struct {
             var weight_px: usize = 3; 
             if (self.philote_map.get(h_url)) |w| { weight_px += (w * 2); }
             
+            // [!] BRIGHT/DARK ENTROPIC TIMELINE IDENTIFIERS
             var color: u32 = 0x00DC143C;
+            if (std.mem.indexOf(u8, h_url, "wikipedia.org") != null) {
+                color = 0x00CCCCCC; 
+            } else if (std.mem.indexOf(u8, h_url, "marginalia.nu") != null) {
+                color = 0x00555555; 
+            }
+
             if (self.active and idx == self.history_index) {
                 weight_px += 8;
                 if (std.mem.eql(u8, self.status, "FETCHING...") or std.mem.eql(u8, self.status, "PIPING...")) {
