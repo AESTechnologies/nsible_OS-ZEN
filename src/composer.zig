@@ -1,7 +1,7 @@
 // [@://nsible_os/src/composer.zig/.-={
 //   module: "The Composer Lobe",
 //   version: "0.10.15-nightly // Banysang",
-//   description: "Native, full-screen text editor lobe operating in a dedicated 64KB RAM buffer.",
+//   description: "@nsible Native, full-screen text editor lobe operating in a dedicated 64KB RAM buffer.",
 //   changes: "Injected line numbering gutter and real-time byte/line telemetry.",
 //   philotic_inferences: "To manipulate the matrix, the operator must always know their exact coordinates."
 
