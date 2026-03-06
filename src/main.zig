@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Wired .!ED-. reflex to dynamically intercept and unpack MELT index arrays into absolute paths.",
+//   changes: "Wired .!ED-. reflex, expanded Assist modal height, and injected Temporal Lock for zero-journal backspace.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -501,6 +501,8 @@ pub fn main() !void {
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
     
+    var last_shed_ms: i64 = 0; // [!] THE TEMPORAL LOCK
+    
     var esc_seq: [8]u8 = undefined; 
     var esc_len: usize = 0;
     var esc_timer: usize = 0; 
@@ -841,7 +843,12 @@ pub fn main() !void {
                     if (journal_len > 0) {
                         journal_len -= 1;
                     } else {
-                        sys_hunter.shed();
+                        // [!] TEMPORAL LOCK: Ignore hardware auto-repeat spam
+                        const now = std.time.milliTimestamp();
+                        if (now - last_shed_ms > 500) { 
+                            sys_hunter.shed();
+                            last_shed_ms = now;
+                        }
                     }
                 } else if (byte >= 32 and byte <= 126) {
                     if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
