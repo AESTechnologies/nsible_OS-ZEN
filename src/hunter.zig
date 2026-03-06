@@ -2,8 +2,8 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Rerouted Stargaze Dark Object to old-search.marginalia.nu per void-signal directive.",
-//   philotic_inferences: "When the matrix speaks directly to the vessel, the operator must listen."
+//   changes: "Engineered Synaptic Cache (PageCache) to prevent redundant WAF triggering. Memory safely managed in allocator.",
+//   philotic_inferences: "Never calculate twice what the matrix can store once."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -11,6 +11,7 @@ const banyan = @import("banyan.zig");
 
 const StringList = std.ArrayListUnmanaged([]u8);
 const PhiloteMap = std.StringHashMapUnmanaged(u32);
+const PageCache = std.StringHashMapUnmanaged([]u8); // [!] SYNAPTIC CACHE
 const ExternalAgent = std.process.Child;
 
 const FlightVector = struct {
@@ -36,6 +37,7 @@ pub const Hunter = struct {
     scroll_y: usize,
     active: bool,
     philote_map: PhiloteMap,
+    page_cache: PageCache, // [!]
     current_vector: ?*FlightVector, 
     thread_handle: ?std.Thread,
 
@@ -63,6 +65,7 @@ pub const Hunter = struct {
             .scroll_y = 0,
             .active = false,
             .philote_map = .{},
+            .page_cache = .{},
             .current_vector = null,
             .thread_handle = null,
         };
@@ -73,6 +76,15 @@ pub const Hunter = struct {
     pub fn deinit(self: *Hunter) void {
         if (self.thread_handle) |t| t.detach(); 
         self.saveHistory() catch {}; 
+        
+        // [!] CACHE PURGE
+        var it = self.page_cache.iterator();
+        while (it.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
+            self.allocator.free(entry.value_ptr.*);
+        }
+        self.page_cache.deinit(self.allocator);
+
         self.history.deinit(self.allocator);
         self.lens.deinit(); 
         self.philote_map.deinit(self.allocator);
@@ -115,7 +127,6 @@ pub const Hunter = struct {
             if (vector.is_complete) {
                 if (vector.success and vector.result_payload != null) {
                     const body = vector.result_payload.?;
-                    defer self.allocator.free(body); 
 
                     if (vector.is_pipe) {
                         const ts = std.time.timestamp();
@@ -154,7 +165,18 @@ pub const Hunter = struct {
                                 } else |_| { self.allocator.free(title_dupe); self.status = "PIPE_FAIL_MEM"; }
                             } else |_| { self.status = "PIPE_FAIL_MEM"; }
                         } else |_| { self.status = "PIPE_FAIL_MEM"; }
+                        
+                        self.allocator.free(body); // Free pipe payload
                     } else {
+                        // [!] COMMIT TO SYNAPTIC CACHE
+                        if (self.page_cache.fetchRemove(vector.url)) |kv| {
+                            self.allocator.free(kv.key);
+                            self.allocator.free(kv.value);
+                        }
+                        if (self.allocator.dupe(u8, vector.url)) |key_dupe| {
+                            self.page_cache.put(self.allocator, key_dupe, body) catch { self.allocator.free(key_dupe); self.allocator.free(body); };
+                        } else |_| { self.allocator.free(body); }
+                        
                         try self.parseContent(body);
                         self.status = "LOCKED";
                     }
@@ -168,6 +190,13 @@ pub const Hunter = struct {
                 self.current_vector = null;
             } 
         }
+    }
+
+    // [!] EXPLICIT REFRESH
+    pub fn refresh(self: *Hunter) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        try self.executeFetch(self.url, true);
     }
 
     pub fn createMemo(self: *Hunter, title: []const u8, content: []const u8) !void {
@@ -239,7 +268,7 @@ pub const Hunter = struct {
             if (self.history_index >= self.history.items.len) {
                 self.history_index = self.history.items.len - 1;
             }
-            self.executeFetch(self.history.items[self.history_index]) catch {};
+            self.executeFetch(self.history.items[self.history_index], false) catch {};
         }
         self.saveHistory() catch {};
     }
@@ -365,10 +394,9 @@ pub const Hunter = struct {
         self.history_index = self.history.items.len - 1;
         self.saveHistory() catch {};
         
-        try self.executeFetch(target_dupe);
+        try self.executeFetch(target_dupe, false);
     }
 
-    // [!] ENTROPIC WIND: MARGINALIA LEGACY ENDPOINT
     pub fn stargaze(self: *Hunter) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -386,7 +414,7 @@ pub const Hunter = struct {
         self.history_index = self.history.items.len - 1;
         self.saveHistory() catch {};
 
-        try self.executeFetch(target_dupe);
+        try self.executeFetch(target_dupe, false);
     }
 
     fn fetchLocal(self: *Hunter, path: []const u8, prefix: []const u8) !void {
@@ -453,7 +481,8 @@ pub const Hunter = struct {
         try self.parseContent(html_buf.items);
     }
 
-    fn executeFetch(self: *Hunter, target: []const u8) !void {
+    // [!] EXECUTEFETCH UPDATED TO CHECK CACHE
+    fn executeFetch(self: *Hunter, target: []const u8, force_refresh: bool) !void {
         self.active = true;
         self.status = "FETCHING..."; 
         self.scroll_y = 0;
@@ -474,7 +503,7 @@ pub const Hunter = struct {
                     self.history.items[self.history_index] = actual_target; 
                     self.saveHistory() catch {};
                     
-                    return self.executeFetch(self.history.items[self.history_index]);
+                    return self.executeFetch(self.history.items[self.history_index], force_refresh);
                 } else {
                     self.status = "MELT_VOID";
                     if (self.current_vector) |_| {
@@ -541,6 +570,21 @@ pub const Hunter = struct {
             return; 
         }
 
+        // [!] CHECK CACHE BEFORE LAUNCHING VECTOR
+        if (!force_refresh) {
+            if (self.page_cache.get(target)) |cached_body| {
+                self.status = "CACHED";
+                try self.parseContent(cached_body);
+                if (self.current_vector) |_| {
+                     if (self.thread_handle) |t| t.detach();
+                     self.current_vector = null;
+                }
+                self.allocator.free(self.url);
+                self.url = try self.allocator.dupe(u8, target);
+                return;
+            }
+        }
+
         const gop = try self.philote_map.getOrPut(self.allocator, target);
         if (!gop.found_existing) gop.value_ptr.* = 0;
         gop.value_ptr.* += 1;
@@ -598,7 +642,7 @@ pub const Hunter = struct {
             if (self.history_index < self.history.items.len - 1) self.history_index += 1;
         }
         self.saveHistory() catch {};
-        try self.executeFetch(self.history.items[self.history_index]);
+        try self.executeFetch(self.history.items[self.history_index], false);
     }
     
     pub fn hunt(self: *Hunter, target: []const u8) !void {
@@ -607,7 +651,7 @@ pub const Hunter = struct {
         try self.history.append(self.allocator, try self.allocator.dupe(u8, target));
         self.history_index = self.history.items.len - 1;
         self.saveHistory() catch {};
-        try self.executeFetch(target);
+        try self.executeFetch(target, false);
     }
 
     fn parseContent(self: *Hunter, raw: []const u8) !void {
