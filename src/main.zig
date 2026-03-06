@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "DYNAMIC // version.zig",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Fixed Issue #2: Enforced strict block `{}` syntax for UI directional vectors.",
+//   changes: "Wired sys_composer instance. Routed ASCII, ANSI arrows, and .!ED-. / .!SV-. reflexes to the Composer Lobe.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -13,6 +13,7 @@ const codex = @import("codex.zig");
 const cortex = @import("cortex.zig"); 
 const chronos = @import("chronos.zig");
 const hunter = @import("hunter.zig");
+const composer = @import("composer.zig"); // [!] THE COMPOSER LOBE
 const v_core = @import("version.zig");
 const synapse = @import("synapse_calc.zig");
 
@@ -475,6 +476,9 @@ pub fn main() !void {
     var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
 
+    // [!] INSTANTIATE THE COMPOSER
+    var sys_composer = composer.Composer.init();
+
     var is_tabula_rasa: bool = false;
     if (sys_hunter.history.items.len == 0) { is_tabula_rasa = true; } 
     else {
@@ -523,6 +527,7 @@ pub fn main() !void {
                 else if (is_memo_modal) { is_memo_modal = false; }
                 else if (is_trail_modal) { is_trail_modal = false; }
                 else if (is_assist_modal) { is_assist_modal = false; }
+                else if (sys_composer.active) { sys_composer.close(); }
                 
                 esc_len = 0;
                 esc_timer = 0;
@@ -542,7 +547,13 @@ pub fn main() !void {
                 if (esc_len < 8) {
                     esc_seq[esc_len] = byte; esc_len += 1;
                     if (esc_len == 3 and esc_seq[1] == '[') {
-                        if (is_radio_modal) {
+                        if (sys_composer.active) {
+                            // [!] COMPOSER: ANSI ARROW ROUTING
+                            if (byte == 'A') { sys_composer.moveCursor(0, -1); }
+                            else if (byte == 'B') { sys_composer.moveCursor(0, 1); }
+                            else if (byte == 'C') { sys_composer.moveCursor(1, 0); }
+                            else if (byte == 'D') { sys_composer.moveCursor(-1, 0); }
+                        } else if (is_radio_modal) {
                             if (byte == 'D') {
                                 if (radio_sel == 0) { radio_f0 -= 5.0; }
                                 else if (radio_sel == 1) { radio_decay -= 0.1; }
@@ -555,7 +566,6 @@ pub fn main() !void {
                                 else if (radio_sel == 3) { radio_phi += 0.05; }
                             }
                         } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal) {
-                            // [!] ISSUE #2 FIX: ENFORCED BLOCK BRACES ON ALL BRANCHES
                             if (byte == 'A') { sys_hunter.scrollBy(-1); }
                             else if (byte == 'B') { sys_hunter.scrollBy(1); }
                             else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; }
@@ -564,15 +574,20 @@ pub fn main() !void {
                         esc_len = 0;
                         continue;
                     } else if (esc_len == 4 and esc_seq[1] == '[' and esc_seq[2] >= '0' and esc_seq[2] <= '9' and byte == '~') {
-                        if (!is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal) {
-                            // [!] ISSUE #2 FIX: ENFORCED BLOCK BRACES ON ALL BRANCHES
+                        if (sys_composer.active) {
+                            // [!] COMPOSER: PAGE UP/DOWN & DELETE ROUTING
+                            if (esc_seq[2] == '3') { sys_composer.deleteChar(); }
+                            else if (esc_seq[2] == '5') { sys_composer.moveCursor(0, -15); }
+                            else if (esc_seq[2] == '6') { sys_composer.moveCursor(0, 15); }
+                        } else if (!is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal) {
                             if (esc_seq[2] == '5') { sys_hunter.scrollBy(-15); }
                             else if (esc_seq[2] == '6') { sys_hunter.scrollBy(15); }
                         }
                         esc_len = 0;
                         continue;
                     } else if (esc_len == 2 and byte != '[') {
-                        if (is_calc_modal) { is_calc_modal = false; }
+                        if (sys_composer.active) { sys_composer.close(); }
+                        else if (is_calc_modal) { is_calc_modal = false; }
                         else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
                         else if (is_memo_modal) { is_memo_modal = false; }
                         else if (is_trail_modal) { is_trail_modal = false; }
@@ -600,6 +615,25 @@ pub fn main() !void {
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
                 reflex_triggered = true;
             }
+            // [!] COMPOSER REFLEX: OPEN (.!ED-.)
+            else if (std.mem.endsWith(u8, &seq_buf, ".!ED-.")) {
+                if (!sys_composer.active) {
+                    if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                    const target_path = std.mem.trim(u8, journal[0..journal_len], " ");
+                    sys_composer.open(target_path);
+                    journal_len = 0;
+                    reflex_triggered = true;
+                }
+            }
+            // [!] COMPOSER REFLEX: SAVE (.!SV-.)
+            else if (std.mem.endsWith(u8, &seq_buf, ".!SV-.")) {
+                if (sys_composer.active) {
+                    var b_idx: usize = 0;
+                    while (b_idx < 5) : (b_idx += 1) { sys_composer.backspace(); }
+                    sys_composer.save();
+                    reflex_triggered = true;
+                }
+            }
             else if (std.mem.endsWith(u8, &seq_buf, "//-.")) {
                 if (journal_len >= 4) journal_len -= 4;
                 const clean_slice = std.mem.trimRight(u8, journal[0..journal_len], " ");
@@ -609,6 +643,18 @@ pub fn main() !void {
             }
 
             if (reflex_triggered) continue;
+
+            // [!] COMPOSER: RAW BYTE INTERCEPTOR
+            // If the composer is open, text typing bypasses the journal entirely.
+            if (sys_composer.active) {
+                if (byte == 127 or byte == 8) {
+                    sys_composer.backspace();
+                } else if ((byte >= 32 and byte <= 126) or byte == '\n' or byte == '\r' or byte == '\t') {
+                    const insert_byte = if (byte == '\r') '\n' else byte;
+                    sys_composer.insert(insert_byte);
+                }
+                continue; 
+            }
 
             if (is_tabula_rasa) {
                 if (byte == '\n' or byte == '\r') {
@@ -779,169 +825,174 @@ pub fn main() !void {
 
         if (dirty) {
             clear(0x00000000);
-            drawHeader(is_high_cycle);
             
-            sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
-            
-            if (!sys_hunter.isActive()) { 
-                print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555); 
-            }
-            
-            const bar_y = getUriBarY(journal_len, sys_hunter.url);
-            
-            drawPulseOverlay();
+            // [!] COMPOSER: RENDER BRANCHING
+            if (sys_composer.active) {
+                sys_composer.render(&back_buffer, WIDTH, HEIGHT);
+                drawPulseOverlay();
+            } else {
+                drawHeader(is_high_cycle);
+                sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
+                
+                if (!sys_hunter.isActive()) { 
+                    print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555); 
+                }
+                
+                const bar_y = getUriBarY(journal_len, sys_hunter.url);
+                drawPulseOverlay();
 
-            if (is_tabula_rasa) {
-                const mw = 460; const mh = 160;
-                const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
-                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); 
-                drawRect(mx, my, mw, mh, 0x00000000); 
-                print(mx + 20, my + 20, "[ TABULA RASA // SOCIUS REQUIRED ]", 0x00DC143C); 
-                drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
-                print(mx + 20, my + 60, "AWAITING SOCIUS DESIGNATION:", 0x00AAAAAA);
-                drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
-                print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
-                if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00DC143C);
-            } 
-            else if (is_trail_modal) {
-                const mw = 760; const mh = 400; 
-                const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh - 10;
-                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); 
-                drawRect(mx, my, mw, mh, 0x00000000);
-                print(mx + 20, my + 20, "[ PREVIOUS CYCLE KERNEL PANIC RECOVERED ]", 0x00DC143C);
-                drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
+                if (is_tabula_rasa) {
+                    const mw = 460; const mh = 160;
+                    const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); 
+                    drawRect(mx, my, mw, mh, 0x00000000); 
+                    print(mx + 20, my + 20, "[ TABULA RASA // SOCIUS REQUIRED ]", 0x00DC143C); 
+                    drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
+                    print(mx + 20, my + 60, "AWAITING SOCIUS DESIGNATION:", 0x00AAAAAA);
+                    drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
+                    print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
+                    if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00DC143C);
+                } 
+                else if (is_trail_modal) {
+                    const mw = 760; const mh = 400; 
+                    const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh - 10;
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); 
+                    drawRect(mx, my, mw, mh, 0x00000000);
+                    print(mx + 20, my + 20, "[ PREVIOUS CYCLE KERNEL PANIC RECOVERED ]", 0x00DC143C);
+                    drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
 
-                var cx: usize = mx + 20;
-                var cy: usize = my + 50;
-                for (trail_buffer[0..trail_len]) |c| {
-                    if (c == '\n') {
-                        cx = mx + 20;
-                        cy += 10;
-                        if (cy > my + mh - 40) break;
-                        continue;
-                    }
-                    if (c >= 32 and c <= 126) {
-                        drawChar(cx, cy, c, 0x00AAAAAA);
-                        cx += 8;
-                        if (cx > mx + mw - 20) {
+                    var cx: usize = mx + 20;
+                    var cy: usize = my + 50;
+                    for (trail_buffer[0..trail_len]) |c| {
+                        if (c == '\n') {
                             cx = mx + 20;
                             cy += 10;
                             if (cy > my + mh - 40) break;
+                            continue;
+                        }
+                        if (c >= 32 and c <= 126) {
+                            drawChar(cx, cy, c, 0x00AAAAAA);
+                            cx += 8;
+                            if (cx > mx + mw - 20) {
+                                cx = mx + 20;
+                                cy += 10;
+                                if (cy > my + mh - 40) break;
+                            }
                         }
                     }
+
+                    print(mx + 20, my + mh - 30, ">> Type 'shed' or empty [ENTER] to clear memory.", 0x00FFBF00);
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 }
+                else if (is_memo_modal) {
+                    const mw = 460; const mh = 140;
+                    const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00FFBF00); 
+                    drawRect(mx, my, mw, mh, 0x00000000);
+                    print(mx + 20, my + 20, "[ TIMELINE // MEMO DESIGNATION ]", 0x00FFBF00); 
+                    drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
+                    print(mx + 20, my + 60, "ENTER ARTIFACT NAME:", 0x00AAAAAA);
+                    drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
+                    print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
+                    if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00FFBF00);
+                } else if (is_radio_modal) {
+                    const mw = 520; const mh = 160;
+                    const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C);
+                    drawRect(mx, my, mw, mh, 0x00000000);
+                    print(mx + 20, my + 20, "[ PHILOTIC RADIO // FREQ TUNING ]", 0x00DC143C);
+                    drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
 
-                print(mx + 20, my + mh - 30, ">> Type 'shed' or empty [ENTER] to clear memory.", 0x00FFBF00);
-                drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
-            }
-            else if (is_memo_modal) {
-                const mw = 460; const mh = 140;
-                const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
-                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00FFBF00); 
-                drawRect(mx, my, mw, mh, 0x00000000);
-                print(mx + 20, my + 20, "[ TIMELINE // MEMO DESIGNATION ]", 0x00FFBF00); 
-                drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
-                print(mx + 20, my + 60, "ENTER ARTIFACT NAME:", 0x00AAAAAA);
-                drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
-                print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
-                if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00FFBF00);
-            } else if (is_radio_modal) {
-                const mw = 520; const mh = 160;
-                const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
-                drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C);
-                drawRect(mx, my, mw, mh, 0x00000000);
-                print(mx + 20, my + 20, "[ PHILOTIC RADIO // FREQ TUNING ]", 0x00DC143C);
-                drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
+                    var radio_buf: [128]u8 = undefined;
+                    const c_f0 = if (radio_sel == 0) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                    const str_f0 = std.fmt.bufPrint(&radio_buf, "Song (Hz)  : {d:.1}", .{radio_f0}) catch "";
+                    print(mx + 20, my + 60, str_f0, c_f0);
+                    if (radio_sel == 0) { drawChar(mx + 8, my + 60, 0x1A, 0x00FFBF00); }
 
-                var radio_buf: [128]u8 = undefined;
-                const c_f0 = if (radio_sel == 0) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
-                const str_f0 = std.fmt.bufPrint(&radio_buf, "Song (Hz)  : {d:.1}", .{radio_f0}) catch "";
-                print(mx + 20, my + 60, str_f0, c_f0);
-                if (radio_sel == 0) { drawChar(mx + 8, my + 60, 0x1A, 0x00FFBF00); }
+                    const c_dec = if (radio_sel == 1) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                    const str_dec = std.fmt.bufPrint(&radio_buf, "Decay (d)  : {d:.2}", .{radio_decay}) catch "";
+                    print(mx + 20, my + 80, str_dec, c_dec);
+                    if (radio_sel == 1) { drawChar(mx + 8, my + 80, 0x1A, 0x00FFBF00); }
 
-                const c_dec = if (radio_sel == 1) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
-                const str_dec = std.fmt.bufPrint(&radio_buf, "Decay (d)  : {d:.2}", .{radio_decay}) catch "";
-                print(mx + 20, my + 80, str_dec, c_dec);
-                if (radio_sel == 1) { drawChar(mx + 8, my + 80, 0x1A, 0x00FFBF00); }
+                    const c_diss = if (radio_sel == 2) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                    const str_diss = std.fmt.bufPrint(&radio_buf, "Diss. (m)  : {d:.2}", .{radio_diss}) catch "";
+                    print(mx + 260, my + 60, str_diss, c_diss);
+                    if (radio_sel == 2) { drawChar(mx + 248, my + 60, 0x1A, 0x00FFBF00); }
 
-                const c_diss = if (radio_sel == 2) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
-                const str_diss = std.fmt.bufPrint(&radio_buf, "Diss. (m)  : {d:.2}", .{radio_diss}) catch "";
-                print(mx + 260, my + 60, str_diss, c_diss);
-                if (radio_sel == 2) { drawChar(mx + 248, my + 60, 0x1A, 0x00FFBF00); }
+                    const c_phi = if (radio_sel == 3) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                    const str_phi = std.fmt.bufPrint(&radio_buf, "\xED\x1E-off (P) : {d:.3}", .{radio_phi}) catch "";
+                    print(mx + 260, my + 80, str_phi, c_phi);
+                    if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, 0x00FFBF00); }
 
-                const c_phi = if (radio_sel == 3) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
-                const str_phi = std.fmt.bufPrint(&radio_buf, "\xED\x1E-off (P) : {d:.3}", .{radio_phi}) catch "";
-                print(mx + 260, my + 80, str_phi, c_phi);
-                if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, 0x00FFBF00); }
+                    print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", 0x00555555);
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+                } else if (is_calc_modal) {
+                    const cw = WIDTH - 40;
+                    const ch: usize = if (is_calc_graph) 200 else 30;
+                    const cx = 20;
+                    const cy = bar_y - ch - 10;
+                    
+                    drawRect(cx - 2, cy - 2, cw + 4, ch + 2, 0x00FFBF00);
+                    drawRect(cx, cy, cw, ch, 0x00000000);
+                    
+                    print(cx + 10, cy + 10, "[ AST ] >", 0x00DC143C);
+                    print(cx + 90, cy + 10, calc_input[0..calc_len], 0x00FFFFFF);
+                    
+                    if (calc_res_len > 0) {
+                        print(cx + cw - 150, cy + 10, calc_result[0..calc_res_len], 0x00FFBF00);
+                    }
 
-                print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", 0x00555555);
-                drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
-            } else if (is_calc_modal) {
-                const cw = WIDTH - 40;
-                const ch: usize = if (is_calc_graph) 200 else 30;
-                const cx = 20;
-                const cy = bar_y - ch - 10;
-                
-                drawRect(cx - 2, cy - 2, cw + 4, ch + 2, 0x00FFBF00);
-                drawRect(cx, cy, cw, ch, 0x00000000);
-                
-                print(cx + 10, cy + 10, "[ AST ] >", 0x00DC143C);
-                print(cx + 90, cy + 10, calc_input[0..calc_len], 0x00FFFFFF);
-                
-                if (calc_res_len > 0) {
-                    print(cx + cw - 150, cy + 10, calc_result[0..calc_res_len], 0x00FFBF00);
+                    if (is_calc_graph) {
+                        drawRect(cx + 10, cy + 30, cw - 20, 1, 0x00444444);
+                        print(cx + 10, cy + 45, "[ GRAPH MODULE : AWAITING PHASE 4 TENSORS ]", 0x00555555);
+                        print(cx + 10, cy + ch - 20, "[TAB] Toggle Graph  [ENTER] Evaluate (Empty to Dismiss)", 0x00AAAAAA);
+                    }
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+                } else if (is_assist_modal) {
+                    const aw = 860; const ah = 460;
+                    const ax = (WIDTH / 2) - (aw / 2); const ay = bar_y - ah - 10;
+                    drawRect(ax - 2, ay - 2, aw + 4, ah + 2, 0x00FFBF00); 
+                    drawRect(ax, ay, aw, ah, 0x00000000);
+
+                    print(ax + 20, ay + 20, "[ @NSIBLE COMMAND BIBLE & MATRIX PROTOCOLS ]", 0x00FFBF00);
+                    drawRect(ax + 20, ay + 35, aw - 40, 1, 0x00444444);
+
+                    print(ax + 20, ay + 50, "[ CORE MATRIX TRAVERSAL ]", 0x00AAAAAA);
+                    print(ax + 20, ay + 70, "mchn/        : View Local Root Directory", 0x00FFFFFF);
+                    print(ax + 20, ay + 90, "w3.<target>  : Shadow Flight (Web Traversal)", 0x00FFFFFF);
+                    print(ax + 20, ay + 110, "w3?. <query> : Global Matrix Search", 0x00FFFFFF); 
+                    print(ax + 20, ay + 130, "<Number>     : MELT Traverse (Follow Link [x])", 0x00DC143C);
+                    print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", 0x00FFBF00); 
+                    print(ax + 20, ay + 170, "[<] / [>]    : Navigate Timeline History", 0x00FFFFFF);
+                    print(ax + 20, ay + 190, "v / ^        : Scroll Active Matrix down/up", 0x00FFFFFF);
+
+                    print(ax + 20, ay + 230, "[ ARTIFACT FORGE & GZL ]", 0x00AAAAAA);
+                    print(ax + 20, ay + 250, "memo <txt>   : Quick Operator Artifact", 0x00FFFFFF);
+                    print(ax + 20, ay + 270, "<Title> //-. : Title & Save Artifact", 0x00FFFFFF);
+                    print(ax + 20, ay + 290, "| memo       : Pipe active target to timeline", 0x00FFFFFF);
+                    print(ax + 20, ay + 320, ">> GZL Syntax encodes artifacts with module,", 0x00555555);
+                    print(ax + 20, ay + 340, ">> timestamps, and philotic inferences.", 0x00555555);
+
+                    print(ax + 440, ay + 50, "[ SCOPE & SYSTEM ]", 0x00AAAAAA);
+                    print(ax + 440, ay + 70, "zI / zO      : Shift Banyan Scope Depth", 0x00FFFFFF);
+                    print(ax + 440, ay + 90, "               [0:RAW, 1:ZEN, 2:MTX, 3:ROOT]", 0x00555555);
+                    print(ax + 440, ay + 110, "shed / drop  : Destroy active node", 0x00FFFFFF);
+                    print(ax + 440, ay + 130, "radio / tune : Philotic Resonance Tuning", 0x00FFFFFF);
+                    print(ax + 440, ay + 150, ".!@&-.       : Force Cache Reload", 0x00FFBF00); 
+                    print(ax + 440, ay + 170, "cycle        : Print Local Tempus", 0x00FFFFFF);
+                    print(ax + 440, ay + 190, ".!XX-. / exit: Terminate Matrix", 0x00FFFFFF);
+
+                    drawRect(ax + 20, ay + 370, aw - 40, 1, 0x00444444);
+
+                    print(ax + 20, ay + 390, "[ AST ARITHMETIC ENGINE ]", 0x00DC143C); 
+                    print(ax + 20, ay + 410, ">> STATUS : Native Recursive Descent Operational.", 0x00555555);
+                    print(ax + 20, ay + 430, ">> ACTIVE : Type 'calc' or '@://calc/' to invoke.", 0x00555555);
+
+                    print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+                } else {
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 }
-
-                if (is_calc_graph) {
-                    drawRect(cx + 10, cy + 30, cw - 20, 1, 0x00444444);
-                    print(cx + 10, cy + 45, "[ GRAPH MODULE : AWAITING PHASE 4 TENSORS ]", 0x00555555);
-                    print(cx + 10, cy + ch - 20, "[TAB] Toggle Graph  [ENTER] Evaluate (Empty to Dismiss)", 0x00AAAAAA);
-                }
-                drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
-            } else if (is_assist_modal) {
-                const aw = 860; const ah = 460;
-                const ax = (WIDTH / 2) - (aw / 2); const ay = bar_y - ah - 10;
-                drawRect(ax - 2, ay - 2, aw + 4, ah + 2, 0x00FFBF00); 
-                drawRect(ax, ay, aw, ah, 0x00000000);
-
-                print(ax + 20, ay + 20, "[ @NSIBLE COMMAND BIBLE & MATRIX PROTOCOLS ]", 0x00FFBF00);
-                drawRect(ax + 20, ay + 35, aw - 40, 1, 0x00444444);
-
-                print(ax + 20, ay + 50, "[ CORE MATRIX TRAVERSAL ]", 0x00AAAAAA);
-                print(ax + 20, ay + 70, "mchn/        : View Local Root Directory", 0x00FFFFFF);
-                print(ax + 20, ay + 90, "w3.<target>  : Shadow Flight (Web Traversal)", 0x00FFFFFF);
-                print(ax + 20, ay + 110, "w3?. <query> : Global Matrix Search", 0x00FFFFFF); 
-                print(ax + 20, ay + 130, "<Number>     : MELT Traverse (Follow Link [x])", 0x00DC143C);
-                print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", 0x00FFBF00); 
-                print(ax + 20, ay + 170, "[<] / [>]    : Navigate Timeline History", 0x00FFFFFF);
-                print(ax + 20, ay + 190, "v / ^        : Scroll Active Matrix down/up", 0x00FFFFFF);
-
-                print(ax + 20, ay + 230, "[ ARTIFACT FORGE & GZL ]", 0x00AAAAAA);
-                print(ax + 20, ay + 250, "memo <txt>   : Quick Operator Artifact", 0x00FFFFFF);
-                print(ax + 20, ay + 270, "<Title> //-. : Title & Save Artifact", 0x00FFFFFF);
-                print(ax + 20, ay + 290, "| memo       : Pipe active target to timeline", 0x00FFFFFF);
-                print(ax + 20, ay + 320, ">> GZL Syntax encodes artifacts with module,", 0x00555555);
-                print(ax + 20, ay + 340, ">> timestamps, and philotic inferences.", 0x00555555);
-
-                print(ax + 440, ay + 50, "[ SCOPE & SYSTEM ]", 0x00AAAAAA);
-                print(ax + 440, ay + 70, "zI / zO      : Shift Banyan Scope Depth", 0x00FFFFFF);
-                print(ax + 440, ay + 90, "               [0:RAW, 1:ZEN, 2:MTX, 3:ROOT]", 0x00555555);
-                print(ax + 440, ay + 110, "shed / drop  : Destroy active node", 0x00FFFFFF);
-                print(ax + 440, ay + 130, "radio / tune : Philotic Resonance Tuning", 0x00FFFFFF);
-                print(ax + 440, ay + 150, ".!@&-.       : Force Cache Reload", 0x00FFBF00); 
-                print(ax + 440, ay + 170, "cycle        : Print Local Tempus", 0x00FFFFFF);
-                print(ax + 440, ay + 190, ".!XX-. / exit: Terminate Matrix", 0x00FFFFFF);
-
-                drawRect(ax + 20, ay + 370, aw - 40, 1, 0x00444444);
-
-                print(ax + 20, ay + 390, "[ AST ARITHMETIC ENGINE ]", 0x00DC143C); 
-                print(ax + 20, ay + 410, ">> STATUS : Native Recursive Descent Operational.", 0x00555555);
-                print(ax + 20, ay + 430, ">> ACTIVE : Type 'calc' or '@://calc/' to invoke.", 0x00555555);
-
-                print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
-                drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
-            } else {
-                drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
             }
             
             @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
