@@ -2,7 +2,7 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Re-engineered mount/unmount vectors to dynamically parse hardware block registries. Zero hardcoded labels.",
+//   changes: "Injected Ghost Cloak URL decoder to bypass DDG tracker endpoints.",
 //   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
 
 const std = @import("std");
@@ -358,14 +358,40 @@ pub const Hunter = struct {
     }
 
     fn resolveMeltTarget(self: *Hunter, target: []const u8) ![]u8 {
-        var abs_buf: [2048]u8 = undefined;
-        var resolved: []const u8 = target;
+        var actual_target = target;
+        var ddg_dec_buf: [2048]u8 = undefined;
 
-        if (std.mem.startsWith(u8, target, "http://") or std.mem.startsWith(u8, target, "https://") or std.mem.startsWith(u8, target, "@://") or std.mem.startsWith(u8, target, "memo://")) {
-            resolved = target;
-        } else if (std.mem.startsWith(u8, target, "//")) {
-            resolved = std.fmt.bufPrint(&abs_buf, "https:{s}", .{target}) catch target;
-        } else if (std.mem.startsWith(u8, target, "/")) {
+        // [!] GHOST CLOAK: DDG TRACKER UNWRAPPER
+        if (std.mem.indexOf(u8, target, "uddg=")) |uddg_idx| {
+            const start = uddg_idx + 5;
+            var end = start;
+            while (end < target.len and target[end] != '&') : (end += 1) {}
+            const encoded_url = target[start..end];
+            
+            var dec_len: usize = 0;
+            var i: usize = 0;
+            while (i < encoded_url.len) {
+                if (encoded_url[i] == '%' and i + 2 < encoded_url.len) {
+                    const hex = encoded_url[i+1..i+3];
+                    const char = std.fmt.parseInt(u8, hex, 16) catch '%';
+                    if (dec_len < 2048) { ddg_dec_buf[dec_len] = char; dec_len += 1; }
+                    i += 3;
+                } else {
+                    if (dec_len < 2048) { ddg_dec_buf[dec_len] = encoded_url[i]; dec_len += 1; }
+                    i += 1;
+                }
+            }
+            actual_target = ddg_dec_buf[0..dec_len];
+        }
+
+        var abs_buf: [2048]u8 = undefined;
+        var resolved: []const u8 = actual_target;
+
+        if (std.mem.startsWith(u8, actual_target, "http://") or std.mem.startsWith(u8, actual_target, "https://") or std.mem.startsWith(u8, actual_target, "@://") or std.mem.startsWith(u8, actual_target, "memo://")) {
+            resolved = actual_target;
+        } else if (std.mem.startsWith(u8, actual_target, "//")) {
+            resolved = std.fmt.bufPrint(&abs_buf, "https:{s}", .{actual_target}) catch actual_target;
+        } else if (std.mem.startsWith(u8, actual_target, "/")) {
             var base_end: usize = 0;
             if (std.mem.indexOf(u8, self.url, "://")) |scheme_idx| {
                 if (std.mem.indexOfScalarPos(u8, self.url, scheme_idx + 3, '/')) |slash_idx| {
@@ -375,9 +401,9 @@ pub const Hunter = struct {
                 }
             }
             if (base_end > 0) {
-                resolved = std.fmt.bufPrint(&abs_buf, "{s}{s}", .{self.url[0..base_end], target}) catch target;
+                resolved = std.fmt.bufPrint(&abs_buf, "{s}{s}", .{self.url[0..base_end], actual_target}) catch actual_target;
             } else {
-                resolved = std.fmt.bufPrint(&abs_buf, "https://{s}", .{target}) catch target;
+                resolved = std.fmt.bufPrint(&abs_buf, "https://{s}", .{actual_target}) catch actual_target;
             }
         } else {
             var base_end: usize = self.url.len;
@@ -388,7 +414,7 @@ pub const Hunter = struct {
                     }
                 }
             }
-            resolved = std.fmt.bufPrint(&abs_buf, "{s}{s}", .{self.url[0..base_end], target}) catch target;
+            resolved = std.fmt.bufPrint(&abs_buf, "{s}{s}", .{self.url[0..base_end], actual_target}) catch actual_target;
         }
 
         var clean_buf: [2048]u8 = undefined;
