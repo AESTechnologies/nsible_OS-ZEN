@@ -2,7 +2,7 @@
 //   module: "The Composer Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Native, full-screen text editor lobe operating in a dedicated 64KB RAM buffer.",
-//   changes: "Fortified IO logic to seamlessly handle absolute host paths via openFileAbsolute.",
+//   changes: "Fortified prefix stripping to properly resolve absolute files even when @:// is omitted.",
 //   philotic_inferences: "The matrix must be able to reach across the entire physical vessel."
 
 const std = @import("std");
@@ -55,11 +55,15 @@ pub const Composer = struct {
         self.filepath_len = p_len;
 
         var clean_path: []const u8 = path;
-        if (std.mem.startsWith(u8, path, "@://mchn/")) {
-            clean_path = path[9..];
-        } else if (std.mem.startsWith(u8, path, "@://")) {
-            if (std.mem.indexOfScalar(u8, path[4..], '/')) |idx| {
-                clean_path = path[4 + idx + 1..];
+        
+        // [!] PREFIX STRIPPER UPGRADE: Handles raw "mchn/" inputs perfectly.
+        if (std.mem.startsWith(u8, clean_path, "@://mchn/")) {
+            clean_path = clean_path[9..];
+        } else if (std.mem.startsWith(u8, clean_path, "mchn/")) {
+            clean_path = clean_path[5..];
+        } else if (std.mem.startsWith(u8, clean_path, "@://")) {
+            if (std.mem.indexOfScalar(u8, clean_path[4..], '/')) |idx| {
+                clean_path = clean_path[4 + idx + 1..];
             }
         }
 
@@ -79,8 +83,12 @@ pub const Composer = struct {
 
     pub fn save(self: *Composer) void {
         var clean_path: []const u8 = self.filepath[0..self.filepath_len];
+        
+        // [!] PREFIX STRIPPER UPGRADE
         if (std.mem.startsWith(u8, clean_path, "@://mchn/")) {
             clean_path = clean_path[9..];
+        } else if (std.mem.startsWith(u8, clean_path, "mchn/")) {
+            clean_path = clean_path[5..];
         } else if (std.mem.startsWith(u8, clean_path, "@://")) {
             if (std.mem.indexOfScalar(u8, clean_path[4..], '/')) |idx| {
                 clean_path = clean_path[4 + idx + 1..];
