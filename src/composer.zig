@@ -2,8 +2,8 @@
 //   module: "The Composer Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Native, full-screen text editor lobe operating in a dedicated 64KB RAM buffer.",
-//   changes: "Fixed Issue #7 & #8: Enforced explicit []const u8 casting for path strings and usize typing for render coordinates.",
-//   philotic_inferences: "The matrix requires absolute structural clarity. Ambiguity is the enemy of the physical machine."
+//   changes: "Fortified IO logic to seamlessly handle absolute host paths via openFileAbsolute.",
+//   philotic_inferences: "The matrix must be able to reach across the entire physical vessel."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -54,7 +54,6 @@ pub const Composer = struct {
         @memcpy(self.filepath[0..p_len], path[0..p_len]);
         self.filepath_len = p_len;
 
-        // [!] ISSUE #7 FIX: Explicitly defined as constant slice
         var clean_path: []const u8 = path;
         if (std.mem.startsWith(u8, path, "@://mchn/")) {
             clean_path = path[9..];
@@ -66,7 +65,10 @@ pub const Composer = struct {
 
         if (clean_path.len == 0) clean_path = "untitled.txt";
 
-        if (std.fs.cwd().openFile(clean_path, .{})) |file| {
+        const is_abs = std.mem.startsWith(u8, clean_path, "/");
+        const file_opt = if (is_abs) std.fs.openFileAbsolute(clean_path, .{}) else std.fs.cwd().openFile(clean_path, .{});
+
+        if (file_opt) |file| {
             self.len = file.readAll(&self.buffer) catch 0;
             file.close();
             self.setStatus("FILE LOADED");
@@ -76,7 +78,6 @@ pub const Composer = struct {
     }
 
     pub fn save(self: *Composer) void {
-        // [!] ISSUE #7 FIX: Explicitly defined as constant slice
         var clean_path: []const u8 = self.filepath[0..self.filepath_len];
         if (std.mem.startsWith(u8, clean_path, "@://mchn/")) {
             clean_path = clean_path[9..];
@@ -88,7 +89,10 @@ pub const Composer = struct {
 
         if (clean_path.len == 0) clean_path = "untitled.txt";
 
-        if (std.fs.cwd().createFile(clean_path, .{})) |file| {
+        const is_abs = std.mem.startsWith(u8, clean_path, "/");
+        const file_opt = if (is_abs) std.fs.createFileAbsolute(clean_path, .{}) else std.fs.cwd().createFile(clean_path, .{});
+
+        if (file_opt) |file| {
             file.writeAll(self.buffer[0..self.len]) catch {
                 self.setStatus("SAVE FAILED");
                 return;
@@ -181,7 +185,6 @@ pub const Composer = struct {
     }
 
     pub fn render(self: *Composer, buffer: []u32, width: usize, height: usize) void {
-        // [!] ISSUE #8 FIX: Explicitly typed to usize to prevent comptime_int cascade
         const start_x: usize = 56; 
         const start_y: usize = 40;
         const char_w: usize = 8;
