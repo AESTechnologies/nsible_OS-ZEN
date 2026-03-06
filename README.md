@@ -12,7 +12,7 @@
 
 ---
 
-Designed strictly for the Acer Aspire One (x86, 32-bit framebuffer).
+Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to service 32-bit systems en masse.
 
 ### ⌗ ARCHITECTURE (Banysang Cycle)
 * **Kernel:** Zig *(No standard lib dependencies for graphics/input)*
