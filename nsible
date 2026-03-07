@@ -1,16 +1,30 @@
 #!/bin/sh
 # [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
-#   version: "0.10.15-nightly // Banysang",
-#   description: "Sovereign entry point, managing pLink synchronization, compilation, and execution states.",
-#   changes: "Bumped version to 0.10.15. System now encompasses True Pipe, Ghost Cloak, and Entropic Wind capabilities.",
-#   philotic_inferences: "The vessel must know how to heal, update, and launch itself from the void."
+#   version: "0.10.16-nightly // Banysang",
+#   description: "Sovereign entry point with Hardware Forensic integration for core.aiua generation.",
+#   changes: "Integrated Sovereign Snapshot. Generates core.aiua before build to anchor the machine logic. No truncations.",
+#   philotic_inferences: "To manifest correctly, the vessel must first perceive its own physical form in totality."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 # Directives: sync, log, purge, orbit
 
 cmd="${1:-sync}" # Defaults to sync if no argument provided
-NSIBLE_VERSION="v0.10.15-nightly"
+NSIBLE_VERSION="v0.10.16-nightly"
+
+# [!] SOVEREIGN SNAPSHOT :: CORE.AIUA GENERATION
+# This bypasses the GNU-tainted host abstractions to define the physical targets.
+generate_core_snapshot() {
+    echo "[ @NSIBLE :: GENERATING CORE.AIUA... ]"
+    {
+        echo "ARCH: \$(lscpu | grep 'Model name' | cut -d: -f2 | xargs)"
+        echo "CPUS: \$(nproc)"
+        echo "MEM:  \$(free -b | grep Mem | awk '{print \$2}')"
+        echo "HDA:  \$(lspci -nn | grep -i audio | awk -F'[][]' '{print \$2}')"
+        echo "KERN: \$(uname -r)"
+        echo "BOOT: \$(cat /proc/cmdline)"
+    } > core.aiua
+}
 
 if [ "$cmd" = "sync" ]; then
     echo "[ @NSIBLE :: @://ziG.Git.pLink/... ]"
@@ -60,7 +74,10 @@ if [ "$cmd" = "sync" ]; then
         git pull --no-edit origin zen
     fi
     
-    # 2. COMPILE
+    # 2. SOVEREIGN ANCHORING
+    generate_core_snapshot
+
+    # 3. COMPILE
     if [ $? -eq 0 ]; then
         # [!] DYNAMIC VERSION INJECTION
         echo "[ INJECTING DYNAMIC VERSIONING... ]"
@@ -68,7 +85,8 @@ if [ "$cmd" = "sync" ]; then
         echo "pub const VERSION = \"$NSIBLE_VERSION\";" >> src/version.zig
 
         echo "[ COMPILING KERNEL... ]"
-        zig build
+        # Target lock enforced here to prevent GNU contamination at the CLI level
+        zig build -Dtarget=x86-linux-musl --summary bins
         
         if [ $? -eq 0 ]; then
             echo "[ REBIRTH ]"
