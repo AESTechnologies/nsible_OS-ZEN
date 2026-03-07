@@ -1,0 +1,6 @@
+*
+!*/
+!.gitignore
+!build.zig
+!nsible
+!src/**
