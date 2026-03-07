@@ -86,7 +86,7 @@ if [ "$cmd" = "sync" ]; then
 
         echo "[ COMPILING KERNEL... ]"
         # Target lock enforced here to prevent GNU contamination at the CLI level
-        zig build -Dtarget=x86-linux-musl --summary bins
+        zig build -Dtarget=x86-linux-musl --summary all 
         
         if [ $? -eq 0 ]; then
             echo "[ REBIRTH ]"
