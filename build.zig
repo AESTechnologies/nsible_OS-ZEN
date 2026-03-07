@@ -31,8 +31,8 @@ pub fn build(b: *std.Build) void {
 
     // [!] ACOUSTIC MATRIX BINDINGS
     // Must be sequential, outside the struct literal.
-    exe.linkLibC();
-    exe.linkSystemLibrary("asound");
+    //exe.linkLibC();
+    //exe.linkSystemLibrary("asound");
  
     // Install the artifact to zig-out/bin
     b.installArtifact(exe);
