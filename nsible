@@ -17,12 +17,12 @@ NSIBLE_VERSION="v0.10.16-nightly"
 generate_core_snapshot() {
     echo "[ @NSIBLE :: GENERATING CORE.AIUA... ]"
     {
-        echo "ARCH: \$(lscpu | grep 'Model name' | cut -d: -f2 | xargs)"
-        echo "CPUS: \$(nproc)"
-        echo "MEM:  \$(free -b | grep Mem | awk '{print \$2}')"
-        echo "HDA:  \$(lspci -nn | grep -i audio | awk -F'[][]' '{print \$2}')"
-        echo "KERN: \$(uname -r)"
-        echo "BOOT: \$(cat /proc/cmdline)"
+        echo "ARCH: $(lscpu | grep 'Model name' | cut -d: -f2 | xargs)"
+        echo "CPUS: $(nproc)"
+        echo "MEM:  $(free -b | grep Mem | awk '{print $2}')"
+        echo "HDA:  $(lspci -nn | grep -i audio | awk -F'[][]' '{print $2}')"
+        echo "KERN: $(uname -r)"
+        echo "BOOT: $(cat /proc/cmdline)"
     } > core.aiua
 }
 
