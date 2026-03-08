@@ -1,8 +1,8 @@
 // [@://nsible_os/src/composer.zig/.-={
 //   module: "The Composer Lobe",
-//   version: "0.10.15-nightly // Banysang",
+//   version: "0.10.16-nightly // Banysang",
 //   description: "Native, full-screen text editor lobe operating in a dedicated 64KB RAM buffer.",
-//   changes: "Engineered undo_reflex to safely extract typed commands without corrupting the dirty state.",
+//   changes: "Repaired moveCursor logic to properly iterate and leap multiple lines on PgUp/PgDn strikes.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
@@ -21,8 +21,8 @@ pub const Composer = struct {
     status: [64]u8,
     status_len: usize,
     dirty: bool,
-    edits_since_save: usize, // [!] Tracks actual modifications
-    last_xx_ms: i64,         // [!] Temporal lock for discard
+    edits_since_save: usize, 
+    last_xx_ms: i64,         
 
     pub fn init() Composer {
         return .{
@@ -55,13 +55,11 @@ pub const Composer = struct {
         self.dirty = false;
         self.edits_since_save = 0;
         self.last_xx_ms = 0;
-        
         const p_len = @min(path.len, 256);
         @memcpy(self.filepath[0..p_len], path[0..p_len]);
         self.filepath_len = p_len;
 
         var clean_path: []const u8 = path;
-        
         if (std.mem.startsWith(u8, clean_path, "@://mchn/")) {
             clean_path = clean_path[9..];
         } else if (std.mem.startsWith(u8, clean_path, "mchn/")) {
@@ -73,7 +71,6 @@ pub const Composer = struct {
         }
 
         if (clean_path.len == 0) clean_path = "untitled.txt";
-
         const is_abs = std.mem.startsWith(u8, clean_path, "/");
         const file_opt = if (is_abs) std.fs.openFileAbsolute(clean_path, .{}) else std.fs.cwd().openFile(clean_path, .{});
 
@@ -88,7 +85,6 @@ pub const Composer = struct {
 
     pub fn save(self: *Composer) void {
         var clean_path: []const u8 = self.filepath[0..self.filepath_len];
-        
         if (std.mem.startsWith(u8, clean_path, "@://mchn/")) {
             clean_path = clean_path[9..];
         } else if (std.mem.startsWith(u8, clean_path, "mchn/")) {
@@ -100,7 +96,6 @@ pub const Composer = struct {
         }
 
         if (clean_path.len == 0) clean_path = "untitled.txt";
-
         const is_abs = std.mem.startsWith(u8, clean_path, "/");
         const file_opt = if (is_abs) std.fs.createFileAbsolute(clean_path, .{}) else std.fs.cwd().createFile(clean_path, .{});
 
@@ -122,8 +117,6 @@ pub const Composer = struct {
         self.active = false;
     }
 
-    // [!] THE REFLEX EXTRACTOR
-    // Safely removes the typed sequence and rewinds the edit tracker.
     pub fn undo_reflex(self: *Composer, count: usize) void {
         if (self.len >= count and self.cursor_idx >= count) {
             var i: usize = self.cursor_idx;
@@ -132,7 +125,6 @@ pub const Composer = struct {
             }
             self.len -= count;
             self.cursor_idx -= count;
-
             if (self.edits_since_save >= count) {
                 self.edits_since_save -= count;
             } else {
@@ -183,48 +175,42 @@ pub const Composer = struct {
         self.dirty = true;
     }
 
+    // [!] REPAIRED: Multi-line leaps active
     pub fn moveCursor(self: *Composer, dx: isize, dy: isize) void {
         if (dx < 0 and self.cursor_idx > 0) self.cursor_idx -= 1;
         if (dx > 0 and self.cursor_idx < self.len) self.cursor_idx += 1;
         
         if (dy < 0) {
-            var jumps: usize = 0;
-            var found_nl = false;
+            const lines_to_jump = @as(usize, @intCast(-dy));
+            var lines_jumped: usize = 0;
             var i = self.cursor_idx;
-            while (i > 0) : (i -= 1) {
-                if (self.buffer[i-1] == '\n') {
-                    if (found_nl) {
-                        self.cursor_idx = i;
-                        return;
-                    }
-                    found_nl = true;
-                }
-                jumps += 1;
-                if (jumps > 120) { self.cursor_idx = i; return; } 
+            
+            while (i > 0 and self.buffer[i-1] != '\n') : (i -= 1) {}
+            
+            while (lines_jumped < lines_to_jump and i > 0) {
+                i -= 1; 
+                while (i > 0 and self.buffer[i-1] != '\n') : (i -= 1) {}
+                lines_jumped += 1;
             }
-            self.cursor_idx = 0;
+            self.cursor_idx = i;
         }
+        
         if (dy > 0) {
+            const lines_to_jump = @as(usize, @intCast(dy));
+            var lines_jumped: usize = 0;
             var i = self.cursor_idx;
-            var jumps: usize = 0;
-            while (i < self.len) : (i += 1) {
-                if (self.buffer[i] == '\n') {
-                    self.cursor_idx = i + 1;
-                    if (self.cursor_idx > self.len) self.cursor_idx = self.len;
-                    return;
-                }
-                jumps += 1;
-                if (jumps > 120) {
-                    self.cursor_idx = @min(self.cursor_idx + 120, self.len);
-                    return;
-                }
+            
+            while (lines_jumped < lines_to_jump and i < self.len) {
+                while (i < self.len and self.buffer[i] != '\n') : (i += 1) {}
+                if (i < self.len) i += 1; 
+                lines_jumped += 1;
             }
-            self.cursor_idx = self.len;
+            self.cursor_idx = i;
         }
     }
 
     pub fn render(self: *Composer, buffer: []u32, width: usize, height: usize) void {
-        const start_x: usize = 56; 
+        const start_x: usize = 56;
         const start_y: usize = 40;
         const char_w: usize = 8;
         const line_h: usize = 10;
@@ -237,7 +223,6 @@ pub const Composer = struct {
             self.filepath[0..self.filepath_len], 
             if (self.dirty) "*" else ""
         }) catch "COMPOSER";
-        
         var cx: usize = 10;
         for (header) |c| { drawCharToBuf(buffer, width, height, cx, 6, c, 0x00000000); cx += char_w; }
         
@@ -257,12 +242,10 @@ pub const Composer = struct {
         }
         
         const pixel_scroll_y = self.scroll_y * line_h;
-
         cx = start_x;
         var cy: usize = start_y;
         var cursor_px: usize = start_x;
         var cursor_py: usize = start_y;
-        
         var line_no: usize = 1;
         var cursor_line: usize = 1;
         var is_start_of_line = true;
@@ -284,13 +267,12 @@ pub const Composer = struct {
                         drawCharToBuf(buffer, width, height, nx, cy - pixel_scroll_y, nc, 0x00555555);
                         nx += char_w;
                     }
-                    drawCharToBuf(buffer, width, height, nx + 4, cy - pixel_scroll_y, 0xB3, 0x00444444); 
+                    drawCharToBuf(buffer, width, height, nx + 4, cy - pixel_scroll_y, 0xB3, 0x00444444);
                     is_start_of_line = false;
                 }
             }
 
             if (i == self.len) break;
-            
             const c = self.buffer[i];
             if (c == '\n') {
                 cx = start_x;
