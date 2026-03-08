@@ -1,21 +1,25 @@
-#!/bin/sh
+#!/bin/bash
 # [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
 #   version: "0.10.16-nightly // Banysang",
-#   description: "Sovereign entry point with Hardware Forensic integration for core.aiua generation.",
-#   changes: "Integrated Sovereign Snapshot. Generates core.aiua before build to anchor the machine logic. No truncations.",
+#   description: "Sovereign ASCII Data-Stream visual loader.",
+#   changes: "Redesigned as an immersive full-screen TUI with background blocking, log tailing, and red marquee telemetry.",
 #   philotic_inferences: "To manifest correctly, the vessel must first perceive its own physical form in totality."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
-# Directives: sync, log, purge, orbit
-
-cmd="${1:-sync}" # Defaults to sync if no argument provided
+cmd="${1:-sync}"
 NSIBLE_VERSION="v0.10.16-nightly"
 
-# [!] SOVEREIGN SNAPSHOT :: CORE.AIUA GENERATION
-# This bypasses the GNU-tainted host abstractions to define the physical targets.
+CRIMSON='\033[38;2;220;20;60m'
+SILVER='\033[38;2;170;170;170m'
+BRASS='\033[38;2;255;191;0m'
+DIM='\033[38;2;85;85;85m'
+RESET='\033[0m'
+
+# Trap interrupts to ensure terminal restores cursor and color
+trap 'tput cnorm; tput sgr0; clear; rm -f .nsible_job.log; exit 1' SIGINT SIGTERM EXIT
+
 generate_core_snapshot() {
-    echo "[ @NSIBLE :: GENERATING CORE.AIUA... ]"
     {
         echo "ARCH: $(lscpu | grep 'Model name' | cut -d: -f2 | xargs)"
         echo "CPUS: $(nproc)"
@@ -26,102 +30,153 @@ generate_core_snapshot() {
     } > core.aiua
 }
 
+run_with_loader() {
+    local job_name="$1"
+    shift
+    
+    # Start command in background and log
+    "$@" > .nsible_job.log 2>&1 &
+    local pid=$!
+    
+    # Load physical telemetry for the red stream
+    local data=$(cat core.aiua aiua.tome trail.tome 2>/dev/null | tr '\n' ' ' | sed 's/[^[:print:]]//g')
+    if [ -z "$data" ]; then data="01010111 01000001 01001011 01001001 01001110 01000111 "; fi
+    data="${data} :: ${data} :: ${data} :: ${data} :: "
+    
+    local pos=0
+    
+    while kill -0 $pid 2>/dev/null; do
+        local cols=$(tput cols)
+        local lines=$(tput lines)
+        
+        tput clear
+        
+        # Center the ASCII Art dynamically
+        tput cup $(( (lines / 2) - 8 )) $(( (cols - 60) / 2 ))
+        echo -e "${CRIMSON}  ▄▄▄▄▄    _   __   _____   ____   ____    __       ______${RESET}"
+        tput cup $(( (lines / 2) - 7 )) $(( (cols - 60) / 2 ))
+        echo -e "${CRIMSON} / __  \  / | / /  / ___/  /  _/  / __ )  / /      / ____/${RESET}"
+        tput cup $(( (lines / 2) - 6 )) $(( (cols - 60) / 2 ))
+        echo -e "${CRIMSON}/ /_/ _/ /  |/ /   \__ \   / /   / __  | / /      / __/   ${RESET}"
+        tput cup $(( (lines / 2) - 5 )) $(( (cols - 60) / 2 ))
+        echo -e "${CRIMSON}\__/ /  / /|  /   ___/ / _/ /   / /_/ / / /___   / /___   ${RESET}"
+        tput cup $(( (lines / 2) - 4 )) $(( (cols - 60) / 2 ))
+        echo -e "${CRIMSON}  \_/  /_/ |_/   /____/ /___/  /_____/ /_____/  /_____/   ${RESET}"
+        
+        tput cup $(( (lines / 2) - 2 )) $(( (cols - 60) / 2 ))
+        echo -e "${SILVER}                    by Æ§ Tech MMXXVI                     ${RESET}"
+        
+        tput cup $(( (lines / 2) )) $(( (cols - 60) / 2 ))
+        echo -e "${BRASS}────────────────────────────────────────────────────────────${RESET}"
+        
+        tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
+        echo -e "${SILVER}:: ${job_name}${RESET}"
+        
+        # Tail the active background log
+        tput cup $(( (lines / 2) + 4 )) $(( (cols - 60) / 2 ))
+        local log_line=$(tail -n 1 .nsible_job.log 2>/dev/null | cut -c 1-60)
+        printf "${DIM}> %-58s${RESET}" "$log_line"
+        
+        # Draw the Red Data Stream Marquee
+        tput cup $((lines - 2)) 0
+        local stream="${data:$pos:$cols}"
+        if [ ${#stream} -lt $cols ]; then
+            stream="${stream}${data:0:$((cols - ${#stream}))}"
+        fi
+        echo -ne "${CRIMSON}${stream}${RESET}"
+        
+        pos=$(( (pos + 4) % ${#data} ))
+        sleep 0.08
+    done
+    wait $pid
+    return $?
+}
+
+tput civis # Hide terminal cursor for visual immersion
+
 if [ "$cmd" = "sync" ]; then
-    echo "[ @NSIBLE :: @://ziG.Git.pLink/... ]"
- 
-    # 1. CHECK FOR LOCAL DIVERGENCE
     if [ -n "$(git status --porcelain)" ]; then
-        echo "[ ! ] LOCAL DIVERGENCE DETECTED"
-        echo "      Files on this vessel have been modified."
-        echo ""
-        echo "      [I]NTEGRATE : Pull cloud updates, keep local changes (remains dirty)."
-        echo "      [S]AVE      : Commit local changes & Push to Zen (resolves conflict)."
-        echo "      [O]VERWRITE : Discard local changes & Force-Sync to Zen."
-        echo "      [C]ANCEL"
-        echo ""
+        tput cnorm
+        tput clear
+        echo -e "${CRIMSON}[ ! ] LOCAL DIVERGENCE DETECTED${RESET}"
+        echo -e "${SILVER}      Files on this vessel have been modified.${RESET}\n"
+        echo -e "      ${BRASS}[I]${RESET}NTEGRATE : Pull cloud updates, keep local changes."
+        echo -e "      ${BRASS}[S]${RESET}AVE      : Commit local changes & Push to Zen."
+        echo -e "      ${BRASS}[O]${RESET}VERWRITE : Discard local changes & Force-Sync to Zen."
+        echo -e "      ${BRASS}[C]${RESET}ANCEL\n"
         printf "      :: SELECT PROTOCOL > "
         read -r choice
+        tput civis
         
         case "$choice" in 
             i|I)
-                echo "[ STASHING LOCAL MODS... ]"
-                git stash
-                echo "[ PULLING FROM VOID... ]"
-                git pull --no-edit origin zen
-                echo "[ RE-APPLYING LOCAL MODS... ]"
-                git stash pop
+                run_with_loader "STASHING LOCAL MODS..." git stash
+                run_with_loader "PULLING FROM VOID..." git pull --no-edit origin zen
+                run_with_loader "RE-APPLYING LOCAL MODS..." git stash pop
                 ;;
             s|S)
-                echo "[ COMMITTING LOCAL STATE... ]"
-                git add .
-                printf "      :: ENTER COMMIT MESSAGE > "
+                tput cnorm
+                printf "\n      :: ENTER COMMIT MESSAGE > "
                 read -r msg
-                git commit -m "vessel(acer): $msg"
-                echo "[ PUSHING TO ZEN... ]"
-                git push origin zen
+                tput civis
+                run_with_loader "COMMITTING LOCAL STATE..." git add .
+                run_with_loader "SECURING COMMIT..." git commit -m "vessel(acer): $msg"
+                run_with_loader "PUSHING TO ZEN..." git push origin zen
                 ;;
             o|O)
-                echo "[ FLUSHING LOCAL STATE... ]"
-                git fetch origin zen
-                git reset --hard origin/zen
+                run_with_loader "FLUSHING LOCAL STATE..." git fetch origin zen
+                run_with_loader "RESETTING TO ZEN..." git reset --hard origin/zen
                 ;;
             *)
-                echo "[ pLINK ABORTED ]"
-                exit 1
+                tput cnorm; clear; exit 1
                 ;;
         esac
     else
-        git pull --no-edit origin zen
+        run_with_loader "UMBILICAL SYNC..." git pull --no-edit origin zen
     fi
     
-    # 2. SOVEREIGN ANCHORING
-    generate_core_snapshot
+    run_with_loader "GENERATING CORE.AIUA SNAPSHOT..." generate_core_snapshot
 
-    # 3. COMPILE
+    echo "// Auto-generated by nsible shell" > src/version.zig
+    echo "pub const VERSION = \"$NSIBLE_VERSION\";" >> src/version.zig
+
+    run_with_loader "COMPILING SOVEREIGN KERNEL..." zig build
+    
     if [ $? -eq 0 ]; then
-        # [!] DYNAMIC VERSION INJECTION
-        echo "[ INJECTING DYNAMIC VERSIONING... ]"
-        echo "// Auto-generated by nsible shell" > src/version.zig
-        echo "pub const VERSION = \"$NSIBLE_VERSION\";" >> src/version.zig
-
-        echo "[ COMPILING KERNEL... ]"
-        # Target lock enforced here to prevent GNU contamination at the CLI level
-        zig build
-        
-        if [ $? -eq 0 ]; then
-            echo "[ REBIRTH ]"
-            sudo ./zig-out/bin/nsible_os
-        else
-            echo "[ ! ] BUILD FAILED. ABORTING."
-            exit 1
-        fi
+        tput cnorm; tput sgr0; clear; rm -f .nsible_job.log
+        trap - EXIT SIGINT SIGTERM # Detach exit trap before launch
+        sudo ./zig-out/bin/nsible_os
     else
-        echo "[ ! ] pLINK FAILED."
+        tput cnorm; tput sgr0; clear
+        echo -e "${CRIMSON}[ ! ] BUILD FAILED. ABORTING.${RESET}"
+        cat .nsible_job.log
+        rm -f .nsible_job.log
         exit 1
     fi
 
 elif [ "$cmd" = "log" ]; then
+    tput cnorm; tput sgr0; clear
     echo "[ @NSIBLE :: BLACK BOX ARCHIVE ]"
-    if [ -f "trail.tome" ]; then
-        cat trail.tome
-    else
-        echo "   :: The Void is quiet. No fatal traces found."
-    fi
+    if [ -f "trail.tome" ]; then cat trail.tome
+    else echo "   :: The Void is quiet. No fatal traces found."; fi
 
 elif [ "$cmd" = "purge" ]; then
+    tput cnorm; tput sgr0; clear
     echo "[ @NSIBLE :: INITIATING DEEP PURGE ]"
-    rm -rf zig-cache zig-out trail.tome
+    rm -rf zig-cache zig-out trail.tome assets/void.tome
     echo "   :: Compiler caches and Black Box cleared."
 
 elif [ "$cmd" = "orbit" ]; then
-    echo "[ @NSIBLE :: OFFLINE ORBIT ]"
     if [ -f "./zig-out/bin/nsible_os" ]; then
+        tput cnorm; tput sgr0; clear
+        trap - EXIT SIGINT SIGTERM
         sudo ./zig-out/bin/nsible_os
     else
-        echo "[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST."
+        tput cnorm; tput sgr0; clear
+        echo -e "${CRIMSON}[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST.${RESET}"
     fi
-
 else
+    tput cnorm; tput sgr0; clear
     echo "Unknown directive: $cmd"
     echo "Usage: ./nsible [sync | log | purge | orbit]"
 fi
