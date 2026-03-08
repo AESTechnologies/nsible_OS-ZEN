@@ -8,7 +8,7 @@
 # ◬ @NSIBLE OS // v0.10.15-nightly // Banysang
 > **by Æ§ Tech**
 > *A Sovereign, High-Talon Semantic Logic Operating System for 32-bit Xs.*
-![@nsible Ignition Sequence](assets/nsible_compact.gif)
+![@nsible Ignition Sequence](assets/nsible_boot.gif)
 
 ---
 
