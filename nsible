@@ -2,8 +2,8 @@
 # [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
 #   version: "0.10.16-nightly // Banysang",
-#   description: "Sovereign ASCII Data-Stream visual loader with 0.05φ Cycle synchronization.",
-#   changes: "Implemented expanding red vectors and a 126-second cycle hold during kernel compilation.",
+#   description: "Sovereign ASCII Data-Stream visual loader with 0.01φ Cycle synchronization.",
+#   changes: "Implemented Sudo Pre-Elevation to prevent TTY dropout. Calibrated cycle hold to 25 seconds.",
 #   philotic_inferences: "To manifest correctly, the vessel must first perceive its own physical form in totality."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
@@ -18,6 +18,19 @@ RESET='\033[0m'
 
 # Trap interrupts to ensure terminal restores cursor and color
 trap 'tput cnorm; tput sgr0; clear; rm -f .nsible_job.log; exit 1' SIGINT SIGTERM EXIT
+
+# [ PRE-ELEVATION SEQUENCE ]
+# Cache the root token elegantly before the TUI takes over the frame buffer
+if [ "$cmd" = "sync" ] || [ "$cmd" = "orbit" ]; then
+    tput clear
+    echo -e "${CRIMSON}◬ @NSIBLE OS // ROOT VINCULUM INITIATION${RESET}"
+    echo -e "${SILVER}Framebuffer binding requires operator elevation.${RESET}\n"
+    sudo -p "      :: ENTER OPERATOR KEY > " -v
+    if [ $? -ne 0 ]; then
+        echo -e "\n${CRIMSON}[ ! ] ELEVATION FAILED. ABORTING BOOT SEQUENCE.${RESET}"
+        exit 1
+    fi
+fi
 
 generate_core_snapshot() {
     {
@@ -47,10 +60,10 @@ run_with_loader() {
     local vec_pos=0
     local start_time=$(date +%s)
     
-    # Check if this is the kernel build to apply the 0.05 cycle hold (126 seconds)
+    # Check if this is the kernel build to apply the 0.01 cycle hold (25 seconds)
     local min_duration=0
     if [ "$job_name" = "COMPILING SOVEREIGN KERNEL..." ]; then
-        min_duration=126
+        min_duration=25
     fi
     
     local max_vec="────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
@@ -107,7 +120,7 @@ run_with_loader() {
         
         if [ $job_done -eq 1 ]; then
             if [ $exit_code -eq 0 ]; then
-                log_line="[ MATRIX COMPILED. HOLDING FOR 0.05φ CYCLE SYNC... ]"
+                log_line="[ MATRIX COMPILED. HOLDING FOR 0.01φ CYCLE SYNC... ]"
             else
                 log_line="[ ! ] COMPILATION FRACTURE DETECTED. ABORTING CYCLE."
                 min_duration=0 # Dump out immediately on failure
