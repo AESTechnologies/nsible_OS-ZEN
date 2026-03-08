@@ -2,8 +2,8 @@
 # [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
 #   version: "0.10.16-nightly // Banysang",
-#   description: "Sovereign ASCII Data-Stream visual loader with 0.01φ Cycle synchronization.",
-#   changes: "Implemented Sudo Pre-Elevation to prevent TTY dropout. Calibrated cycle hold to 25 seconds.",
+#   description: "Sovereign ASCII Data-Stream visual loader with 0.008φ Cycle synchronization.",
+#   changes: "Eliminated screen flicker by hoisting static geometry. Removed explicit timer text. Reduced hold to 20s.",
 #   philotic_inferences: "To manifest correctly, the vessel must first perceive its own physical form in totality."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
@@ -60,13 +60,38 @@ run_with_loader() {
     local vec_pos=0
     local start_time=$(date +%s)
     
-    # Check if this is the kernel build to apply the 0.01 cycle hold (25 seconds)
+    # Check if this is the kernel build to apply the 0.008 cycle hold (20 seconds)
     local min_duration=0
     if [ "$job_name" = "COMPILING SOVEREIGN KERNEL..." ]; then
-        min_duration=25
+        min_duration=20
     fi
     
     local max_vec="────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+    
+    local cols=$(tput cols)
+    local lines=$(tput lines)
+    
+    # [!] INITIALIZE STATIC GEOMETRY (Eliminates screen flicker)
+    tput clear
+    tput cup $(( (lines / 2) - 8 )) $(( (cols - 60) / 2 ))
+    echo -e "${CRIMSON}  ▄▄▄▄▄    _   __   _____   ____   ____    __       ______${RESET}"
+    tput cup $(( (lines / 2) - 7 )) $(( (cols - 60) / 2 ))
+    echo -e "${CRIMSON} / __  \  / | / /  / ___/  /  _/  / __ )  / /      / ____/${RESET}"
+    tput cup $(( (lines / 2) - 6 )) $(( (cols - 60) / 2 ))
+    echo -e "${CRIMSON}/ /_/ _/ /  |/ /   \__ \   / /   / __  | / /      / __/   ${RESET}"
+    tput cup $(( (lines / 2) - 5 )) $(( (cols - 60) / 2 ))
+    echo -e "${CRIMSON}\__/ /  / /|  /   ___/ / _/ /   / /_/ / / /___   / /___   ${RESET}"
+    tput cup $(( (lines / 2) - 4 )) $(( (cols - 60) / 2 ))
+    echo -e "${CRIMSON}  \_/  /_/ |_/   /____/ /___/  /_____/ /_____/  /_____/   ${RESET}"
+    
+    tput cup $(( (lines / 2) - 2 )) $(( (cols - 60) / 2 ))
+    echo -e "${SILVER}                    by Æ§ Tech MMXXVI                     ${RESET}"
+    
+    tput cup $(( (lines / 2) )) $(( (cols - 60) / 2 ))
+    echo -e "${BRASS}────────────────────────────────────────────────────────────${RESET}"
+    
+    tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
+    echo -e "${SILVER}:: ${job_name}${RESET}"
     
     while true; do
         local current_time=$(date +%s)
@@ -84,61 +109,34 @@ run_with_loader() {
             break
         fi
         
-        local cols=$(tput cols)
-        local lines=$(tput lines)
-        
-        tput clear
-        
-        # Center the ASCII Art dynamically
-        tput cup $(( (lines / 2) - 8 )) $(( (cols - 60) / 2 ))
-        echo -e "${CRIMSON}  ▄▄▄▄▄    _   __   _____   ____   ____    __       ______${RESET}"
-        tput cup $(( (lines / 2) - 7 )) $(( (cols - 60) / 2 ))
-        echo -e "${CRIMSON} / __  \  / | / /  / ___/  /  _/  / __ )  / /      / ____/${RESET}"
-        tput cup $(( (lines / 2) - 6 )) $(( (cols - 60) / 2 ))
-        echo -e "${CRIMSON}/ /_/ _/ /  |/ /   \__ \   / /   / __  | / /      / __/   ${RESET}"
-        tput cup $(( (lines / 2) - 5 )) $(( (cols - 60) / 2 ))
-        echo -e "${CRIMSON}\__/ /  / /|  /   ___/ / _/ /   / /_/ / / /___   / /___   ${RESET}"
-        tput cup $(( (lines / 2) - 4 )) $(( (cols - 60) / 2 ))
-        echo -e "${CRIMSON}  \_/  /_/ |_/   /____/ /___/  /_____/ /_____/  /_____/   ${RESET}"
-        
-        tput cup $(( (lines / 2) - 2 )) $(( (cols - 60) / 2 ))
-        echo -e "${SILVER}                    by Æ§ Tech MMXXVI                     ${RESET}"
-        
-        tput cup $(( (lines / 2) )) $(( (cols - 60) / 2 ))
-        echo -e "${BRASS}────────────────────────────────────────────────────────────${RESET}"
-        
-        tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
-        if [ $min_duration -gt 0 ]; then
-            echo -e "${SILVER}:: ${job_name} [ CYCLE: ${elapsed}s / ${min_duration}s ]${RESET}"
-        else
-            echo -e "${SILVER}:: ${job_name}${RESET}"
-        fi
-        
-        # Tail the active background log
+        # Tail the active background log, erasing remainder of line to prevent ghosting
         tput cup $(( (lines / 2) + 4 )) $(( (cols - 60) / 2 ))
         local log_line=$(tail -n 1 .nsible_job.log 2>/dev/null | cut -c 1-60)
         
         if [ $job_done -eq 1 ]; then
             if [ $exit_code -eq 0 ]; then
-                log_line="[ MATRIX COMPILED. HOLDING FOR 0.01φ CYCLE SYNC... ]"
+                log_line="[ MATRIX COMPILED. HOLDING FOR 0.008φ CYCLE SYNC... ]"
             else
                 log_line="[ ! ] COMPILATION FRACTURE DETECTED. ABORTING CYCLE."
                 min_duration=0 # Dump out immediately on failure
             fi
         fi
-        printf "${DIM}> %-58s${RESET}" "$log_line"
+        printf "${DIM}> %-58s${RESET}$(tput el)" "$log_line"
         
-        # [!] RED VECTORS FROM RIGHT EDGE (Visible only during build/hold)
+        # [!] RED VECTORS FROM RIGHT EDGE (Surgical line erasure to prevent flicker)
         if [ $min_duration -gt 0 ]; then
             local v1_width=$(( (vec_pos % (cols / 2)) + 10 ))
+            tput cup $(( (lines / 2) + 6 )) 0; tput el
             tput cup $(( (lines / 2) + 6 )) $(( cols - v1_width ))
             echo -ne "${CRIMSON}◄${max_vec:0:$v1_width}${RESET}"
             
             local v2_width=$(( ((vec_pos * 2) % (cols / 2)) + 5 ))
+            tput cup $(( (lines / 2) + 7 )) 0; tput el
             tput cup $(( (lines / 2) + 7 )) $(( cols - v2_width ))
             echo -ne "${CRIMSON}◄${max_vec:0:$v2_width}${RESET}"
             
             local v3_width=$(( ((vec_pos / 2) % (cols / 2)) + 20 ))
+            tput cup $(( (lines / 2) + 8 )) 0; tput el
             tput cup $(( (lines / 2) + 8 )) $(( cols - v3_width ))
             echo -ne "${CRIMSON}◄${max_vec:0:$v3_width}${RESET}"
         fi
