@@ -60,10 +60,10 @@ run_with_loader() {
     local vec_pos=0
     local start_time=$(date +%s)
     
-    # Check if this is the kernel build to apply the 0.0022 cycle hold (5.5 seconds)
+    # Check if this is the kernel build to apply the 0.0032 cycle hold (8 seconds)
     local min_duration=0
     if [ "$job_name" = "COMPILING SOVEREIGN KERNEL..." ]; then
-        min_duration=5.5
+        min_duration=8
     fi
     
     local max_vec="────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
