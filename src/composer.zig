@@ -1,8 +1,8 @@
 // [@://nsible_os/src/composer.zig/.-={
 //   module: "The Composer Lobe",
-//   version: "0.10.16-nightly // Banysang",
+//   version: "0.10.16-stable // Banysang",
 //   description: "Native, full-screen text editor lobe operating in a dedicated 64KB RAM buffer.",
-//   changes: "Repaired moveCursor logic to properly iterate and leap multiple lines on PgUp/PgDn strikes.",
+//   changes: "Implemented Phantom Strike protocol to completely decouple GZL reflex commands from the edit tracking paradox.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
@@ -117,24 +117,34 @@ pub const Composer = struct {
         self.active = false;
     }
 
-    pub fn undo_reflex(self: *Composer, count: usize) void {
+    // [!] THE PHANTOM STRIKE
+    // This absolutely unbinds GZL commands from the edit tracker paradox.
+    pub fn phantom_strike(self: *Composer, count: usize) void {
         if (self.len >= count and self.cursor_idx >= count) {
+            // Physically remove the bytes
             var i: usize = self.cursor_idx;
             while (i < self.len) : (i += 1) {
                 self.buffer[i - count] = self.buffer[i];
             }
             self.len -= count;
             self.cursor_idx -= count;
+            
+            // Mathematically unwind the edits
             if (self.edits_since_save >= count) {
                 self.edits_since_save -= count;
             } else {
                 self.edits_since_save = 0;
             }
 
-            if (self.edits_since_save == 0) {
-                self.dirty = false;
-            }
+            // Absolutely define the dirty state based solely on total history
+            self.dirty = (self.edits_since_save > 0);
         }
+    }
+
+    // Maintaining original undo_reflex as a fallback/alias, 
+    // but routing it directly into the hardened phantom_strike logic.
+    pub fn undo_reflex(self: *Composer, count: usize) void {
+        self.phantom_strike(count);
     }
 
     pub fn insert(self: *Composer, c: u8) void {
@@ -175,7 +185,6 @@ pub const Composer = struct {
         self.dirty = true;
     }
 
-    // [!] REPAIRED: Multi-line leaps active
     pub fn moveCursor(self: *Composer, dx: isize, dy: isize) void {
         if (dx < 0 and self.cursor_idx > 0) self.cursor_idx -= 1;
         if (dx > 0 and self.cursor_idx < self.len) self.cursor_idx += 1;
