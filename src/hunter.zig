@@ -1,4 +1,4 @@
-​// [@://nsible_os/src/hunter.zig/.-={
+// [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.15-nightly // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
