@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.15-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Calibrated ANSI motor parser to prevent truncation of 4-byte PgUp/PgDn sequences.",
+//   changes: "Patched ANSI bleed; motor cortex now correctly traps multi-byte PgUp/PgDn sequences without typing to journal.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -554,7 +554,6 @@ pub fn main() !void {
                 if (esc_len < 8) {
                     esc_seq[esc_len] = byte; esc_len += 1;
                     
-                    // [!] REPAIRED MOTOR CORTEX: Prevent Arrow check from eating PgUp/PgDn
                     if (esc_len == 3 and esc_seq[1] == '[') {
                         if (byte == 'A' or byte == 'B' or byte == 'C' or byte == 'D') {
                             if (sys_composer.active) {
@@ -584,8 +583,8 @@ pub fn main() !void {
                                 else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; }
                             }
                             esc_len = 0;
-                            continue;
                         }
+                        continue; 
                     } else if (esc_len == 4 and esc_seq[1] == '[' and esc_seq[2] >= '0' and esc_seq[2] <= '9' and byte == '~') {
                         if (sys_composer.active) {
                             if (esc_seq[2] == '3') { sys_composer.deleteChar(); }
@@ -609,6 +608,7 @@ pub fn main() !void {
                         else if (is_trail_modal) { is_trail_modal = false; }
                         else if (is_assist_modal) { is_assist_modal = false; }
                         esc_len = 0;
+                        continue;
                     } else {
                         continue;
                     }
