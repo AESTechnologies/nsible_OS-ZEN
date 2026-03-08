@@ -1,4 +1,4 @@
-​// [@://nsible_os/src/main.zig/.-={
+​//   [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
 //   version: "v0.10.15 nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
