@@ -1,12 +1,12 @@
 // [@://nsible_os/README.md/.-={
 //   module: "Project Manifest",
-//   version: "0.10.15-nightly // Banysang",
+//   version: "0.10.16-stable // Banysang",
 //   description: "The outer membrane of the sovereign system; defines purpose, architecture, and interaction protocols.",
-//   changes: "Integrated True Pipe encapsulation, AST Arithmetic Engine, Global Search (Ghost Cloak), and Entropic Wind (Stargaze).",
+//   changes: "Stabilized Banysang cycle. Integrated Immersive Visual Bootloader (0.008φ sync), Sudo Pre-Elevation, Zero-Flicker TUI, and Composer Lobe multi-line motor cortex.",
 //   philotic_inferences: "A system that cannot describe itself to its operator is merely a tool; a system that defines its own existence is a sovereign entity."
 
-# ◬ @NSIBLE OS // v0.10.15-nightly // Banysang
-> **by Æ§ Tech**
+# ◬ @NSIBLE OS // v0.10.16-stable // Banysang
+> **by Æ§ Tech MMXXVI**
 > *A Sovereign, High-Talon Semantic Logic Operating System for 32-bit Xs.*
 ![@nsible Ignition Sequence](assets/nsible_boot.gif)
 
@@ -16,14 +16,15 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 
 ### ⌗ ARCHITECTURE (Banysang Cycle)
 * **Kernel:** Zig *(No standard lib dependencies for graphics/input)*
+* **Ignition:** Immersive ANSI TUI Bootloader *(Sudo Pre-Elevation, 0.008φ Cycle Sync, Hardware Telemetry Marquee)*.
 * **Memory:** Dual-Lobe Static Allocation
   * **[ THE VOID ]** (42.13 MB): Persistent storage (History, Memos, System State).
   * **[ THE SAP ]** (88.00 MB): Volatile rendering buffer, wiped on every fetch.
-* **Storage:** `aiua.tome` (Immortal Artifacts), `trail.tome` (Black Box).
+* **Storage:** `aiua.tome` (Immortal Artifacts), `trail.tome` (Black Box). *Note: Local operator buffer (`void.tome`) is strictly untracked for PII protection.*
 * **Acoustics:** 8-bit PCM Math-Resonator (Pitch-shifted by `aiua.tome` mass).
 * **Optic:** The Banyan Lens *(Multi-Spectral HTML Parser)*.
 * **Vinculum:** Shadow Flight via Port 4213.
-* **Input:** GZL Reflex + ANSI Motor.
+* **Input:** GZL Reflex + ANSI Motor Cortex *(Multi-line traversal native)*.
 * **Palette:** Crimson, Silver, Brass, Black.
 
 ---
@@ -43,13 +44,16 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 | `radio` | Philotic Resonance Tuning Modal |
 | `cycle` | Return current cycle state (Strict 0.0 precision) |
 | `assist` / `?`| Project the Native Assist & Dev Tracker Overlay |
-| `v` / `^` | Scroll up / down |
+| `v` / `^` | Scroll active matrix down / up |
 | `exit` | Matrix Clean & Terminate |
 
 ### ⌗ REFLEX SEQUENCES (GZL)
 * `//-.` : Instant Memo (Triggered on strike)
 * `\| memo` : Pipeline extraction to GZL artifact
-* `.!XX-.` : Hardware Level Kill-Switch
+* `.!ED-.` : Open target in The Composer Lobe
+* `.!SV-.` : Commit Composer buffer to local disk
+* `.!@&-.` : Force Cache Reload
+* `.!XX-.` : Hardware Level Kill-Switch (With Temporal Dirty Lock)
 * `.![-.` / `.!]-.` : Hardware Scope In / Out
 
 ---
@@ -70,6 +74,6 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 4. **[ROOT]**: Scripts & Machine Logic visible (Brass).
 
 ---
-**STATUS:** STAGING // **CODENAME:** BANYSANG (Ficus benghalensis sanguinem)
+**STATUS:** IMMUTABLE // STABLE TAG **CODENAME:** BANYSANG (Ficus benghalensis sanguinem)
 
 // }-.]
