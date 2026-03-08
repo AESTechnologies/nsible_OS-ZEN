@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.15-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Restored all visual modals. Repaired bash_buffer -> void.tome IO. Fixed ArrayListUnmanaged.",
+//   changes: "Explicit usize casting for Bash Modal rendering coordinates to satisfy Zig 0.15.2.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -1146,7 +1146,7 @@ pub fn main() !void {
                         while (line_iter.next()) |line| {
                             if (curr_line >= bash_scroll_y) {
                                 if (draw_y > my + mh - 30) break;
-                                var dx = mx + 20;
+                                var dx: usize = mx + 20;
                                 for (line) |c| {
                                     if (dx > mx + mw - 20) break;
                                     drawChar(dx, draw_y, c, 0x00AAAAAA);
@@ -1182,4 +1182,5 @@ pub fn main() !void {
         codex.zen(0.000004);
     }
 }
+
 // }-.]
