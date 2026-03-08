@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.15-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Explicit usize casting for Bash Modal rendering coordinates to satisfy Zig 0.15.2.",
+//   changes: "Calibrated ANSI motor parser to prevent truncation of 4-byte PgUp/PgDn sequences.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -553,35 +553,39 @@ pub fn main() !void {
                 esc_timer = 0;
                 if (esc_len < 8) {
                     esc_seq[esc_len] = byte; esc_len += 1;
+                    
+                    // [!] REPAIRED MOTOR CORTEX: Prevent Arrow check from eating PgUp/PgDn
                     if (esc_len == 3 and esc_seq[1] == '[') {
-                        if (sys_composer.active) {
-                            if (byte == 'A') { sys_composer.moveCursor(0, -1); }
-                            else if (byte == 'B') { sys_composer.moveCursor(0, 1); }
-                            else if (byte == 'C') { sys_composer.moveCursor(1, 0); }
-                            else if (byte == 'D') { sys_composer.moveCursor(-1, 0); }
-                        } else if (is_radio_modal) {
-                            if (byte == 'D') {
-                                if (radio_sel == 0) { radio_f0 -= 5.0; }
-                                else if (radio_sel == 1) { radio_decay -= 0.1; }
-                                else if (radio_sel == 2) { radio_diss -= 0.05; }
-                                else if (radio_sel == 3) { radio_phi -= 0.05; }
-                            } else if (byte == 'C') {
-                                if (radio_sel == 0) { radio_f0 += 5.0; }
-                                else if (radio_sel == 1) { radio_decay += 0.1; }
-                                else if (radio_sel == 2) { radio_diss += 0.05; }
-                                else if (radio_sel == 3) { radio_phi += 0.05; }
+                        if (byte == 'A' or byte == 'B' or byte == 'C' or byte == 'D') {
+                            if (sys_composer.active) {
+                                if (byte == 'A') { sys_composer.moveCursor(0, -1); }
+                                else if (byte == 'B') { sys_composer.moveCursor(0, 1); }
+                                else if (byte == 'C') { sys_composer.moveCursor(1, 0); }
+                                else if (byte == 'D') { sys_composer.moveCursor(-1, 0); }
+                            } else if (is_radio_modal) {
+                                if (byte == 'D') {
+                                    if (radio_sel == 0) { radio_f0 -= 5.0; }
+                                    else if (radio_sel == 1) { radio_decay -= 0.1; }
+                                    else if (radio_sel == 2) { radio_diss -= 0.05; }
+                                    else if (radio_sel == 3) { radio_phi -= 0.05; }
+                                } else if (byte == 'C') {
+                                    if (radio_sel == 0) { radio_f0 += 5.0; }
+                                    else if (radio_sel == 1) { radio_decay += 0.1; }
+                                    else if (radio_sel == 2) { radio_diss += 0.05; }
+                                    else if (radio_sel == 3) { radio_phi += 0.05; }
+                                }
+                            } else if (is_bash_modal and !is_bash_pipe) {
+                                if (byte == 'A') { if (bash_scroll_y > 0) bash_scroll_y -= 1; }
+                                else if (byte == 'B') { bash_scroll_y += 1; }
+                            } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal and !is_bash_modal) {
+                                if (byte == 'A') { sys_hunter.scrollBy(-1); }
+                                else if (byte == 'B') { sys_hunter.scrollBy(1); }
+                                else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; }
+                                else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; }
                             }
-                        } else if (is_bash_modal and !is_bash_pipe) {
-                            if (byte == 'A') { if (bash_scroll_y > 0) bash_scroll_y -= 1; }
-                            else if (byte == 'B') { bash_scroll_y += 1; }
-                        } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal and !is_bash_modal) {
-                            if (byte == 'A') { sys_hunter.scrollBy(-1); }
-                            else if (byte == 'B') { sys_hunter.scrollBy(1); }
-                            else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; }
-                            else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; }
+                            esc_len = 0;
+                            continue;
                         }
-                        esc_len = 0;
-                        continue;
                     } else if (esc_len == 4 and esc_seq[1] == '[' and esc_seq[2] >= '0' and esc_seq[2] <= '9' and byte == '~') {
                         if (sys_composer.active) {
                             if (esc_seq[2] == '3') { sys_composer.deleteChar(); }
