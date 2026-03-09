@@ -534,6 +534,8 @@ pub fn main() !void {
                 else if (is_memo_modal) { is_memo_modal = false; }
                 else if (is_trail_modal) { is_trail_modal = false; }
                 else if (is_assist_modal) { is_assist_modal = false; }
+				else if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
+				else if (is_bash_modal) { is_bash_modal = false; }
                 
                 esc_len = 0;
                 esc_timer = 0;
