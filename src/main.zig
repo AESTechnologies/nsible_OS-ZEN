@@ -838,6 +838,7 @@ pub fn main() !void {
                             }
                             if (args.items.len > 0) {
                                 var agent = std.process.Child.init(args.items, void_allocator);
+								agent.stdin_behavior = .Ignore;
                                 agent.stdout_behavior = .Pipe;
                                 agent.stderr_behavior = .Pipe;
                                 
