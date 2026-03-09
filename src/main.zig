@@ -641,6 +641,11 @@ pub fn main() !void {
                         sys_composer.active = false;
                     }
                     reflex_triggered = true;
+				} else if (is_bash_modal) {
+					is_bash_modal = false;
+					is_bash_pipe = false;
+					journal_len = 0;
+					reflex_triggered = true;
                 } else {
                     exitSequence(); 
                 }
