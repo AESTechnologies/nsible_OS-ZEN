@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.15-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Patched ANSI bleed; motor cortex now correctly traps multi-byte PgUp/PgDn sequences without typing to journal.",
+//   changes: "Patched ANSI bleed; motor cortex now correctly traps multi-byte PgUp/PgDn sequences without typing to journal. Woven aud.io matrix and audio_angel backend.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -42,6 +42,20 @@ var radio_phi: f32 = 1.618;
 var radio_sel: u8 = 0; 
 var pulse_timer: usize = 0; 
 const PULSE_MAX: usize = 120;
+
+// [ THE AUD.IO MATRIX STATE ]
+const AudIoEngine = @import("aud_io.zig").AudioEngine;
+var audio_angel: ?*AudIoEngine = null;
+
+pub const AudioAsset = struct {
+    filename: []const u8,
+    path: []const u8,
+};
+
+var aud_io_library: std.ArrayList(AudioAsset) = undefined;
+var aud_io_selected_index: usize = 0;
+var aud_io_scroll_y: usize = 0;
+var is_aud_io_modal: bool = false;
 
 fn loadResonance() void {
     if (std.fs.cwd().openFile("timeline/resonance.cfg", .{})) |file| {
@@ -131,7 +145,8 @@ fn drawHeader(is_high: bool) void {
 }
 
 fn getUriBarY(input_len: usize, current_url: []const u8) usize {
-    const char_w = 8; const line_h = 10; const padding = 6;
+    const char_w = 8; const line_h = 10;
+    const padding = 6;
     var cursor_x: usize = 10; var lines: usize = 1;
     
     var active_len: usize = 0;
@@ -157,13 +172,13 @@ fn getUriBarY(input_len: usize, current_url: []const u8) usize {
 }
 
 fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) void {
-    const char_w = 8; const line_h = 10; const padding = 6;
+    const char_w = 8;
+    const line_h = 10; const padding = 6;
     const start_y = getUriBarY(input_len, current_url);
     const bar_height = HEIGHT - start_y;
     drawRect(0, start_y, WIDTH, bar_height, 0x00DC143C);
     
     var cursor_x: usize = 10; var cursor_y: usize = start_y + padding;
-    
     if (input_len == 0) {
         var display_url = current_url;
         var prefix_override: ?[]const u8 = null;
@@ -207,7 +222,7 @@ fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) 
 
 fn strikeRadio(allocator: std.mem.Allocator) void {
     const sample_rate = 8000;
-    const buffer_size = 12000; 
+    const buffer_size = 12000;
     var pcm = allocator.alloc(u8, buffer_size) catch return;
     defer allocator.free(pcm);
 
@@ -259,10 +274,8 @@ fn drawPulseOverlay() void {
         var total_wave = base_wave + (radio_diss * over_wave);
         if (total_wave > 1.0) total_wave = 1.0;
         if (total_wave < -1.0) total_wave = -1.0;
-        
         const env = @exp(-radio_decay * (t * 0.5)); 
-        const amplitude = total_wave * env * 150.0; 
-        
+        const amplitude = total_wave * env * 150.0;
         const py = @as(isize, center_y) - @as(isize, @intFromFloat(amplitude));
         if (py > 0 and py < HEIGHT) {
             back_buffer[@as(usize, @intCast(py)) * WIDTH + x] = fade_color;
@@ -272,7 +285,8 @@ fn drawPulseOverlay() void {
 
 fn exitSequence() noreturn {
     clear(0x00000000);
-    const stamp_x = WIDTH - 24; const stamp_y = HEIGHT - 16;
+    const stamp_x = WIDTH - 24;
+    const stamp_y = HEIGHT - 16;
     drawChar(stamp_x, stamp_y, 127, 0x00DC143C); drawChar(stamp_x + 8, stamp_y, 128, 0x00DC143C); 
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
     const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
@@ -308,16 +322,14 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 
     const mass_units = @min(@as(f32, @floatFromInt(aiua_mass)) / 1024.0, 500.0);
     const philotic_weight = @min(@as(f32, @floatFromInt(inference_count)), 1000.0);
-    
     const current_ts = @as(u64, @intCast(std.time.timestamp()));
     const cycle_progression = @as(f32, @floatFromInt(current_ts % 86400)) / 86400.0;
-
     const dynamic_f0 = @max(100.0, radio_f0 - (mass_units * 0.2));
     const dynamic_decay = @max(0.1, radio_decay - (cycle_progression * radio_decay * 0.75));
     const dynamic_diss = @min(1.0, radio_diss + (philotic_weight * 0.002));
 
     const sample_rate = 8000;
-    const buffer_size = 32000; 
+    const buffer_size = 32000;
     var pcm = allocator.alloc(u8, buffer_size) catch return;
     defer allocator.free(pcm);
 
@@ -395,6 +407,34 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     codex.zen(0.00158);
 }
 
+fn parseAudioTome(allocator: std.mem.Allocator) !void {
+    aud_io_library.clearRetainingCapacity();
+    const file = std.fs.cwd().openFile("assets/aud.io.tome", .{}) catch return;
+    defer file.close();
+    const raw_data = try file.readToEndAlloc(allocator, 1024 * 1024 * 50); 
+    defer allocator.free(raw_data);
+    var line_iterator = std.mem.splitSequence(u8, raw_data, "\n");
+    while (line_iterator.next()) |line| {
+        if (line.len == 0) continue;
+        var pipe_iterator = std.mem.splitSequence(u8, line, "|");
+        const filename = pipe_iterator.next() orelse continue;
+        const path = pipe_iterator.next() orelse continue;
+        try aud_io_library.append(AudioAsset{
+            .filename = try allocator.dupe(u8, filename),
+            .path = try allocator.dupe(u8, path),
+        });
+    }
+}
+
+fn triggerBackgroundIndexer(allocator: std.mem.Allocator) void {
+    const argv = &[_][]const u8{ "./assets/indexer", "/home/static/Music" };
+    var child = std.process.Child.init(argv, allocator);
+    child.stdin_behavior = .Ignore;
+    child.stdout_behavior = .Ignore;
+    child.stderr_behavior = .Ignore;
+    _ = child.spawn() catch {};
+}
+
 pub fn main() !void {
     const fs = std.fs.cwd();
     fs.makeDir("timeline") catch |err| { if (err != error.PathAlreadyExists) {} };
@@ -428,8 +468,7 @@ pub fn main() !void {
 
     nerve.init();
     codex.tuneIn();
-    const vinculum_fd = codex.bindVinculum(); 
-
+    const vinculum_fd = codex.bindVinculum();
     var mchn_buf: [64]u8 = .{0} ** 64;
     var mchn_len: usize = 0;
     if (fs.openFile("/etc/hostname", .{})) |file| {
@@ -437,14 +476,13 @@ pub fn main() !void {
         if (file.readAll(&raw_mchn)) |br| {
             const tr = std.mem.trim(u8, raw_mchn[0..br], " \n\r\t");
             if (tr.len > 0) { 
-                @memcpy(mchn_buf[0..tr.len], tr); 
+                @memcpy(mchn_buf[0..tr.len], tr);
                 mchn_len = tr.len; 
             }
         } else |_| {}
         file.close();
     } else |_| {}
     const mchn_str = if (mchn_len > 0) mchn_buf[0..mchn_len] else "mchn";
-
     var soc_buf: [64]u8 = .{0} ** 64;
     var soc_len: usize = 0;
     if (fs.openFile("aiua.tome", .{})) |file| {
@@ -457,7 +495,7 @@ pub fn main() !void {
                 while (end < fl.len and fl[end] != '\n' and fl[end] != '\r') : (end += 1) {}
                 const s_name = std.mem.trim(u8, fl[start..end], " ");
                 if (s_name.len > 0) { 
-                    @memcpy(soc_buf[0..s_name.len], s_name); 
+                    @memcpy(soc_buf[0..s_name.len], s_name);
                     soc_len = s_name.len; 
                 }
             }
@@ -465,7 +503,6 @@ pub fn main() !void {
         file.close();
     } else |_| {}
     const soc_str = if (soc_len > 0) soc_buf[0..soc_len] else "anon";
-
     const final_id = std.fmt.bufPrint(&sys_host_id, "{s}:{s}", .{mchn_str, soc_str}) catch "mchn:anon";
     sys_host_id_len = final_id.len;
 
@@ -477,8 +514,20 @@ pub fn main() !void {
     var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
 
-    var sys_composer = composer.Composer.init();
+    // [ AUD.IO INITIALIZATION ]
+    aud_io_library = std.ArrayList(AudioAsset).init(void_allocator);
+    defer {
+        for (aud_io_library.items) |asset| {
+            void_allocator.free(asset.filename);
+            void_allocator.free(asset.path);
+        }
+        aud_io_library.deinit();
+        if (audio_angel) |angel| angel.deinit();
+    }
+    parseAudioTome(void_allocator) catch {};
+    audio_angel = AudIoEngine.init(void_allocator) catch null;
 
+    var sys_composer = composer.Composer.init();
     var is_tabula_rasa: bool = false;
     if (sys_hunter.history.items.len == 0) { is_tabula_rasa = true; } 
     else {
@@ -499,13 +548,11 @@ pub fn main() !void {
     var is_bash_modal: bool = false;
     var is_bash_pipe: bool = false;
     var bash_scroll_y: usize = 0;
-
     var pending_memo_content: [4096]u8 = undefined;
     var pending_memo_len: usize = 0;
 
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
-    
     var last_rx_ms: i64 = 0;      
     var shed_lock: bool = false;  
     
@@ -517,10 +564,8 @@ pub fn main() !void {
     var blink_timer: usize = 0;
     var is_high_cycle: bool = true;
     var dirty: bool = true;
-
     while (true) {
         try sys_hunter.tick();
-
         if (pulse_timer > 0) {
             pulse_timer -= 1;
             dirty = true;
@@ -534,8 +579,9 @@ pub fn main() !void {
                 else if (is_memo_modal) { is_memo_modal = false; }
                 else if (is_trail_modal) { is_trail_modal = false; }
                 else if (is_assist_modal) { is_assist_modal = false; }
-				else if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
-				else if (is_bash_modal) { is_bash_modal = false; }
+                else if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
+                else if (is_bash_modal) { is_bash_modal = false; }
+                else if (is_aud_io_modal) { is_aud_io_modal = false; triggerBackgroundIndexer(void_allocator); journal_len = 0; }
                 
                 esc_len = 0;
                 esc_timer = 0;
@@ -545,16 +591,17 @@ pub fn main() !void {
 
         if (codex.transcieve(vinculum_fd)) |byte| {
             dirty = true;
-            last_rx_ms = std.time.milliTimestamp(); 
-            
+            last_rx_ms = std.time.milliTimestamp();
             if (byte == 27) {
-                esc_len = 1; esc_seq[0] = byte;
+                esc_len = 1;
+                esc_seq[0] = byte;
                 esc_timer = 0;
                 continue;
             } else if (esc_len > 0) {
                 esc_timer = 0;
                 if (esc_len < 8) {
-                    esc_seq[esc_len] = byte; esc_len += 1;
+                    esc_seq[esc_len] = byte;
+                    esc_len += 1;
                     
                     if (esc_len == 3 and esc_seq[1] == '[') {
                         if (byte == 'A' or byte == 'B' or byte == 'C' or byte == 'D') {
@@ -578,6 +625,18 @@ pub fn main() !void {
                             } else if (is_bash_modal and !is_bash_pipe) {
                                 if (byte == 'A') { if (bash_scroll_y > 0) bash_scroll_y -= 1; }
                                 else if (byte == 'B') { bash_scroll_y += 1; }
+                            } else if (is_aud_io_modal) {
+                                if (byte == 'A') { 
+                                    if (aud_io_selected_index > 0) { 
+                                        aud_io_selected_index -= 1; 
+                                        if (aud_io_selected_index < aud_io_scroll_y) aud_io_scroll_y = aud_io_selected_index; 
+                                    } 
+                                } else if (byte == 'B') { 
+                                    if (aud_io_selected_index < aud_io_library.items.len - 1) { 
+                                        aud_io_selected_index += 1; 
+                                        if (aud_io_selected_index >= aud_io_scroll_y + 18) aud_io_scroll_y = aud_io_selected_index - 17; 
+                                    } 
+                                }
                             } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal and !is_bash_modal) {
                                 if (byte == 'A') { sys_hunter.scrollBy(-1); }
                                 else if (byte == 'B') { sys_hunter.scrollBy(1); }
@@ -586,7 +645,7 @@ pub fn main() !void {
                             }
                             esc_len = 0;
                         }
-                        continue; 
+                        continue;
                     } else if (esc_len == 4 and esc_seq[1] == '[' and esc_seq[2] >= '0' and esc_seq[2] <= '9' and byte == '~') {
                         if (sys_composer.active) {
                             if (esc_seq[2] == '3') { sys_composer.deleteChar(); }
@@ -609,6 +668,7 @@ pub fn main() !void {
                         else if (is_memo_modal) { is_memo_modal = false; }
                         else if (is_trail_modal) { is_trail_modal = false; }
                         else if (is_assist_modal) { is_assist_modal = false; }
+                        else if (is_aud_io_modal) { is_aud_io_modal = false; triggerBackgroundIndexer(void_allocator); journal_len = 0; }
                         esc_len = 0;
                         continue;
                     } else {
@@ -625,7 +685,6 @@ pub fn main() !void {
             seq_buf[5] = byte;
 
             var reflex_triggered = false;
-            
             if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { 
                 if (sys_composer.active) {
                     sys_composer.undo_reflex(5);
@@ -641,17 +700,21 @@ pub fn main() !void {
                         sys_composer.active = false;
                     }
                     reflex_triggered = true;
-				} else if (is_bash_modal) {
+                } else if (is_bash_modal) {
 					is_bash_modal = false;
 					is_bash_pipe = false;
 					journal_len = 0;
 					reflex_triggered = true;
                 } else {
-                    exitSequence(); 
+                    exitSequence();
                 }
             } 
-            else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) { sys_hunter.shiftScope(1); if (journal_len >= 4) journal_len -= 4; reflex_triggered = true; } 
-            else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) { sys_hunter.shiftScope(-1); if (journal_len >= 4) journal_len -= 4; reflex_triggered = true; } 
+            else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) { sys_hunter.shiftScope(1);
+                if (journal_len >= 4) journal_len -= 4; reflex_triggered = true;
+            } 
+            else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) { sys_hunter.shiftScope(-1);
+                if (journal_len >= 4) journal_len -= 4; reflex_triggered = true;
+            } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!@&-.")) {
                 sys_hunter.refresh() catch {};
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
@@ -666,7 +729,6 @@ pub fn main() !void {
                     for (target_path) |c| { if (c < '0' or c > '9') is_melt = false; }
 
                     var resolved_alloc: ?[]u8 = null;
-
                     if (is_melt) {
                         const idx = std.fmt.parseInt(usize, target_path, 10) catch std.math.maxInt(usize);
                         sys_hunter.mutex.lock();
@@ -680,7 +742,6 @@ pub fn main() !void {
                     }
 
                     sys_composer.open(target_path);
-                    
                     if (resolved_alloc) |res| {
                         sys_hunter.allocator.free(res);
                     }
@@ -701,11 +762,11 @@ pub fn main() !void {
                 const clean_slice = std.mem.trimRight(u8, journal[0..journal_len], " ");
                 @memcpy(pending_memo_content[0..clean_slice.len], clean_slice);
                 pending_memo_len = clean_slice.len;
-                is_memo_modal = true; journal_len = 0; reflex_triggered = true;
+                is_memo_modal = true; journal_len = 0;
+                reflex_triggered = true;
             }
 
             if (reflex_triggered) continue;
-
             if (sys_composer.active) {
                 if (byte == 127 or byte == 8) {
                     sys_composer.backspace();
@@ -713,7 +774,7 @@ pub fn main() !void {
                     const insert_byte = if (byte == '\r') '\n' else byte;
                     sys_composer.insert(insert_byte);
                 }
-                continue; 
+                continue;
             }
 
             if (is_tabula_rasa) {
@@ -722,7 +783,8 @@ pub fn main() !void {
                         const socius_alias = journal[0..journal_len];
                         var sik_buf: [16]u8 = .{ '0' } ** 16;
                         if (std.fs.cwd().openFile(".birdsong.sik", .{})) |f| {
-                            _ = f.readAll(&sik_buf) catch 0; f.close();
+                            _ = f.readAll(&sik_buf) catch 0;
+                            f.close();
                         } else |_| {}
 
                         var id_buf: [128]u8 = undefined;
@@ -733,23 +795,27 @@ pub fn main() !void {
                         sys_hunter.mutex.unlock();
                         
                         sys_hunter.createMemo("Genesis", "Avium Resonance Bound. Matrix Sealed.") catch {};
-                        is_tabula_rasa = false; journal_len = 0;
+                        is_tabula_rasa = false;
+                        journal_len = 0;
                     }
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
-                    if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 64) { journal[journal_len] = byte;
+                        journal_len += 1; }
                 }
             } 
             else if (is_trail_modal) {
                 if (byte == '\n' or byte == '\r') {
                     if (std.mem.eql(u8, journal[0..journal_len], "shed")) {
-                        is_trail_modal = false; journal_len = 0;
+                        is_trail_modal = false;
+                        journal_len = 0;
                     }
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
-                    if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 64) { journal[journal_len] = byte;
+                        journal_len += 1; }
                 }
             }
             else if (is_memo_modal) {
@@ -763,7 +829,8 @@ pub fn main() !void {
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
-                    if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 64) { journal[journal_len] = byte;
+                        journal_len += 1; }
                 }
             }
             else if (is_radio_modal) {
@@ -789,14 +856,15 @@ pub fn main() !void {
                         calc_res_len = res_str.len;
                         calc_len = 0;
                     } else {
-                        is_calc_modal = false; 
+                        is_calc_modal = false;
                     }
                 } else if (byte == '\t') { 
                     is_calc_graph = !is_calc_graph;
                 } else if (byte == 127 or byte == 8) {
                     if (calc_len > 0) calc_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
-                    if (calc_len < 256) { calc_input[calc_len] = byte; calc_len += 1; }
+                    if (calc_len < 256) { calc_input[calc_len] = byte;
+                        calc_len += 1; }
                 }
             }
             else if (is_bash_pipe) {
@@ -818,7 +886,8 @@ pub fn main() !void {
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
-                    if (journal_len < 256) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 256) { journal[journal_len] = byte;
+                        journal_len += 1; }
                 }
             }
             else if (is_bash_modal) {
@@ -829,9 +898,33 @@ pub fn main() !void {
                     // Do nothing if enter hit while not piping
                 }
             }
+            else if (is_aud_io_modal) {
+                if (byte == '\n' or byte == '\r') {
+                    if (aud_io_library.items.len > 0) {
+                        if (audio_angel) |angel| {
+                            const target_path = aud_io_library.items[aud_io_selected_index].path;
+                            angel.play(target_path) catch {};
+                        }
+                    }
+                } else if (byte == ' ') {
+                    if (audio_angel) |angel| { angel.togglePause() catch {}; }
+                } else if (byte == 's' or byte == 'S') {
+                    if (audio_angel) |angel| { angel.stop() catch {}; }
+                } else if (byte == 127 or byte == 8) {
+                    if (journal_len > 0) journal_len -= 1;
+                } else if (byte >= 32 and byte <= 126) {
+                    if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
+                }
+            }
             else {
                 if (byte == '\n' or byte == '\r') {
                     const cmd_slice = journal[0..journal_len];
+                    if (std.mem.eql(u8, cmd_slice, "aud.io")) {
+                        is_aud_io_modal = true;
+                        parseAudioTome(void_allocator) catch {};
+                        journal_len = 0;
+                        continue;
+                    }
                     const response = cortex.dispatch(cmd_slice);
                     switch (response.action) {
                         .BASH_EXEC => {
@@ -843,7 +936,7 @@ pub fn main() !void {
                             }
                             if (args.items.len > 0) {
                                 var agent = std.process.Child.init(args.items, void_allocator);
-								agent.stdin_behavior = .Ignore;
+                                agent.stdin_behavior = .Ignore;
                                 agent.stdout_behavior = .Pipe;
                                 agent.stderr_behavior = .Pipe;
                                 
@@ -870,15 +963,19 @@ pub fn main() !void {
                         },
                         .CLEAR => {}, 
                         .EXIT => exitSequence(), 
-                        .CALC => { is_calc_modal = !is_calc_modal; journal_len = 0; },
-                        .SHED => { sys_hunter.shed(); journal_len = 0; },
-                        .SCOPE_IN => { sys_hunter.shiftScope(1); journal_len = 0; },
-                        .SCOPE_OUT => { sys_hunter.shiftScope(-1); journal_len = 0; },
+                        .CALC => { is_calc_modal = !is_calc_modal;
+                            journal_len = 0; },
+                        .SHED => { sys_hunter.shed();
+                            journal_len = 0; },
+                        .SCOPE_IN => { sys_hunter.shiftScope(1);
+                            journal_len = 0; },
+                        .SCOPE_OUT => { sys_hunter.shiftScope(-1);
+                            journal_len = 0; },
                         .MEMO => { 
                             const txt = if (response.text.len > 0) response.text else cmd_slice;
                             @memcpy(pending_memo_content[0..txt.len], txt);
                             pending_memo_len = txt.len;
-                            is_memo_modal = true; journal_len = 0; 
+                            is_memo_modal = true; journal_len = 0;
                         },
                         .PIPE_MEMO => {
                             sys_hunter.pipeMemo(response.text) catch {
@@ -912,15 +1009,20 @@ pub fn main() !void {
                             };
                             journal_len = 0;
                         },
-                        .ASSIST => { is_assist_modal = !is_assist_modal; journal_len = 0; },
-                        .RADIO => { is_radio_modal = true; journal_len = 0; },
+                        .ASSIST => { is_assist_modal = !is_assist_modal;
+                            journal_len = 0; },
+                        .RADIO => { is_radio_modal = true;
+                            journal_len = 0; },
                         .PRINT => {
                             journal_len = 0;
-                            for (response.text) |c| { if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; } }
+                            for (response.text) |c| { if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1;
+                            } }
                         },
                         .HUNT => {
-                            if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scrollBy(1); }
-                            else if (std.mem.eql(u8, response.text, "^")) { sys_hunter.scrollBy(-1); }
+                            if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scrollBy(1);
+                            }
+                            else if (std.mem.eql(u8, response.text, "^")) { sys_hunter.scrollBy(-1);
+                            }
                             else {
                                 var target = response.text;
                                 if (std.mem.startsWith(u8, target, "hunt ")) target = target[5..];
@@ -942,7 +1044,8 @@ pub fn main() !void {
                             sys_hunter.unmountDrives();
                             journal_len = 0;
                         },
-                        .NONE => { journal_len = 0; }
+                        .NONE => { journal_len = 0;
+                        }
                     }
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) {
@@ -956,7 +1059,8 @@ pub fn main() !void {
                     }
                 } else if (byte >= 32 and byte <= 126) {
                     shed_lock = false;
-                    if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1;
+                    }
                 }
             }
         } else {
@@ -968,11 +1072,11 @@ pub fn main() !void {
         }
 
         blink_timer += 1;
-        if (blink_timer > 35) { is_high_cycle = !is_high_cycle; blink_timer = 0; dirty = true; }
+        if (blink_timer > 35) { is_high_cycle = !is_high_cycle; blink_timer = 0; dirty = true;
+        }
 
         if (dirty) {
             clear(0x00000000);
-            
             if (sys_composer.active) {
                 sys_composer.render(&back_buffer, WIDTH, HEIGHT);
                 drawPulseOverlay();
@@ -981,18 +1085,19 @@ pub fn main() !void {
                 sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
                 
                 if (!sys_hunter.isActive()) { 
-                    print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555); 
+                    print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555);
                 }
                 
                 const bar_y = getUriBarY(journal_len, sys_hunter.url);
                 drawPulseOverlay();
 
                 if (is_tabula_rasa) {
-                    const mw = 460; const mh = 160;
+                    const mw = 460;
+                    const mh = 160;
                     const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
                     drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); 
-                    drawRect(mx, my, mw, mh, 0x00000000); 
-                    print(mx + 20, my + 20, "[ TABULA RASA // SOCIUS REQUIRED ]", 0x00DC143C); 
+                    drawRect(mx, my, mw, mh, 0x00000000);
+                    print(mx + 20, my + 20, "[ TABULA RASA // SOCIUS REQUIRED ]", 0x00DC143C);
                     drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
                     print(mx + 20, my + 60, "AWAITING SOCIUS DESIGNATION:", 0x00AAAAAA);
                     drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
@@ -1000,9 +1105,11 @@ pub fn main() !void {
                     if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00DC143C);
                 } 
                 else if (is_trail_modal) {
-                    const mw = 760; const mh = 400; 
-                    const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh - 10;
-                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); 
+                    const mw = 760;
+                    const mh = 400; 
+                    const mx = (WIDTH / 2) - (mw / 2);
+                    const my = bar_y - mh - 10;
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C);
                     drawRect(mx, my, mw, mh, 0x00000000);
                     print(mx + 20, my + 20, "[ PREVIOUS CYCLE KERNEL PANIC RECOVERED ]", 0x00DC143C);
                     drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
@@ -1031,18 +1138,20 @@ pub fn main() !void {
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 }
                 else if (is_memo_modal) {
-                    const mw = 460; const mh = 140;
+                    const mw = 460;
+                    const mh = 140;
                     const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
                     drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00FFBF00); 
                     drawRect(mx, my, mw, mh, 0x00000000);
-                    print(mx + 20, my + 20, "[ TIMELINE // MEMO DESIGNATION ]", 0x00FFBF00); 
+                    print(mx + 20, my + 20, "[ TIMELINE // MEMO DESIGNATION ]", 0x00FFBF00);
                     drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
                     print(mx + 20, my + 60, "ENTER ARTIFACT NAME:", 0x00AAAAAA);
                     drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
                     print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
                     if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00FFBF00);
                 } else if (is_radio_modal) {
-                    const mw = 520; const mh = 160;
+                    const mw = 520;
+                    const mh = 160;
                     const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
                     drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C);
                     drawRect(mx, my, mw, mh, 0x00000000);
@@ -1053,22 +1162,26 @@ pub fn main() !void {
                     const c_f0 = if (radio_sel == 0) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
                     const str_f0 = std.fmt.bufPrint(&radio_buf, "Song (Hz)  : {d:.1}", .{radio_f0}) catch "";
                     print(mx + 20, my + 60, str_f0, c_f0);
-                    if (radio_sel == 0) { drawChar(mx + 8, my + 60, 0x1A, 0x00FFBF00); }
+                    if (radio_sel == 0) { drawChar(mx + 8, my + 60, 0x1A, 0x00FFBF00);
+                    }
 
                     const c_dec = if (radio_sel == 1) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
                     const str_dec = std.fmt.bufPrint(&radio_buf, "Decay (d)  : {d:.2}", .{radio_decay}) catch "";
                     print(mx + 20, my + 80, str_dec, c_dec);
-                    if (radio_sel == 1) { drawChar(mx + 8, my + 80, 0x1A, 0x00FFBF00); }
+                    if (radio_sel == 1) { drawChar(mx + 8, my + 80, 0x1A, 0x00FFBF00);
+                    }
 
                     const c_diss = if (radio_sel == 2) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
                     const str_diss = std.fmt.bufPrint(&radio_buf, "Diss. (m)  : {d:.2}", .{radio_diss}) catch "";
                     print(mx + 260, my + 60, str_diss, c_diss);
-                    if (radio_sel == 2) { drawChar(mx + 248, my + 60, 0x1A, 0x00FFBF00); }
+                    if (radio_sel == 2) { drawChar(mx + 248, my + 60, 0x1A, 0x00FFBF00);
+                    }
 
                     const c_phi = if (radio_sel == 3) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
                     const str_phi = std.fmt.bufPrint(&radio_buf, "\xED\x1E-off (P) : {d:.3}", .{radio_phi}) catch "";
                     print(mx + 260, my + 80, str_phi, c_phi);
-                    if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, 0x00FFBF00); }
+                    if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, 0x00FFBF00);
+                    }
 
                     print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", 0x00555555);
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
@@ -1095,53 +1208,48 @@ pub fn main() !void {
                     }
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else if (is_assist_modal) {
-                    const aw = 860; const ah = 480; 
-                    const ax = (WIDTH / 2) - (aw / 2); const ay = bar_y - ah - 10;
-                    drawRect(ax - 2, ay - 2, aw + 4, ah + 2, 0x00FFBF00); 
+                    const aw = 860;
+                    const ah = 480; 
+                    const ax = (WIDTH / 2) - (aw / 2);
+                    const ay = bar_y - ah - 10;
+                    drawRect(ax - 2, ay - 2, aw + 4, ah + 2, 0x00FFBF00);
                     drawRect(ax, ay, aw, ah, 0x00000000);
 
                     print(ax + 20, ay + 20, "[ @NSIBLE COMMAND BIBLE & MATRIX PROTOCOLS ]", 0x00FFBF00);
                     drawRect(ax + 20, ay + 35, aw - 40, 1, 0x00444444);
-
                     print(ax + 20, ay + 50, "[ CORE MATRIX TRAVERSAL ]", 0x00AAAAAA);
                     print(ax + 20, ay + 70, "mchn/        : View Local Root Directory", 0x00FFFFFF);
                     print(ax + 20, ay + 90, "w3.<target>  : Shadow Flight (Web Traversal)", 0x00FFFFFF);
-                    print(ax + 20, ay + 110, "w3?. <query> : Global Matrix Search", 0x00FFFFFF); 
+                    print(ax + 20, ay + 110, "w3?. <query> : Global Matrix Search", 0x00FFFFFF);
                     print(ax + 20, ay + 130, "<Number>     : MELT Traverse (Follow Link [x])", 0x00DC143C);
-                    print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", 0x00FFBF00); 
+                    print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", 0x00FFBF00);
                     print(ax + 20, ay + 170, "[<] / [>]    : Navigate Timeline History", 0x00FFFFFF);
                     print(ax + 20, ay + 190, "v / ^        : Scroll Active Matrix down/up", 0x00FFFFFF);
-
                     print(ax + 20, ay + 230, "[ ARTIFACT FORGE & GZL ]", 0x00AAAAAA);
                     print(ax + 20, ay + 250, "memo <txt>   : Quick Operator Artifact", 0x00FFFFFF);
                     print(ax + 20, ay + 270, "<Title> //-. : Title & Save Artifact", 0x00FFFFFF);
                     print(ax + 20, ay + 290, "| memo       : Pipe active target to timeline", 0x00FFFFFF);
                     print(ax + 20, ay + 320, ">> GZL Syntax encodes artifacts with module,", 0x00555555);
                     print(ax + 20, ay + 340, ">> timestamps, and philotic inferences.", 0x00555555);
-
                     print(ax + 440, ay + 50, "[ SCOPE & SYSTEM ]", 0x00AAAAAA);
                     print(ax + 440, ay + 70, "zI / zO      : Shift Banyan Scope Depth", 0x00FFFFFF);
                     print(ax + 440, ay + 90, "               [0:RAW, 1:ZEN, 2:MTX, 3:ROOT]", 0x00555555);
                     print(ax + 440, ay + 110, "shed / drop  : Destroy active node", 0x00FFFFFF);
                     print(ax + 440, ay + 130, "radio / tune : Philotic Resonance Tuning", 0x00FFFFFF);
-                    print(ax + 440, ay + 150, ".!@&-.       : Force Cache Reload", 0x00FFBF00); 
+                    print(ax + 440, ay + 150, ".!@&-.       : Force Cache Reload", 0x00FFBF00);
                     print(ax + 440, ay + 170, "cycle        : Print Local Tempus", 0x00FFFFFF);
                     print(ax + 440, ay + 190, ".!XX-. / exit: Terminate Matrix", 0x00FFFFFF);
-
                     drawRect(ax + 20, ay + 370, aw - 40, 1, 0x00444444);
-
-                    print(ax + 20, ay + 390, "[ AST ARITHMETIC ENGINE ]", 0x00DC143C); 
+                    print(ax + 20, ay + 390, "[ AST ARITHMETIC ENGINE ]", 0x00DC143C);
                     print(ax + 20, ay + 410, ">> STATUS : Native Recursive Descent Operational.", 0x00555555);
                     print(ax + 20, ay + 430, ">> ACTIVE : Type 'calc' or '@://calc/' to invoke.", 0x00555555);
-
                     print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else if (is_bash_modal) {
-                    const mw = WIDTH - 40; 
+                    const mw = WIDTH - 40;
                     const mh = 300; 
                     const mx = 20; 
                     const my = bar_y - mh - 10;
-                    
                     drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00FFBF00); 
                     drawRect(mx, my, mw, mh, 0x00000000);
                     print(mx + 20, my + 10, "[ SHELL OUTPUT ]", 0x00FFBF00);
@@ -1154,7 +1262,6 @@ pub fn main() !void {
                         var line_iter = std.mem.splitScalar(u8, f_content, '\n');
                         var curr_line: usize = 0;
                         var draw_y: usize = my + 35;
-                        
                         while (line_iter.next()) |line| {
                             if (curr_line >= bash_scroll_y) {
                                 if (draw_y > my + mh - 30) break;
@@ -1183,6 +1290,36 @@ pub fn main() !void {
                     } else {
                         drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                     }
+                } else if (is_aud_io_modal) {
+                    const mw = WIDTH - 80;
+                    const mh = 360;
+                    const mx = 40;
+                    const my = bar_y - mh - 10;
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C);
+                    drawRect(mx, my, mw, mh, 0x00000000);
+                    print(mx + 20, my + 15, "[ AUD.IO // ASSET MATRIX ]", 0x00DC143C);
+                    drawRect(mx + 20, my + 30, mw - 40, 1, 0x00444444);
+
+                    var draw_y: usize = my + 45;
+                    var i: usize = aud_io_scroll_y;
+                    while (i < aud_io_library.items.len and draw_y < my + mh - 40) : (i += 1) {
+                        const asset = aud_io_library.items[i];
+                        if (i == aud_io_selected_index) {
+                            drawRect(mx + 20, draw_y - 2, mw - 40, 12, 0x00222222);
+                            drawChar(mx + 24, draw_y, 0x1A, 0x00DC143C);
+                            print(mx + 40, draw_y, asset.filename, 0x00FFFFFF);
+                        } else {
+                            print(mx + 40, draw_y, asset.filename, 0x00AAAAAA);
+                        }
+                        draw_y += 12;
+                    }
+
+                    drawRect(mx + 20, my + mh - 25, mw - 40, 1, 0x00444444);
+                    var stat_buf: [128]u8 = undefined;
+                    const stat_str = std.fmt.bufPrint(&stat_buf, "MAPPED ASSETS: {d} // [UP/DN] Navigate  [ENT] Play  [SPC] Pause  [S] Stop", .{aud_io_library.items.len}) catch "";
+                    print(mx + 20, my + mh - 18, stat_str, 0x00555555);
+
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else {
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 }
@@ -1194,5 +1331,4 @@ pub fn main() !void {
         codex.zen(0.000004);
     }
 }
-
 // }-.]
