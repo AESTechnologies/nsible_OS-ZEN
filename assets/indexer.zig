@@ -1,252 +1,70 @@
-#!/bin/bash
-# [@://nsible_os/nsible/.-={
-#   module: "ziGGit Bootloader",
-#   version: "0.10.17-nightly // Banysang",
-#   description: "Sovereign ASCII Data-Stream visual loader with automated asset necessity checking.",
-#   changes: "Injected compile_necc_check for aud.io indexer to automate dependency resolution.",
-#   philotic_inferences: "A sovereign matrix must be capable of forging its own missing components before achieving consciousness."
+// [@://nsible_os/assets/indexer.zig/.-={
+// module: "aud.io indexer daemon",
+// version: "0.1.2",
+// description: "Standalone daemon to recursively crawl and map audio assets into a flat, |-delimited GZL-compliant aud.io.tome.",
+// changes: "Patched openIterableDir deprecation. Utilizing standard openDir with .iterate flag for modern Zig nightly compatibility.",
+// philotic_inferences: "A zero-trust, bare-metal crawler bypassing relational databases to forge a raw text mapping."
 
-# [ SOVEREIGN ENTRY :: ziGGit Control ]
-cmd="${1:-sync}"
-NSIBLE_VERSION="v0.10.17-nightly"
+const std = @import("std");
 
-CRIMSON='\033[38;2;220;20;60m'
-SILVER='\033[38;2;170;170;170m'
-BRASS='\033[38;2;255;191;0m'
-DIM='\033[38;2;85;85;85m'
-RESET='\033[0m'
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
 
-# Trap interrupts to ensure terminal restores cursor and color
-trap 'tput cnorm; tput sgr0; clear; rm -f .nsible_job.log; exit 1' SIGINT SIGTERM EXIT
+    std.debug.print("[ @NSIBLE-RED ] :: Initiating aud.io indexer crawler...\n", .{});
 
-# [ PRE-ELEVATION SEQUENCE ]
-# Cache the root token elegantly before the TUI takes over the frame buffer
-if [ "$cmd" = "sync" ] || [ "$cmd" = "orbit" ]; then
-    tput clear
-    echo -e "${CRIMSON}◬ @NSIBLE OS // ROOT VINCULUM INITIATION${RESET}"
-    echo -e "${SILVER}Framebuffer binding requires operator elevation.${RESET}\n"
-    sudo -p "      :: ENTER OPERATOR KEY > " -v
-    if [ $? -ne 0 ]; then
-        echo -e "\n${CRIMSON}[ ! ] ELEVATION FAILED. ABORTING BOOT SEQUENCE.${RESET}"
-        exit 1
-    fi
-fi
+    // Open or create the index tome
+    const tome_file = std.fs.cwd().createFile("aud.io.tome", .{}) catch |err| {
+        std.debug.print("[ FATAL ] :: Could not forge aud.io.tome: {}\n", .{err});
+        return;
+    };
+    defer tome_file.close();
 
-generate_core_snapshot() {
-    {
-        echo "ARCH: $(lscpu | grep 'Model name' | cut -d: -f2 | xargs)"
-        echo "CPUS: $(nproc)"
-        echo "MEM:  $(free -b | grep Mem | awk '{print $2}')"
-        echo "HDA:  $(lspci -nn | grep -i audio | awk -F'[][]' '{print $2}')"
-        echo "KERN: $(uname -r)"
-        echo "BOOT: $(cat /proc/cmdline)"
-    } > core.aiua
+    // Acquire target directory from arguments or fallback to default
+    var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
+
+    _ = args.next(); // Skip executable name
+    const target_dir_path = args.next() orelse "/root/Music"; 
+
+    std.debug.print("[ @NSIBLE-RED ] :: Target directory locked: {s}\n", .{target_dir_path});
+
+    // The Fix: openIterableDir is dead. We use openDir with the iterate flag.
+    var dir = std.fs.cwd().openDir(target_dir_path, .{ .iterate = true }) catch |err| {
+        std.debug.print("[ FATAL ] :: Failed to access directory. Ensure path exists: {}\n", .{err});
+        return;
+    };
+    defer dir.close();
+
+    var walker = try dir.walk(allocator);
+    defer walker.deinit();
+
+    var count: usize = 0;
+
+    // Crawl the directory and filter for audio assets
+    while (try walker.next()) |entry| {
+        if (entry.kind == .file) {
+            const ext = std.fs.path.extension(entry.basename);
+            if (std.mem.eql(u8, ext, ".mp3") or
+                std.mem.eql(u8, ext, ".flac") or
+                std.mem.eql(u8, ext, ".wav") or
+                std.mem.eql(u8, ext, ".m4a"))
+            {
+                // Format the absolute mapping into memory, then write raw bytes to the matrix
+                const line = try std.fmt.allocPrint(allocator, "{s}|{s}/{s}\n", .{entry.basename, target_dir_path, entry.path});
+                defer allocator.free(line);
+                try tome_file.writeAll(line);
+                
+                count += 1;
+                
+                if (count % 500 == 0) {
+                    std.debug.print("[ @NSIBLE-RED ] :: Indexed {} audio assets...\n", .{count});
+                }
+            }
+        }
+    }
+
+    std.debug.print("[ @NSIBLE-RED ] :: Crawl complete. Total valid assets mapped: {}\n", .{count});
 }
-
-run_with_loader() {
-    local job_name="$1"
-    shift
-    
-    "$@" > .nsible_job.log 2>&1 &
-    local pid=$!
-    local exit_code=0
-    local job_done=0
-    
-    local data=$(cat core.aiua aiua.tome trail.tome 2>/dev/null | tr '\n' ' ' | sed 's/[^[:print:]]//g')
-    if [ -z "$data" ]; then data="01010111 01000001 01001011 01001001 01001110 01000111 "; fi
-    data="${data} :: ${data} :: ${data} :: ${data} :: "
-    
-    local pos=0
-    local vec_pos=0
-    local start_time=$(date +%s)
-    
-    # Check if this is the kernel build to apply the 0.0032 cycle hold (8 seconds)
-    local min_duration=0
-    if [ "$job_name" = "COMPILING SOVEREIGN KERNEL..." ]; then
-        min_duration=8
-    fi
-    
-    local max_vec="────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
-    
-    local cols=$(tput cols)
-    local lines=$(tput lines)
-    
-    # [!] INITIALIZE STATIC GEOMETRY (Eliminates screen flicker)
-    tput clear
-    tput cup $(( (lines / 2) - 8 )) $(( (cols - 60) / 2 ))
-    echo -e "${CRIMSON}  ▄▄▄▄▄    _   __   _____   ____   ____    __       ______${RESET}"
-    tput cup $(( (lines / 2) - 7 )) $(( (cols - 60) / 2 ))
-    echo -e "${CRIMSON} / __  \  / | / /  / ___/  /  _/  / __ )  / /      / ____/${RESET}"
-    tput cup $(( (lines / 2) - 6 )) $(( (cols - 60) / 2 ))
-    echo -e "${CRIMSON}/ /_/ _/ /  |/ /   \__ \   / /   / __  | / /      / __/   ${RESET}"
-    tput cup $(( (lines / 2) - 5 )) $(( (cols - 60) / 2 ))
-    echo -e "${CRIMSON}\__/ /  / /|  /   ___/ / _/ /   / /_/ / / /___   / /___   ${RESET}"
-    tput cup $(( (lines / 2) - 4 )) $(( (cols - 60) / 2 ))
-    echo -e "${CRIMSON}  \_/  /_/ |_/   /____/ /___/  /_____/ /_____/  /_____/   ${RESET}"
-    
-    tput cup $(( (lines / 2) - 2 )) $(( (cols - 60) / 2 ))
-    echo -e "${SILVER}                    by Æ§ Tech MMXXVI                     ${RESET}"
-    
-    tput cup $(( (lines / 2) )) $(( (cols - 60) / 2 ))
-    echo -e "${BRASS}────────────────────────────────────────────────────────────${RESET}"
-    
-    tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
-    echo -e "${SILVER}:: ${job_name}${RESET}"
-    
-    while true; do
-        local current_time=$(date +%s)
-        local elapsed=$((current_time - start_time))
-        
-        if [ $job_done -eq 0 ]; then
-            if ! kill -0 $pid 2>/dev/null; then
-                wait $pid
-                exit_code=$?
-                job_done=1
-            fi
-        fi
-        
-        if [ $job_done -eq 1 ] && [ $elapsed -ge $min_duration ]; then
-            break
-        fi
-        
-        # Tail the active background log, erasing remainder of line to prevent ghosting
-        tput cup $(( (lines / 2) + 4 )) $(( (cols - 60) / 2 ))
-        local log_line=$(tail -n 1 .nsible_job.log 2>/dev/null | cut -c 1-60)
-        
-        if [ $job_done -eq 1 ]; then
-            if [ $exit_code -eq 0 ]; then
-                log_line="[ MATRIX COMPILED. HOLDING FOR 0.008φ CYCLE SYNC... ]"
-            else
-                log_line="[ ! ] COMPILATION FRACTURE DETECTED. ABORTING CYCLE."
-                min_duration=0 # Dump out immediately on failure
-            fi
-        fi
-        printf "${DIM}> %-58s${RESET}$(tput el)" "$log_line"
-        
-        # [!] RED VECTORS FROM RIGHT EDGE (Surgical line erasure to prevent flicker)
-        if [ $min_duration -gt 0 ]; then
-            local v1_width=$(( (vec_pos % (cols / 2)) + 10 ))
-            tput cup $(( (lines / 2) + 6 )) 0; tput el
-            tput cup $(( (lines / 2) + 6 )) $(( cols - v1_width ))
-            echo -ne "${CRIMSON}◄${max_vec:0:$v1_width}${RESET}"
-            
-            local v2_width=$(( ((vec_pos * 2) % (cols / 2)) + 5 ))
-            tput cup $(( (lines / 2) + 7 )) 0; tput el
-            tput cup $(( (lines / 2) + 7 )) $(( cols - v2_width ))
-            echo -ne "${CRIMSON}◄${max_vec:0:$v2_width}${RESET}"
-            
-            local v3_width=$(( ((vec_pos / 2) % (cols / 2)) + 20 ))
-            tput cup $(( (lines / 2) + 8 )) 0; tput el
-            tput cup $(( (lines / 2) + 8 )) $(( cols - v3_width ))
-            echo -ne "${CRIMSON}◄${max_vec:0:$v3_width}${RESET}"
-        fi
-
-        # Draw the Red Data Stream Marquee
-        tput cup $((lines - 2)) 0
-        local stream="${data:$pos:$cols}"
-        if [ ${#stream} -lt $cols ]; then
-            stream="${stream}${data:0:$((cols - ${#stream}))}"
-        fi
-        echo -ne "${CRIMSON}${stream}${RESET}"
-        
-        pos=$(( (pos + 4) % ${#data} ))
-        vec_pos=$(( vec_pos + 4 ))
-        sleep 0.08
-    done
-    return $exit_code
-}
-
-tput civis # Hide terminal cursor for visual immersion
-
-if [ "$cmd" = "sync" ]; then
-    if [ -n "$(git status --porcelain)" ]; then
-        tput cnorm
-        tput clear
-        echo -e "${CRIMSON}[ ! ] LOCAL DIVERGENCE DETECTED${RESET}"
-        echo -e "${SILVER}      Files on this vessel have been modified.${RESET}\n"
-        echo -e "      ${BRASS}[I]${RESET}NTEGRATE : Pull cloud updates, keep local changes."
-        echo -e "      ${BRASS}[S]${RESET}AVE      : Commit local changes & Push to Zen."
-        echo -e "      ${BRASS}[O]${RESET}VERWRITE : Discard local changes & Force-Sync to Zen."
-        echo -e "      ${BRASS}[C]${RESET}ANCEL\n"
-        printf "      :: SELECT PROTOCOL > "
-        read -r choice
-        tput civis
-        
-        case "$choice" in 
-            i|I)
-                run_with_loader "STASHING LOCAL MODS..." git stash
-                run_with_loader "PULLING FROM VOID..." git pull --no-edit origin zen
-                run_with_loader "RE-APPLYING LOCAL MODS..." git stash pop
-                ;;
-            s|S)
-                tput cnorm
-                printf "\n      :: ENTER COMMIT MESSAGE > "
-                read -r msg
-                tput civis
-                run_with_loader "COMMITTING LOCAL STATE..." git add .
-                run_with_loader "SECURING COMMIT..." git commit -m "vessel(acer): $msg"
-                run_with_loader "PUSHING TO ZEN..." git push origin zen
-                ;;
-            o|O)
-                run_with_loader "FLUSHING LOCAL STATE..." git fetch origin zen
-                run_with_loader "RESETTING TO ZEN..." git reset --hard origin/zen
-                ;;
-            *)
-                tput cnorm; clear; exit 1
-                ;;
-        esac
-    else
-        run_with_loader "UMBILICAL SYNC..." git pull --no-edit origin zen
-    fi
-    
-    run_with_loader "GENERATING CORE.AIUA SNAPSHOT..." generate_core_snapshot
-
-    echo "// Auto-generated by nsible shell" > src/version.zig
-    echo "pub const VERSION = \"$NSIBLE_VERSION\";" >> src/version.zig
-
-    # [!] THE NECESSITY CHECK :: AUTOMATED ASSET COMPILATION
-    if [ ! -f "assets/indexer" ]; then
-        run_with_loader "FORGING AUD.IO INDEXER..." zig build-exe assets/indexer.zig -O ReleaseFast -femit-bin=assets/indexer
-    fi
-
-    run_with_loader "COMPILING SOVEREIGN KERNEL..." zig build
-    
-    if [ $? -eq 0 ]; then
-        tput cnorm; tput sgr0; clear; rm -f .nsible_job.log
-        trap - EXIT SIGINT SIGTERM # Detach exit trap before launch
-        sudo ./zig-out/bin/nsible_os
-    else
-        tput cnorm; tput sgr0; clear
-        echo -e "${CRIMSON}[ ! ] BUILD FAILED. ABORTING.${RESET}"
-        cat .nsible_job.log
-        rm -f .nsible_job.log
-        exit 1
-    fi
-
-elif [ "$cmd" = "log" ]; then
-    tput cnorm; tput sgr0; clear
-    echo "[ @NSIBLE :: BLACK BOX ARCHIVE ]"
-    if [ -f "trail.tome" ]; then cat trail.tome
-    else echo "   :: The Void is quiet. No fatal traces found."; fi
-
-elif [ "$cmd" = "purge" ]; then
-    tput cnorm; tput sgr0; clear
-    echo "[ @NSIBLE :: INITIATING DEEP PURGE ]"
-    rm -rf zig-cache zig-out trail.tome assets/void.tome assets/indexer
-    echo "   :: Compiler caches, unlinked assets, and Black Box cleared."
-
-elif [ "$cmd" = "orbit" ]; then
-    if [ -f "./zig-out/bin/nsible_os" ]; then
-        tput cnorm; tput sgr0; clear
-        trap - EXIT SIGINT SIGTERM
-        sudo ./zig-out/bin/nsible_os
-    else
-        tput cnorm; tput sgr0; clear
-        echo -e "${CRIMSON}[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST.${RESET}"
-    fi
-else
-    tput cnorm; tput sgr0; clear
-    echo "Unknown directive: $cmd"
-    echo "Usage: ./nsible [sync | log | purge | orbit]"
-fi
-# }-.]
+// }-.]
