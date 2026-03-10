@@ -1,14 +1,14 @@
 #!/bin/bash
 # [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
-#   version: "0.10.21-nightly // Banysang",
+#   version: "0.10.22-nightly // Banysang",
 #   description: "Sovereign ASCII Data-Stream visual loader with native Black Box recovery.",
-#   changes: "Architectural alignment: Compilation fractures are now directly piped to trail.tome for persistent logging and UI-level modal recovery.",
+#   changes: "Annihilated the 'clear' command from the EXIT trap. Fatal compiler traces will now hold permanently on the TTY buffer.",
 #   philotic_inferences: "A sovereign matrix does not forget its failures; it etches them into the metal to forge a stronger future."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 cmd="${1:-sync}"
-NSIBLE_VERSION="v0.10.21-nightly"
+NSIBLE_VERSION="v0.10.22-nightly"
 
 CRIMSON='\033[38;2;220;20;60m'
 SILVER='\033[38;2;170;170;170m'
@@ -16,8 +16,8 @@ BRASS='\033[38;2;255;191;0m'
 DIM='\033[38;2;85;85;85m'
 RESET='\033[0m'
 
-# Trap interrupts to ensure terminal restores cursor and color
-trap 'tput cnorm; tput sgr0; clear; rm -f .nsible_job.log; exit 1' SIGINT SIGTERM EXIT
+# Trap interrupts to ensure terminal restores cursor and color (CLEAR REMOVED)
+trap 'tput cnorm; tput sgr0; rm -f .nsible_job.log' SIGINT SIGTERM EXIT
 
 # [ PRE-ELEVATION SEQUENCE ]
 # Cache the root token elegantly before the TUI takes over the frame buffer
@@ -227,18 +227,18 @@ if [ "$cmd" = "sync" ]; then
 
     # [!] THE NECESSITY CHECK :: AUTOMATED ASSET COMPILATION
     if [ ! -f "assets/indexer" ]; then
-        run_with_loader "FORGING AUD.IO INDEXER..." /home/static/.local/bin/zig/ zig build-exe assets/indexer.zig -O ReleaseFast -femit-bin=assets/indexer
+        run_with_loader "FORGING AUD.IO INDEXER..." /home/static/.local/bin/zig build-exe assets/indexer.zig -O ReleaseFast -femit-bin=assets/indexer
     fi
 
-    run_with_loader "COMPILING SOVEREIGN KERNEL..." zig build
+    run_with_loader "COMPILING SOVEREIGN KERNEL..." /home/static/.local/bin/zig build
     
     if [ $? -eq 0 ]; then
         tput cnorm; tput sgr0; clear; rm -f .nsible_job.log
         trap - EXIT SIGINT SIGTERM # Detach exit trap before launch
         exec sudo ./zig-out/bin/nsible_os
     else
-        tput cnorm; tput sgr0; clear
-        echo -e "${CRIMSON}[ ! ] BUILD FAILED. TRACE WRITTEN TO BLACK BOX (trail.tome).${RESET}"
+        tput cnorm; tput sgr0
+        echo -e "\n${CRIMSON}[ ! ] BUILD FAILED. TRACE WRITTEN TO BLACK BOX (trail.tome).${RESET}\n"
         cat .nsible_job.log > trail.tome
         cat .nsible_job.log
         rm -f .nsible_job.log
