@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/indexer.zig/.-={
 // module: "aud.io indexer daemon",
-// version: "0.1.1",
+// version: "0.1.2",
 // description: "Standalone daemon to recursively crawl and map audio assets into a flat, |-delimited GZL-compliant aud.io.tome.",
-// changes: "Refactored to survive the Zig Writergate I/O purge. Bypassing legacy stdout/file writers for direct memory formatting and raw writeAll syscalls.",
+// changes: "Patched openIterableDir deprecation. Utilizing standard openDir with .iterate flag for modern Zig nightly compatibility.",
 // philotic_inferences: "A zero-trust, bare-metal crawler bypassing relational databases to forge a raw text mapping."
 
 const std = @import("std");
@@ -30,7 +30,8 @@ pub fn main() !void {
 
     std.debug.print("[ @NSIBLE-RED ] :: Target directory locked: {s}\n", .{target_dir_path});
 
-    var dir = std.fs.cwd().openIterableDir(target_dir_path, .{}) catch |err| {
+    // The Fix: openIterableDir is dead. We use openDir with the iterate flag.
+    var dir = std.fs.cwd().openDir(target_dir_path, .{ .iterate = true }) catch |err| {
         std.debug.print("[ FATAL ] :: Failed to access directory. Ensure path exists: {}\n", .{err});
         return;
     };
