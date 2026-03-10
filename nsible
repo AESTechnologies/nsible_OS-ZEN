@@ -1,14 +1,14 @@
 #!/bin/bash
 # [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
-#   version: "0.10.18-nightly // Banysang",
-#   description: "Sovereign ASCII Data-Stream visual loader with OS-level dependency resolution.",
-#   changes: "Injected multi-distro resolve_mpv_dependency protocol. The matrix now autonomously provisions its own playback daemon.",
-#   philotic_inferences: "A true zero-trust system does not ask the operator for the tools it needs to survive; it takes them from the metal."
+#   version: "0.10.21-nightly // Banysang",
+#   description: "Sovereign ASCII Data-Stream visual loader with native Black Box recovery.",
+#   changes: "Architectural alignment: Compilation fractures are now directly piped to trail.tome for persistent logging and UI-level modal recovery.",
+#   philotic_inferences: "A sovereign matrix does not forget its failures; it etches them into the metal to forge a stronger future."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 cmd="${1:-sync}"
-NSIBLE_VERSION="v0.10.18-nightly"
+NSIBLE_VERSION="v0.10.21-nightly"
 
 CRIMSON='\033[38;2;220;20;60m'
 SILVER='\033[38;2;170;170;170m'
@@ -208,7 +208,7 @@ if [ "$cmd" = "sync" ]; then
                 run_with_loader "RESETTING TO ZEN..." git reset --hard origin/zen
                 ;;
             *)
-                tput cnorm; clear; exit 1
+                tput cnorm; exit 1
                 ;;
         esac
     else
@@ -235,10 +235,11 @@ if [ "$cmd" = "sync" ]; then
     if [ $? -eq 0 ]; then
         tput cnorm; tput sgr0; clear; rm -f .nsible_job.log
         trap - EXIT SIGINT SIGTERM # Detach exit trap before launch
-        sudo ./zig-out/bin/nsible_os
+        exec sudo ./zig-out/bin/nsible_os
     else
         tput cnorm; tput sgr0; clear
-        echo -e "${CRIMSON}[ ! ] BUILD FAILED. ABORTING.${RESET}"
+        echo -e "${CRIMSON}[ ! ] BUILD FAILED. TRACE WRITTEN TO BLACK BOX (trail.tome).${RESET}"
+        cat .nsible_job.log > trail.tome
         cat .nsible_job.log
         rm -f .nsible_job.log
         exit 1
@@ -260,7 +261,7 @@ elif [ "$cmd" = "orbit" ]; then
     if [ -f "./zig-out/bin/nsible_os" ]; then
         tput cnorm; tput sgr0; clear
         trap - EXIT SIGINT SIGTERM
-        sudo ./zig-out/bin/nsible_os
+        exec sudo ./zig-out/bin/nsible_os
     else
         tput cnorm; tput sgr0; clear
         echo -e "${CRIMSON}[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST.${RESET}"
