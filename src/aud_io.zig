@@ -1,8 +1,8 @@
 // [@://nsible_os/src/aud_io.zig/.-={
 // module: "aud.io playback engine",
-// version: "0.1.1",
+// version: "0.1.2",
 // description: "Headless MPV daemon controller via Unix IPC Socket.",
-// changes: "Refactored std.process.Child struct initialization to align with Zig nightly purge. Unified agent nomenclature.",
+// changes: "Reverted to process.Child.init; Matrix confirmed std.process.Child struct literals miss undocumented internal OS descriptors like pgid.",
 // philotic_inferences: "True sovereignty isn't doing everything yourself; it is having absolute command over the tools that do."
 
 const std = @import("std");
@@ -25,13 +25,10 @@ pub const AudioEngine = struct {
             "--input-ipc-server=/tmp/nsible.mpv.sock",
         };
 
-        var agent = std.process.Child{
-            .allocator = allocator,
-            .argv = argv,
-            .stdin_behavior = .Ignore,
-            .stdout_behavior = .Ignore,
-            .stderr_behavior = .Ignore,
-        };
+        var agent = std.process.Child.init(argv, allocator);
+        agent.stdin_behavior = .Ignore;
+        agent.stdout_behavior = .Ignore;
+        agent.stderr_behavior = .Ignore;
         
         try agent.spawn();
         self.mpv_process = agent;
