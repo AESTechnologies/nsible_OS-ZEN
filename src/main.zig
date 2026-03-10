@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.15-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Patched ANSI bleed; motor cortex now correctly traps multi-byte PgUp/PgDn sequences without typing to journal. Woven aud.io matrix and audio_angel backend.",
+//   changes: "Patched ANSI bleed; motor cortex now correctly traps multi-byte PgUp/PgDn sequences without typing to journal. Woven aud.io matrix and audio_angel backend. Migrated all process execution to nightly standard Child structs.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -247,8 +247,13 @@ fn strikeRadio(allocator: std.mem.Allocator) void {
         file.writeAll(pcm) catch {};
         file.close();
         const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "resonator.raw" };
-        var agent = std.process.Child.init(&argv, allocator);
-        agent.stdout_behavior = .Ignore; agent.stderr_behavior = .Ignore;
+        var agent = std.process.Child{
+            .allocator = allocator,
+            .argv = &argv,
+            .stdin_behavior = .Ignore,
+            .stdout_behavior = .Ignore,
+            .stderr_behavior = .Ignore,
+        };
         _ = agent.spawn() catch {};
     } else |_| {} 
 }
@@ -398,9 +403,13 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         file.writeAll(pcm) catch {};
         file.close();
         const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "resonator.raw" };
-        var agent = std.process.Child.init(&argv, allocator);
-        agent.stdout_behavior = .Ignore;
-        agent.stderr_behavior = .Ignore;
+        var agent = std.process.Child{
+            .allocator = allocator,
+            .argv = &argv,
+            .stdin_behavior = .Ignore,
+            .stdout_behavior = .Ignore,
+            .stderr_behavior = .Ignore,
+        };
         _ = agent.spawn() catch {};
     } else |_| {} 
     
@@ -411,7 +420,7 @@ fn parseAudioTome(allocator: std.mem.Allocator) !void {
     aud_io_library.clearRetainingCapacity();
     const file = std.fs.cwd().openFile("assets/aud.io.tome", .{}) catch return;
     defer file.close();
-    const raw_data = try file.readToEndAlloc(allocator, 1024 * 1024 * 50); 
+    const raw_data = try file.readToEndAlloc(allocator, 1024 * 1024 * 50);
     defer allocator.free(raw_data);
     var line_iterator = std.mem.splitSequence(u8, raw_data, "\n");
     while (line_iterator.next()) |line| {
@@ -428,11 +437,14 @@ fn parseAudioTome(allocator: std.mem.Allocator) !void {
 
 fn triggerBackgroundIndexer(allocator: std.mem.Allocator) void {
     const argv = &[_][]const u8{ "./assets/indexer", "/home/static/Music" };
-    var child = std.process.Child.init(argv, allocator);
-    child.stdin_behavior = .Ignore;
-    child.stdout_behavior = .Ignore;
-    child.stderr_behavior = .Ignore;
-    _ = child.spawn() catch {};
+    var agent = std.process.Child{
+        .allocator = allocator,
+        .argv = argv,
+        .stdin_behavior = .Ignore,
+        .stdout_behavior = .Ignore,
+        .stderr_behavior = .Ignore,
+    };
+    _ = agent.spawn() catch {};
 }
 
 pub fn main() !void {
@@ -513,8 +525,7 @@ pub fn main() !void {
     bootSplash(void_allocator);
     var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
-
-    // [ AUD.IO INITIALIZATION ]
+// [ AUD.IO INITIALIZATION ]
     aud_io_library = std.ArrayList(AudioAsset).init(void_allocator);
     defer {
         for (aud_io_library.items) |asset| {
@@ -628,13 +639,13 @@ pub fn main() !void {
                             } else if (is_aud_io_modal) {
                                 if (byte == 'A') { 
                                     if (aud_io_selected_index > 0) { 
-                                        aud_io_selected_index -= 1; 
+                                        aud_io_selected_index -= 1;
                                         if (aud_io_selected_index < aud_io_scroll_y) aud_io_scroll_y = aud_io_selected_index; 
                                     } 
                                 } else if (byte == 'B') { 
                                     if (aud_io_selected_index < aud_io_library.items.len - 1) { 
-                                        aud_io_selected_index += 1; 
-                                        if (aud_io_selected_index >= aud_io_scroll_y + 18) aud_io_scroll_y = aud_io_selected_index - 17; 
+                                        aud_io_selected_index += 1;
+                                        if (aud_io_selected_index >= aud_io_scroll_y + 18) aud_io_scroll_y = aud_io_selected_index - 17;
                                     } 
                                 }
                             } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal and !is_bash_modal) {
@@ -848,6 +859,7 @@ pub fn main() !void {
             else if (is_calc_modal) {
                 if (byte == '\n' or byte == '\r') {
                     if (calc_len > 0) {
+                        
                         const expr = calc_input[0..calc_len];
                         const rcl = synapse.manageSynapseMemory(null);
                         const res = synapse.AST.evaluate(expr, rcl);
@@ -870,6 +882,7 @@ pub fn main() !void {
             else if (is_bash_pipe) {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
+      
                         const dest = std.mem.trim(u8, journal[0..journal_len], " ");
                         if (std.fs.cwd().openFile("assets/void.tome", .{})) |src| {
                             if (std.fs.cwd().createFile(dest, .{})) |dst| {
@@ -899,6 +912,7 @@ pub fn main() !void {
                 }
             }
             else if (is_aud_io_modal) {
+                
                 if (byte == '\n' or byte == '\r') {
                     if (aud_io_library.items.len > 0) {
                         if (audio_angel) |angel| {
@@ -913,13 +927,16 @@ pub fn main() !void {
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
-                    if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 64) { journal[journal_len] = byte;
+                        journal_len += 1; }
                 }
             }
             else {
                 if (byte == '\n' or byte == '\r') {
-                    const cmd_slice = journal[0..journal_len];
-                    if (std.mem.eql(u8, cmd_slice, "aud.io")) {
+                    const raw_cmd = journal[0..journal_len];
+                    const cmd_slice = std.mem.trim(u8, raw_cmd, " ");
+                    
+                    if (std.mem.endsWith(u8, cmd_slice, "aud.io")) {
                         is_aud_io_modal = true;
                         parseAudioTome(void_allocator) catch {};
                         journal_len = 0;
@@ -935,10 +952,13 @@ pub fn main() !void {
                                 if (arg.len > 0) args.append(void_allocator, arg) catch {};
                             }
                             if (args.items.len > 0) {
-                                var agent = std.process.Child.init(args.items, void_allocator);
-                                agent.stdin_behavior = .Ignore;
-                                agent.stdout_behavior = .Pipe;
-                                agent.stderr_behavior = .Pipe;
+                                var agent = std.process.Child{
+                                    .allocator = void_allocator,
+                                    .argv = args.items,
+                                    .stdin_behavior = .Ignore,
+                                    .stdout_behavior = .Pipe,
+                                    .stderr_behavior = .Pipe,
+                                };
                                 
                                 if (agent.spawn()) |_| {
                                     if (std.fs.cwd().createFile("assets/void.tome", .{}) catch null) |f| {
@@ -1280,7 +1300,6 @@ pub fn main() !void {
                     
                     drawRect(mx + 20, my + mh - 25, mw - 40, 1, 0x00444444);
                     print(mx + 20, my + mh - 18, "[ESC] Dismiss   [TAB] Pipe to File   [UP/DOWN] Scroll", 0x00555555);
-                    
                     if (is_bash_pipe) {
                         const p_y = getUriBarY(journal_len + 14, "");
                         drawRect(0, p_y, WIDTH, HEIGHT - p_y, 0x00FFBF00);
