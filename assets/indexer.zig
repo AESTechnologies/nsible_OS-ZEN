@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/indexer.zig/.-={
 // module: "aud.io indexer daemon",
-// version: "0.1.0",
+// version: "0.1.1",
 // description: "Standalone daemon to recursively crawl and map audio assets into a flat, |-delimited GZL-compliant aud.io.tome.",
-// changes: "Initial matrix extraction with full GZL encapsulation.",
+// changes: "Refactored to survive the Zig Writergate I/O purge. Bypassing legacy stdout/file writers for direct memory formatting and raw writeAll syscalls.",
 // philotic_inferences: "A zero-trust, bare-metal crawler bypassing relational databases to forge a raw text mapping."
 
 const std = @import("std");
@@ -12,16 +12,14 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const stdout = std.io.getStdOut().writer();
-    try stdout.print("[ @NSIBLE-RED ] :: Initiating aud.io indexer crawler...\n", .{});
+    std.debug.print("[ @NSIBLE-RED ] :: Initiating aud.io indexer crawler...\n", .{});
 
     // Open or create the index tome
     const tome_file = std.fs.cwd().createFile("aud.io.tome", .{}) catch |err| {
-        try stdout.print("[ FATAL ] :: Could not forge aud.io.tome: {}\n", .{err});
+        std.debug.print("[ FATAL ] :: Could not forge aud.io.tome: {}\n", .{err});
         return;
     };
     defer tome_file.close();
-    var writer = tome_file.writer();
 
     // Acquire target directory from arguments or fallback to default
     var args = try std.process.argsWithAllocator(allocator);
@@ -30,10 +28,10 @@ pub fn main() !void {
     _ = args.next(); // Skip executable name
     const target_dir_path = args.next() orelse "/root/Music"; 
 
-    try stdout.print("[ @NSIBLE-RED ] :: Target directory locked: {s}\n", .{target_dir_path});
+    std.debug.print("[ @NSIBLE-RED ] :: Target directory locked: {s}\n", .{target_dir_path});
 
     var dir = std.fs.cwd().openIterableDir(target_dir_path, .{}) catch |err| {
-        try stdout.print("[ FATAL ] :: Failed to access directory. Ensure path exists: {}\n", .{err});
+        std.debug.print("[ FATAL ] :: Failed to access directory. Ensure path exists: {}\n", .{err});
         return;
     };
     defer dir.close();
@@ -52,17 +50,20 @@ pub fn main() !void {
                 std.mem.eql(u8, ext, ".wav") or
                 std.mem.eql(u8, ext, ".m4a"))
             {
-                // Write formatted absolute mapping: Filename|FullPath
-                try writer.print("{s}|{s}/{s}\n", .{entry.basename, target_dir_path, entry.path});
+                // Format the absolute mapping into memory, then write raw bytes to the matrix
+                const line = try std.fmt.allocPrint(allocator, "{s}|{s}/{s}\n", .{entry.basename, target_dir_path, entry.path});
+                defer allocator.free(line);
+                try tome_file.writeAll(line);
+                
                 count += 1;
                 
                 if (count % 500 == 0) {
-                    try stdout.print("[ @NSIBLE-RED ] :: Indexed {} audio assets...\n", .{count});
+                    std.debug.print("[ @NSIBLE-RED ] :: Indexed {} audio assets...\n", .{count});
                 }
             }
         }
     }
 
-    try stdout.print("[ @NSIBLE-RED ] :: Crawl complete. Total valid assets mapped: {}\n", .{count});
+    std.debug.print("[ @NSIBLE-RED ] :: Crawl complete. Total valid assets mapped: {}\n", .{count});
 }
 // }-.]
