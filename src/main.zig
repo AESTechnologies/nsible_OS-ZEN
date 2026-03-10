@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.15-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Patched ANSI bleed; motor cortex now correctly traps multi-byte PgUp/PgDn sequences without typing to journal. Woven aud.io matrix and audio_angel backend. Migrated all process execution to nightly standard Child structs.",
+//   changes: "Patched ANSI bleed; Woven aud.io matrix. Resolved Zig 0.15 nightly breaking change by migrating aud_io_library to std.ArrayListUnmanaged.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -52,7 +52,7 @@ pub const AudioAsset = struct {
     path: []const u8,
 };
 
-var aud_io_library: std.ArrayList(AudioAsset) = undefined;
+var aud_io_library: std.ArrayListUnmanaged(AudioAsset) = .{};
 var aud_io_selected_index: usize = 0;
 var aud_io_scroll_y: usize = 0;
 var is_aud_io_modal: bool = false;
@@ -247,13 +247,8 @@ fn strikeRadio(allocator: std.mem.Allocator) void {
         file.writeAll(pcm) catch {};
         file.close();
         const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "resonator.raw" };
-        var agent = std.process.Child{
-            .allocator = allocator,
-            .argv = &argv,
-            .stdin_behavior = .Ignore,
-            .stdout_behavior = .Ignore,
-            .stderr_behavior = .Ignore,
-        };
+        var agent = std.process.Child.init(&argv, allocator);
+        agent.stdout_behavior = .Ignore; agent.stderr_behavior = .Ignore;
         _ = agent.spawn() catch {};
     } else |_| {} 
 }
@@ -403,13 +398,9 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         file.writeAll(pcm) catch {};
         file.close();
         const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "resonator.raw" };
-        var agent = std.process.Child{
-            .allocator = allocator,
-            .argv = &argv,
-            .stdin_behavior = .Ignore,
-            .stdout_behavior = .Ignore,
-            .stderr_behavior = .Ignore,
-        };
+        var agent = std.process.Child.init(&argv, allocator);
+        agent.stdout_behavior = .Ignore;
+        agent.stderr_behavior = .Ignore;
         _ = agent.spawn() catch {};
     } else |_| {} 
     
@@ -428,7 +419,7 @@ fn parseAudioTome(allocator: std.mem.Allocator) !void {
         var pipe_iterator = std.mem.splitSequence(u8, line, "|");
         const filename = pipe_iterator.next() orelse continue;
         const path = pipe_iterator.next() orelse continue;
-        try aud_io_library.append(AudioAsset{
+        try aud_io_library.append(allocator, AudioAsset{
             .filename = try allocator.dupe(u8, filename),
             .path = try allocator.dupe(u8, path),
         });
@@ -437,13 +428,10 @@ fn parseAudioTome(allocator: std.mem.Allocator) !void {
 
 fn triggerBackgroundIndexer(allocator: std.mem.Allocator) void {
     const argv = &[_][]const u8{ "./assets/indexer", "/home/static/Music" };
-    var agent = std.process.Child{
-        .allocator = allocator,
-        .argv = argv,
-        .stdin_behavior = .Ignore,
-        .stdout_behavior = .Ignore,
-        .stderr_behavior = .Ignore,
-    };
+    var agent = std.process.Child.init(argv, allocator);
+    agent.stdin_behavior = .Ignore;
+    agent.stdout_behavior = .Ignore;
+    agent.stderr_behavior = .Ignore;
     _ = agent.spawn() catch {};
 }
 
@@ -525,14 +513,14 @@ pub fn main() !void {
     bootSplash(void_allocator);
     var sys_hunter = hunter.Hunter.init(void_allocator, &sap_fba);
     defer sys_hunter.deinit();
-// [ AUD.IO INITIALIZATION ]
-    aud_io_library = std.ArrayList(AudioAsset).init(void_allocator);
+
+    // [ AUD.IO INITIALIZATION ]
     defer {
         for (aud_io_library.items) |asset| {
             void_allocator.free(asset.filename);
             void_allocator.free(asset.path);
         }
-        aud_io_library.deinit();
+        aud_io_library.deinit(void_allocator);
         if (audio_angel) |angel| angel.deinit();
     }
     parseAudioTome(void_allocator) catch {};
@@ -952,13 +940,10 @@ pub fn main() !void {
                                 if (arg.len > 0) args.append(void_allocator, arg) catch {};
                             }
                             if (args.items.len > 0) {
-                                var agent = std.process.Child{
-                                    .allocator = void_allocator,
-                                    .argv = args.items,
-                                    .stdin_behavior = .Ignore,
-                                    .stdout_behavior = .Pipe,
-                                    .stderr_behavior = .Pipe,
-                                };
+                                var agent = std.process.Child.init(args.items, void_allocator);
+                                agent.stdin_behavior = .Ignore;
+                                agent.stdout_behavior = .Pipe;
+                                agent.stderr_behavior = .Pipe;
                                 
                                 if (agent.spawn()) |_| {
                                     if (std.fs.cwd().createFile("assets/void.tome", .{}) catch null) |f| {
