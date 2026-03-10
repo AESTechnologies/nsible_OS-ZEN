@@ -227,7 +227,7 @@ if [ "$cmd" = "sync" ]; then
 
     # [!] THE NECESSITY CHECK :: AUTOMATED ASSET COMPILATION
     if [ ! -f "assets/indexer" ]; then
-        run_with_loader "FORGING AUD.IO INDEXER..." zig build-exe assets/indexer.zig -O ReleaseFast -femit-bin=assets/indexer
+        run_with_loader "FORGING AUD.IO INDEXER..." /home/static/.local/bin/zig/ zig build-exe assets/indexer.zig -O ReleaseFast -femit-bin=assets/indexer
     fi
 
     run_with_loader "COMPILING SOVEREIGN KERNEL..." zig build
