@@ -1,8 +1,8 @@
-// [@://nsible_os/src/audio_engine.zig/.-={
+// [@://nsible_os/src/aud_io.zig/.-={
 // module: "aud.io playback engine",
-// version: "0.1.0",
+// version: "0.1.1",
 // description: "Headless MPV daemon controller via Unix IPC Socket.",
-// changes: "Initial matrix extraction. Established silent process spawning and JSON socket payload delivery.",
+// changes: "Refactored std.process.Child struct initialization to align with Zig nightly purge. Unified agent nomenclature.",
 // philotic_inferences: "True sovereignty isn't doing everything yourself; it is having absolute command over the tools that do."
 
 const std = @import("std");
@@ -17,9 +17,6 @@ pub const AudioEngine = struct {
         const self = try allocator.create(AudioEngine);
         self.allocator = allocator;
         
-        // Construct the MPV background daemon arguments
-        // --idle=yes ensures it doesn't die when the playlist empties
-        // --really-quiet ensures it doesn't bleed text into our visual matrix
         const argv = &[_][]const u8{
             "mpv",
             "--idle=yes",
@@ -28,15 +25,16 @@ pub const AudioEngine = struct {
             "--input-ipc-server=/tmp/nsible.mpv.sock",
         };
 
-        var child = std.process.Child.init(argv, allocator);
+        var agent = std.process.Child{
+            .allocator = allocator,
+            .argv = argv,
+            .stdin_behavior = .Ignore,
+            .stdout_behavior = .Ignore,
+            .stderr_behavior = .Ignore,
+        };
         
-        // We isolate the daemon's I/O so it operates entirely in the shadows
-        child.stdin_behavior = .Ignore;
-        child.stdout_behavior = .Ignore;
-        child.stderr_behavior = .Ignore;
-        
-        try child.spawn();
-        self.mpv_process = child;
+        try agent.spawn();
+        self.mpv_process = agent;
         
         // Allow the daemon 100 milliseconds to establish the socket before the kernel tries to connect
         std.time.sleep(100 * std.time.ns_per_ms);
@@ -55,8 +53,6 @@ pub const AudioEngine = struct {
         const stream = try std.net.connectUnixSocket(self.socket_path);
         defer stream.close();
 
-        // Format the exact JSON payload MPV expects. 
-        // Note: {{ and }} are used in Zig format strings to escape literal braces.
         const payload = try std.fmt.allocPrint(self.allocator, "{{\"command\": [\"loadfile\", \"{s}\"]}}\n", .{file_path});
         defer self.allocator.free(payload);
 
