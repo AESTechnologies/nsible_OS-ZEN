@@ -286,6 +286,9 @@ fn drawPulseOverlay() void {
 }
 
 fn exitSequence() noreturn {
+    if (audio_angel) |angel| angel.deinit();
+    std.fs.cwd().deleteFile("/tmp/nsible.mpv.sock") catch {};
+
     clear(0x00000000);
     const stamp_x = WIDTH - 24;
     const stamp_y = HEIGHT - 16;
