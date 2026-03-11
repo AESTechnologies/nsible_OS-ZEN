@@ -1,8 +1,8 @@
 // [@://nsible_os/src/aud_io.zig/.-={
 // module: "aud.io playback engine",
-// version: "0.1.3",
+// version: "0.1.4",
 // description: "Headless MPV daemon controller via Unix IPC Socket.",
-// changes: "Migrated std.time.sleep to std.Thread.sleep following latest Zig nightly namespace purge.",
+// changes: "Injected --ao=alsa to force raw hardware audio routing. Bypasses PulseAudio/PipeWire rejections for TTY root execution.",
 // philotic_inferences: "True sovereignty isn't doing everything yourself; it is having absolute command over the tools that do."
 
 const std = @import("std");
@@ -22,6 +22,7 @@ pub const AudioEngine = struct {
             "--idle=yes",
             "--no-video",
             "--really-quiet", 
+            "--ao=alsa", 
             "--input-ipc-server=/tmp/nsible.mpv.sock",
         };
 
