@@ -20,9 +20,8 @@ pub fn main() !void {
     defer c.ma_engine_uninit(&engine);
 
     // 3. Dynamic Playlist Generation
-    // Explicitly defining the ArrayList type to ensure .init() is recognized
-    const PlaylistType = std.ArrayList([]const u8);
-    var playlist = PlaylistType.init(allocator);
+    // FIX: Using std.ArrayList([]const u8) explicitly to ensure .init is found
+    var playlist = std.ArrayList([]const u8).init(allocator);
     defer {
         for (playlist.items) |path| allocator.free(path);
         playlist.deinit();
@@ -37,7 +36,6 @@ pub fn main() !void {
 
     while (try walker.next()) |entry| {
         if (entry.kind == .file and std.mem.endsWith(u8, entry.basename, ".mp3")) {
-            // Join path for absolute reference
             const full_path = try std.fs.path.join(allocator, &[_][]const u8{ music_dir_path, entry.path });
             try playlist.append(full_path);
         }
