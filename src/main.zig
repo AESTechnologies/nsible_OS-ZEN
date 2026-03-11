@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.15-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Corrected aud.io.tome absolute pathing. Bulletproofed .!XX-. GZL reflex to trap all active modals before dropping the kernel.",
+//   changes: "Corrected aud.io.tome absolute pathing to assets/. Stripped carriage returns. Injected UI telemetry. Full file integration provided directly.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -56,6 +56,8 @@ var aud_io_library: std.ArrayListUnmanaged(AudioAsset) = .{};
 var aud_io_selected_index: usize = 0;
 var aud_io_scroll_y: usize = 0;
 var is_aud_io_modal: bool = false;
+var aud_io_status: [128]u8 = .{0} ** 128;
+var aud_io_status_len: usize = 0;
 
 fn loadResonance() void {
     if (std.fs.cwd().openFile("timeline/resonance.cfg", .{})) |file| {
@@ -409,7 +411,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 
 fn parseAudioTome(allocator: std.mem.Allocator) !void {
     aud_io_library.clearRetainingCapacity();
-    const file = std.fs.cwd().openFile("aud.io.tome", .{}) catch return;
+    const file = std.fs.cwd().openFile("assets/aud.io.tome", .{}) catch return;
     defer file.close();
     const raw_data = try file.readToEndAlloc(allocator, 1024 * 1024 * 50);
     defer allocator.free(raw_data);
@@ -417,11 +419,15 @@ fn parseAudioTome(allocator: std.mem.Allocator) !void {
     while (line_iterator.next()) |line| {
         if (line.len == 0) continue;
         var pipe_iterator = std.mem.splitSequence(u8, line, "|");
-        const filename = pipe_iterator.next() orelse continue;
-        const path = pipe_iterator.next() orelse continue;
+        const raw_filename = pipe_iterator.next() orelse continue;
+        const raw_path = pipe_iterator.next() orelse continue;
+
+        const clean_filename = std.mem.trim(u8, raw_filename, " \r\n");
+        const clean_path = std.mem.trim(u8, raw_path, " \r\n");
+
         try aud_io_library.append(allocator, AudioAsset{
-            .filename = try allocator.dupe(u8, filename),
-            .path = try allocator.dupe(u8, path),
+            .filename = try allocator.dupe(u8, clean_filename),
+            .path = try allocator.dupe(u8, clean_path),
         });
     }
 }
@@ -910,18 +916,27 @@ pub fn main() !void {
                 }
             }
             else if (is_aud_io_modal) {
-                
                 if (byte == '\n' or byte == '\r') {
                     if (aud_io_library.items.len > 0) {
                         if (audio_angel) |angel| {
-                            const target_path = aud_io_library.items[aud_io_selected_index].path;
-                            angel.play(target_path) catch {};
+                            const target_asset = aud_io_library.items[aud_io_selected_index];
+                            angel.play(target_asset.path) catch {};
+                            const stat_str = std.fmt.bufPrint(&aud_io_status, "PLAYING: {s}", .{target_asset.filename}) catch "PLAYING";
+                            aud_io_status_len = stat_str.len;
                         }
                     }
                 } else if (byte == ' ') {
-                    if (audio_angel) |angel| { angel.togglePause() catch {}; }
+                    if (audio_angel) |angel| { 
+                        angel.togglePause() catch {}; 
+                        const stat_str = std.fmt.bufPrint(&aud_io_status, "TOGGLED PAUSE STATE", .{}) catch "PAUSED";
+                        aud_io_status_len = stat_str.len;
+                    }
                 } else if (byte == 's' or byte == 'S') {
-                    if (audio_angel) |angel| { angel.stop() catch {}; }
+                    if (audio_angel) |angel| { 
+                        angel.stop() catch {}; 
+                        const stat_str = std.fmt.bufPrint(&aud_io_status, "PLAYBACK HALTED", .{}) catch "STOPPED";
+                        aud_io_status_len = stat_str.len;
+                    }
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
@@ -1329,6 +1344,9 @@ pub fn main() !void {
                     }
 
                     drawRect(mx + 20, my + mh - 25, mw - 40, 1, 0x00444444);
+                    if (aud_io_status_len > 0) {
+                        print(mx + 20, my + mh - 38, aud_io_status[0..aud_io_status_len], 0x00FFBF00);
+                    }
                     var stat_buf: [128]u8 = undefined;
                     const stat_str = std.fmt.bufPrint(&stat_buf, "MAPPED ASSETS: {d} // [UP/DN] Navigate  [ENT] Play  [SPC] Pause  [S] Stop", .{aud_io_library.items.len}) catch "";
                     print(mx + 20, my + mh - 18, stat_str, 0x00555555);
