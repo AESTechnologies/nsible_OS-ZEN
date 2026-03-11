@@ -3,14 +3,16 @@ const c = @cImport({
     @cInclude("angel_a.h");
 });
 
-// Explicit C-struct definition to bulletproof against std.posix namespace changes
 const winsize = extern struct {
     ws_row: u16,
     ws_col: u16,
     ws_xpixel: u16,
     ws_ypixel: u16,
 };
-const TIOCGWINSZ = 0x5413; // Native Linux system call constant
+const TIOCGWINSZ = 0x5413;
+
+// FIX: Direct C-ABI binding. Bypasses the volatile Zig std.posix wrapper entirely.
+extern "c" fn ioctl(fd: i32, request: usize, ...) i32;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -21,6 +23,7 @@ pub fn main() !void {
     if (c.ma_engine_init(null, &engine) != c.MA_SUCCESS) return;
     defer c.ma_engine_uninit(&engine);
 
+    // The stable 0.15.2 unmanaged ArrayList logic
     var playlist: std.ArrayList([]const u8) = .empty;
     defer {
         for (playlist.items) |path| allocator.free(path);
@@ -52,7 +55,6 @@ pub fn main() !void {
         .{ .fd = std.posix.STDIN_FILENO, .events = std.posix.POLL.IN, .revents = 0 },
     };
 
-    // 64KB buffer to render the entire screen instantly and eliminate TUI flicker
     var stdout_buf: [65536]u8 = undefined;
     var writer_inst = std.fs.File.stdout().writer(&stdout_buf);
     const stdout = &writer_inst.interface;
@@ -84,9 +86,9 @@ pub fn main() !void {
         while (c.ma_sound_at_end(&sound) == c.MA_FALSE) {
             if (!running) break;
 
-            // 1. Adaptive Terminal Discovery
+            // 1. Adaptive Terminal Discovery via direct libc call
             var ws = winsize{ .ws_row = 24, .ws_col = 80, .ws_xpixel = 0, .ws_ypixel = 0 };
-            _ = std.posix.ioctl(std.posix.STDOUT_FILENO, TIOCGWINSZ, @intFromPtr(&ws)) catch 0;
+            _ = ioctl(std.posix.STDOUT_FILENO, TIOCGWINSZ, &ws);
             
             const term_w = if (ws.ws_col > 20) @as(usize, ws.ws_col) else 80;
             const term_h = if (ws.ws_row > 10) @as(usize, ws.ws_row) else 24;
@@ -127,7 +129,6 @@ pub fn main() !void {
                     const time_t = @as(f32, @floatFromInt(cursor_pcm)) / 44100.0;
                     const col_f = @as(f32, @floatFromInt(col));
                     
-                    // The Waveform Simulator Math
                     const eq_val = (std.math.sin(time_t * 8.0 + col_f * 0.4) + 1.0) * 0.5;
                     const noise = std.crypto.random.float(f32);
                     const wave_val = (eq_val * 0.4 + noise * 0.6) * (global_vol / 1.5);
@@ -136,11 +137,11 @@ pub fn main() !void {
                     
                     if (wave_val > threshold) {
                         if (threshold > 0.7) {
-                            try stdout.writeAll("\x1b[91m█\x1b[0m"); // Peak: Crimson
+                            try stdout.writeAll("\x1b[91m█\x1b[0m");
                         } else if (threshold > 0.4) {
-                            try stdout.writeAll("\x1b[33m▆\x1b[0m"); // Mid: Brass
+                            try stdout.writeAll("\x1b[33m▆\x1b[0m");
                         } else {
-                            try stdout.writeAll("\x1b[37m▃\x1b[0m"); // Low: Silver
+                            try stdout.writeAll("\x1b[37m▃\x1b[0m");
                         }
                     } else {
                         try stdout.writeAll(" ");
@@ -163,7 +164,6 @@ pub fn main() !void {
             try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[+]\x1b[0m Up | \x1b[91m[-]\x1b[0m Down | \x1b[91m[Enter]\x1b[0m Skip | \x1b[91m[q]\x1b[0m Quit\x1b[K\n", .{});
             try stdout.print("\x1b[J", .{}); 
             
-            // Blast the rendered frame to the hardware
             try stdout.flush();
 
             // POSIX Signal Check
