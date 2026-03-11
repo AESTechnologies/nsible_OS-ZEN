@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/indexer.zig/.-={
 // module: "aud.io indexer daemon",
-// version: "0.1.2",
+// version: "0.1.3",
 // description: "Standalone daemon to recursively crawl and map audio assets into a flat, |-delimited GZL-compliant aud.io.tome.",
-// changes: "Patched openIterableDir deprecation. Utilizing standard openDir with .iterate flag for modern Zig nightly compatibility.",
+// changes: "Hardcoded target path to strictly enforce the assets/ directory architecture.",
 // philotic_inferences: "A zero-trust, bare-metal crawler bypassing relational databases to forge a raw text mapping."
 
 const std = @import("std");
@@ -14,9 +14,9 @@ pub fn main() !void {
 
     std.debug.print("[ @NSIBLE-RED ] :: Initiating aud.io indexer crawler...\n", .{});
 
-    // Open or create the index tome
-    const tome_file = std.fs.cwd().createFile("aud.io.tome", .{}) catch |err| {
-        std.debug.print("[ FATAL ] :: Could not forge aud.io.tome: {}\n", .{err});
+    // Open or create the index tome in the sovereign assets/ directory
+    const tome_file = std.fs.cwd().createFile("assets/aud.io.tome", .{}) catch |err| {
+        std.debug.print("[ FATAL ] :: Could not forge assets/aud.io.tome: {}\n", .{err});
         return;
     };
     defer tome_file.close();
@@ -26,11 +26,11 @@ pub fn main() !void {
     defer args.deinit();
 
     _ = args.next(); // Skip executable name
-    const target_dir_path = args.next() orelse "/root/Music"; 
+    const target_dir_path = args.next() orelse "/home/static/Music"; 
 
     std.debug.print("[ @NSIBLE-RED ] :: Target directory locked: {s}\n", .{target_dir_path});
 
-    // The Fix: openIterableDir is dead. We use openDir with the iterate flag.
+    // Utilize openDir with the iterate flag for modern Zig nightly compatibility
     var dir = std.fs.cwd().openDir(target_dir_path, .{ .iterate = true }) catch |err| {
         std.debug.print("[ FATAL ] :: Failed to access directory. Ensure path exists: {}\n", .{err});
         return;
