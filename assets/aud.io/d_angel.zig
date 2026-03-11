@@ -12,7 +12,7 @@ pub fn main() !void {
     std.debug.print("[ @NSIBLE-RED ] :: Forging Talon Alta TUI Player...\n", .{});
 
     // 2. Hardware Bind
-    // FIXED: Correct type declaration for Zig 0.15.2 namespace
+    // FIXED: Clean declaration. No leaked imports.
     var engine: c.ma_engine = undefined;
     if (c.ma_engine_init(null, &engine) != c.MA_SUCCESS) {
         std.debug.print("[ FATAL ] :: ALSA Hardware Lock Failed.\n", .{});
@@ -21,6 +21,7 @@ pub fn main() !void {
     defer c.ma_engine_uninit(&engine);
 
     // 3. Dynamic Playlist Generation
+    // Explicit type resolution to bypass 0.15.2 generic lag
     var playlist = std.ArrayList([]const u8).init(allocator);
     defer {
         for (playlist.items) |path| allocator.free(path);
@@ -57,12 +58,10 @@ pub fn main() !void {
     // 5. Playback Loop
     for (playlist.items) |track| {
         var sound: c.ma_sound = undefined;
-        // dupeZ ensures the C-engine gets a null-terminated sentinel
-        const track_c = try allocator.dupeZ(u8, track);
+        const track_c = try allocator.dupeZ(u8, track); // Null-terminator for C
         defer allocator.free(track_c);
 
         if (c.ma_sound_init_from_file(&engine, track_c.ptr, 0, null, null, &sound) != c.MA_SUCCESS) {
-            std.debug.print("[ ERROR ] :: Failed to decode: {s}\n", .{track});
             continue;
         }
         defer c.ma_sound_uninit(&sound);
@@ -74,7 +73,7 @@ pub fn main() !void {
         std.debug.print("[ TUI ] :: [Enter] Skip | [+] Vol Up | [-] Vol Down\n", .{});
 
         while (c.ma_sound_at_end(&sound) == c.MA_FALSE) {
-            // Non-blocking input poll
+            // Non-blocking poll for User Intent
             if (std.io.getStdIn().poll(.{ .read = true }, 0)) |has_input| {
                 if (has_input.read) {
                     var buf: [16]u8 = undefined;
@@ -97,10 +96,7 @@ pub fn main() !void {
                     }
                 }
             }
-            // Sleep moved to std.Thread for newer nightlies
             std.Thread.sleep(100 * std.time.ns_per_ms);
         }
     }
-
-    std.debug.print("[ @NSIBLE-RED ] :: Setlist Exhausted. Matrix Idle.\n", .{});
 }
