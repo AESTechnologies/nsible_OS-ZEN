@@ -1,3 +1,4 @@
+
 //missing GZL Encapsulation for @nsible inter-operability
 //proposedAs:angel_test.zig 
 //implementedAs:d_angel.zig
@@ -8,7 +9,7 @@ const c = @cImport({
 });
 
 pub fn main() !void {
-    std.debug.print("[ ANGEL ] :: Forging pure metal audio engine...\n", .{});
+    std.debug.print("[ @NSIBLE-RED ] :: Forging pure metal audio engine...\n", .{});
 
     var engine: c.ma_engine = undefined;
     if (c.ma_engine_init(null, &engine) != c.MA_SUCCESS) {
@@ -31,7 +32,7 @@ pub fn main() !void {
 
     // Hold the thread alive while the song plays
     while (c.ma_sound_at_end(&sound) == c.MA_FALSE) {
-        std.time.sleep(100 * std.time.ns_per_ms);
+        std.Thread.sleep(100 * std.time.ns_per_ms);
     }
 
     std.debug.print("[ ANGEL ] :: Asset fully unspooled. Exalting and freeing memory...\n", .{});
