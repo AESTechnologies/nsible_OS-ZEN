@@ -76,7 +76,7 @@ pub fn main() !void {
 
         // SHADOW SENSOR: Initialize secondary decoder to read raw PCM for the visualizer
         var v_decoder: c.ma_decoder = undefined;
-        var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, 44100); // Mono f32 for easy amplitude math
+        var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, 44100); 
         const has_vis = (c.ma_decoder_init_file(track_c.ptr, &v_config, &v_decoder) == c.MA_SUCCESS);
         defer if (has_vis) c.ma_decoder_uninit(&v_decoder);
 
@@ -117,22 +117,22 @@ pub fn main() !void {
                 
                 var max_amp: f32 = 0.0;
                 for (0..@as(usize, @intCast(frames_read))) |i| {
-                    const amp = std.math.fabs(pcm_buffer[i]);
+                    // FIX: Replaced std.math.fabs with the @abs built-in
+                    const amp = @abs(pcm_buffer[i]);
                     if (amp > max_amp) max_amp = amp;
                 }
                 current_peak = max_amp;
                 
-                // Resync decoder if the UI loop lags heavily or skips
                 if (delta_frames > 4096) {
                     _ = c.ma_decoder_seek_to_pcm_frame(&v_decoder, cursor_pcm);
                 }
             }
 
-            // ENVELOPE FOLLOWER (Attack / Release)
+            // ENVELOPE FOLLOWER
             if (current_peak > smooth_peak) {
-                smooth_peak += (current_peak - smooth_peak) * 0.45; // Fast Attack
+                smooth_peak += (current_peak - smooth_peak) * 0.45;
             } else {
-                smooth_peak += (current_peak - smooth_peak) * 0.15; // Smooth Release
+                smooth_peak += (current_peak - smooth_peak) * 0.15;
             }
 
             try stdout.writeAll("\x1b[H"); 
@@ -155,10 +155,10 @@ pub fn main() !void {
             }
             try stdout.print("\x1b[33m]\x1b[0m \x1b[37m{d:.1}\x1b[0m\x1b[K\n\n", .{global_vol});
 
-            // ADAPTIVE MATRIX VISUALIZER (Signal Driven)
+            // ADAPTIVE MATRIX VISUALIZER
             const vis_height = if (term_h > 14) term_h - 14 else 2;
             const vis_width = term_w - 4;
-            const audio_level = @min(smooth_peak * 2.0, 1.0); // Boosted internal gain for visual pop
+            const audio_level = @min(smooth_peak * 2.0, 1.0);
             
             for (0..vis_height) |row| {
                 try stdout.writeAll("  ");
@@ -167,24 +167,24 @@ pub fn main() !void {
                     const col_f = @as(f32, @floatFromInt(col));
                     const width_f = @as(f32, @floatFromInt(vis_width));
                     
-                    // Frequency focus: Center pulses harder (bass), edges ripple (treble)
-                    const center_dist = std.math.fabs((col_f / width_f) - 0.5) * 2.0;
+                    // FIX: Replaced std.math.fabs with @abs
+                    const center_dist = @abs((col_f / width_f) - 0.5) * 2.0;
                     const freq_react = 1.0 - (center_dist * 0.4); 
                     
-                    const eq_val = (std.math.sin(time_t * 12.0 + col_f * 0.3) + 1.0) * 0.5;
+                    // FIX: Replaced std.math.sin with @sin
+                    const eq_val = (@sin(time_t * 12.0 + col_f * 0.3) + 1.0) * 0.5;
                     const noise = std.crypto.random.float(f32);
                     
-                    // The bitstream equation
                     const wave_val = ((eq_val * 0.2 + noise * 0.2) + (audio_level * freq_react * 0.8)) * (global_vol / 1.5);
                     const threshold = @as(f32, @floatFromInt(vis_height - row)) / @as(f32, @floatFromInt(vis_height));
                     
                     if (wave_val > threshold) {
                         if (threshold > 0.7) {
-                            try stdout.writeAll("\x1b[91m█\x1b[0m"); // Peak: Crimson
+                            try stdout.writeAll("\x1b[91m█\x1b[0m"); 
                         } else if (threshold > 0.4) {
-                            try stdout.writeAll("\x1b[33m▆\x1b[0m"); // Mid: Brass
+                            try stdout.writeAll("\x1b[33m▆\x1b[0m"); 
                         } else {
-                            try stdout.writeAll("\x1b[37m▃\x1b[0m"); // Low: Silver
+                            try stdout.writeAll("\x1b[37m▃\x1b[0m"); 
                         }
                     } else {
                         try stdout.writeAll(" ");
