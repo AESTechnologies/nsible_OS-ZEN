@@ -20,7 +20,7 @@ pub fn main() !void {
     defer c.ma_engine_uninit(&engine);
 
     // 3. Dynamic Playlist Generation
-    // FIX: Using the explicit Type call to ensure .init() is visible to the compiler
+    // FIX for Zig 0.15.2: Explicitly creating the list and initializing
     var playlist = std.ArrayList([]const u8).init(allocator);
     defer {
         for (playlist.items) |path| allocator.free(path);
@@ -74,7 +74,6 @@ pub fn main() !void {
         std.debug.print("[ TUI ] :: [Enter] Skip | [+] Vol Up | [-] Vol Down\n", .{});
 
         while (c.ma_sound_at_end(&sound) == c.MA_FALSE) {
-            // Non-blocking input poll
             if (std.io.getStdIn().poll(.{ .read = true }, 0)) |has_input| {
                 if (has_input.read) {
                     var buf: [16]u8 = undefined;
