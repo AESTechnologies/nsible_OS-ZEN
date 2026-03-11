@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const c = @cImport({
-    @cInclude("miniaudio.h"); //header file on disk is named
+    @cInclude("angel_a.h"); //header file on disk is named
 });
 
 pub fn main() !void {
@@ -36,4 +36,4 @@ pub fn main() !void {
 
     std.debug.print("[ ANGEL ] :: Asset fully unspooled. Exalting and freeing memory...\n", .{});
 }
-EOF
+
