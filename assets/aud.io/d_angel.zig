@@ -42,11 +42,14 @@ pub fn main() !void {
         return;
     }
 
-    // FIX: Removed deprecated std.rand. Using native, stable crypto random for the shuffle.
     std.crypto.random.shuffle([]const u8, playlist.items);
 
-    const stdin = std.io.getStdIn().reader();
     var global_vol: f32 = 0.6;
+
+    // FIX: Using pure Linux POSIX polling instead of hallucinated std.io methods
+    var pfd = [_]std.posix.pollfd{
+        .{ .fd = std.posix.STDIN_FILENO, .events = std.posix.POLL.IN, .revents = 0 },
+    };
 
     for (playlist.items) |track| {
         var sound: c.ma_sound = undefined;
@@ -63,22 +66,24 @@ pub fn main() !void {
         std.debug.print("[ TUI ] :: [Enter] Skip | [+] Vol Up | [-] Vol Down\n", .{});
 
         while (c.ma_sound_at_end(&sound) == c.MA_FALSE) {
-            if (std.io.getStdIn().poll(.{ .read = true }, 0)) |has_input| {
-                if (has_input.read) {
-                    var buf: [16]u8 = undefined;
-                    const amt = try stdin.read(&buf) catch 0;
-                    if (amt > 0) {
-                        const cmd = buf[0];
-                        if (cmd == '+') {
-                            global_vol = @min(global_vol + 0.1, 1.2);
-                            _ = c.ma_sound_set_volume(&sound, global_vol);
-                        } else if (cmd == '-') {
-                            global_vol = @max(global_vol - 0.1, 0.0);
-                            _ = c.ma_sound_set_volume(&sound, global_vol);
-                        } else {
-                            _ = c.ma_sound_stop(&sound);
-                            break;
-                        }
+            // OS-level non-blocking read (timeout = 0)
+            const ready = std.posix.poll(&pfd, 0) catch 0;
+            if (ready > 0 and (pfd[0].revents & std.posix.POLL.IN) != 0) {
+                var buf: [16]u8 = undefined;
+                const amt = std.posix.read(std.posix.STDIN_FILENO, &buf) catch 0;
+                if (amt > 0) {
+                    const cmd = buf[0];
+                    if (cmd == '+') {
+                        global_vol = @min(global_vol + 0.1, 1.2);
+                        _ = c.ma_sound_set_volume(&sound, global_vol);
+                        std.debug.print("[ VOL ] :: {d:.1}\n", .{global_vol});
+                    } else if (cmd == '-') {
+                        global_vol = @max(global_vol - 0.1, 0.0);
+                        _ = c.ma_sound_set_volume(&sound, global_vol);
+                        std.debug.print("[ VOL ] :: {d:.1}\n", .{global_vol});
+                    } else if (cmd == '\n' or cmd == '\r') {
+                        _ = c.ma_sound_stop(&sound);
+                        break;
                     }
                 }
             }
