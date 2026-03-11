@@ -19,15 +19,16 @@ pub fn main() !void {
     defer c.ma_engine_uninit(&engine);
 
     var sound: c.ma_sound = undefined;
-    const target = "/home/static/Music/interimThoughtSequence.mp3";
+    //track
+    const target = "/home/static/Music/@nsibleXUT(mercy&love).mp3";
     
     if (c.ma_sound_init_from_file(&engine, target, 0, null, null, &sound) != c.MA_SUCCESS) {
         std.debug.print("[ FATAL ] :: Math engine failed to decode asset.\n", .{});
         return;
     }
     defer c.ma_sound_uninit(&sound);
-
-    std.debug.print("[ ANGEL ] :: Math decoded. Piping pure PCM to ALSA sink...\n", .{});
+    std.debug.print(target, .{});
+    std.debug.print("[ ANGEL ] ::  Math decoded. Piping pure PCM to ALSA sink...\n", .{});
     _ = c.ma_sound_start(&sound);
 
     // Hold the thread alive while the song plays
