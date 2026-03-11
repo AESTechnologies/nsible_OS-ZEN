@@ -74,11 +74,16 @@ pub fn main() !void {
         if (c.ma_sound_init_from_file(&engine, track_c.ptr, 0, null, null, &sound) != c.MA_SUCCESS) continue;
         defer c.ma_sound_uninit(&sound);
 
-        // SHADOW SENSOR: Initialize secondary decoder to read raw PCM for the visualizer
         var v_decoder: c.ma_decoder = undefined;
         var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, 44100); 
         const has_vis = (c.ma_decoder_init_file(track_c.ptr, &v_config, &v_decoder) == c.MA_SUCCESS);
-        defer if (has_vis) c.ma_decoder_uninit(&v_decoder);
+        
+        // FIX: Explicitly discard the C-int return value so the defer block resolves to 'void'
+        defer {
+            if (has_vis) {
+                _ = c.ma_decoder_uninit(&v_decoder);
+            }
+        }
 
         _ = c.ma_sound_set_volume(&sound, global_vol);
         _ = c.ma_sound_start(&sound);
@@ -103,7 +108,6 @@ pub fn main() !void {
             _ = c.ma_sound_get_cursor_in_pcm_frames(&sound, &cursor_pcm);
             const progress = if (length_pcm > 0) @as(f32, @floatFromInt(cursor_pcm)) / @as(f32, @floatFromInt(length_pcm)) else 0.0;
             
-            // TRUE SIGNAL EXTRACTION
             var current_peak: f32 = 0.0;
             const delta_frames = if (cursor_pcm > last_cursor) cursor_pcm - last_cursor else 0;
             last_cursor = cursor_pcm;
@@ -117,7 +121,6 @@ pub fn main() !void {
                 
                 var max_amp: f32 = 0.0;
                 for (0..@as(usize, @intCast(frames_read))) |i| {
-                    // FIX: Replaced std.math.fabs with the @abs built-in
                     const amp = @abs(pcm_buffer[i]);
                     if (amp > max_amp) max_amp = amp;
                 }
@@ -128,7 +131,6 @@ pub fn main() !void {
                 }
             }
 
-            // ENVELOPE FOLLOWER
             if (current_peak > smooth_peak) {
                 smooth_peak += (current_peak - smooth_peak) * 0.45;
             } else {
@@ -155,7 +157,6 @@ pub fn main() !void {
             }
             try stdout.print("\x1b[33m]\x1b[0m \x1b[37m{d:.1}\x1b[0m\x1b[K\n\n", .{global_vol});
 
-            // ADAPTIVE MATRIX VISUALIZER
             const vis_height = if (term_h > 14) term_h - 14 else 2;
             const vis_width = term_w - 4;
             const audio_level = @min(smooth_peak * 2.0, 1.0);
@@ -167,11 +168,9 @@ pub fn main() !void {
                     const col_f = @as(f32, @floatFromInt(col));
                     const width_f = @as(f32, @floatFromInt(vis_width));
                     
-                    // FIX: Replaced std.math.fabs with @abs
                     const center_dist = @abs((col_f / width_f) - 0.5) * 2.0;
                     const freq_react = 1.0 - (center_dist * 0.4); 
                     
-                    // FIX: Replaced std.math.sin with @sin
                     const eq_val = (@sin(time_t * 12.0 + col_f * 0.3) + 1.0) * 0.5;
                     const noise = std.crypto.random.float(f32);
                     
