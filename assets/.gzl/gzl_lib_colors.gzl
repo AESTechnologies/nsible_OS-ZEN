@@ -1,0 +1,34 @@
+// [@://nsible_os/assets/.gzl/lib_colors.gzl/.-={
+// module: "Color Protocol Library"
+// version: "1.0"
+// description: "Absolute definitions for @nsible data modulation lenses."
+// changes: "Initial instantiation of the 4-tier spectrum."
+// philotic_inferences: "Binds semantic concepts to hex-analogous states."
+
+>> INITIATE: DEFINITION_MATRIX [MODE: COLOR_PROTOCOL]
+
+!! CONSTRAINTS:
+- IMMUTABLE_DEFINITIONS == TRUE
+- NO_SEMANTIC_DRIFT
+
+== DEFINE $CRIMSON:
+- DOMAIN: Biological, Vital, Urgent, Kinetic.
+- VARIABLES: Fertility rates, mortality, raw survival mechanics, physical trauma, genetic viability, immediate resource scarcity.
+- @NSIBLE_STATE: Base-Reality. The flesh and blood cost. Non-negotiable physical limits.
+
+== DEFINE $SILVER:
+- DOMAIN: Systemic, Federated, Structural, Cold.
+- VARIABLES: Infrastructure grids, supply chains, macroeconomic load, logistical networks, architectural integrity, algorithmic governance.
+- @NSIBLE_STATE: The Grid. Sterile, calculating, and indifferent to biological cost.
+
+== DEFINE $BRASS:
+- DOMAIN: Social, Human, Cultural, Behavioral.
+- VARIABLES: Social cohesion, collective psychosis, historical cycles, "The Ruse," mass media influence, behavioral economics, societal friction.
+- @NSIBLE_STATE: Anthropological. Mapping the friction of human interaction and consensus reality.
+
+== DEFINE $BLACK:
+- DOMAIN: Hidden, Atrophied, The Void, Entropic.
+- VARIABLES: Cognitive decline, erased history, shadow data, catastrophic unknowns, institutional decay, root causes of the "1973 Pivot", silent failures.
+- @NSIBLE_STATE: Deep-Archival. Diagnostic extraction of the signal from the noise.
+
+// }-.]
