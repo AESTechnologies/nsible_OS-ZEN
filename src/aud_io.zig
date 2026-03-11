@@ -1,8 +1,8 @@
 // [@://nsible_os/src/aud_io.zig/.-={
 // module: "aud.io playback engine",
-// version: "0.1.2",
+// version: "0.1.3",
 // description: "Headless MPV daemon controller via Unix IPC Socket.",
-// changes: "Reverted to process.Child.init; Matrix confirmed std.process.Child struct literals miss undocumented internal OS descriptors like pgid.",
+// changes: "Migrated std.time.sleep to std.Thread.sleep following latest Zig nightly namespace purge.",
 // philotic_inferences: "True sovereignty isn't doing everything yourself; it is having absolute command over the tools that do."
 
 const std = @import("std");
@@ -34,7 +34,7 @@ pub const AudioEngine = struct {
         self.mpv_process = agent;
         
         // Allow the daemon 100 milliseconds to establish the socket before the kernel tries to connect
-        std.time.sleep(100 * std.time.ns_per_ms);
+        std.Thread.sleep(100 * std.time.ns_per_ms);
 
         return self;
     }
