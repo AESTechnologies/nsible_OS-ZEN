@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const c = @cImport({
-    @cInclude("angel_a.h"); //header file on disk is named
+    @cInclude("miniaudio.h"); //header file on disk is named
 });
 
 pub fn main() !void {
