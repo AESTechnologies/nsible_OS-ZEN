@@ -43,11 +43,19 @@ pub fn main() !void {
         .{ .fd = std.posix.STDIN_FILENO, .events = std.posix.POLL.IN, .revents = 0 },
     };
 
-    const stdout = std.io.getStdOut().writer();
+    // FIX: Zig 0.15.x explicit buffered I/O routing
+    var stdout_buf: [4096]u8 = undefined;
+    var writer_inst = std.fs.File.stdout().writer(&stdout_buf);
+    const stdout = &writer_inst.interface;
 
     // TUI Init: Hide cursor and clear screen
-    _ = stdout.write("\x1b[?25l\x1b[2J") catch {};
-    defer _ = stdout.write("\x1b[?25h\x1b[2J\x1b[H") catch {}; // Restore on exit
+    try stdout.writeAll("\x1b[?25l\x1b[2J");
+    try stdout.flush(); // The new API demands explicit flushing
+    
+    defer {
+        stdout.writeAll("\x1b[?25h\x1b[2J\x1b[H") catch {};
+        stdout.flush() catch {}; // Restore on exit
+    }
 
     for (playlist.items) |track| {
         if (!running) break;
@@ -69,18 +77,14 @@ pub fn main() !void {
         while (c.ma_sound_at_end(&sound) == c.MA_FALSE) {
             if (!running) break;
 
-            // Math: Playback Progress
             var cursor_pcm: c.ma_uint64 = 0;
             _ = c.ma_sound_get_cursor_in_pcm_frames(&sound, &cursor_pcm);
             const progress = if (length_pcm > 0) @as(f32, @floatFromInt(cursor_pcm)) / @as(f32, @floatFromInt(length_pcm)) else 0.0;
             
-            // Frame Render: Home Cursor (\x1b[H) to prevent flicker
             try stdout.print("\x1b[H\x1b[91m[ ==================== 高爪 AUDIO ENGINE ==================== ]\x1b[K\n\n\x1b[0m", .{});
             
-            // Track Info (Silver/Brass)
             try stdout.print("\x1b[37m  [ FILE ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n", .{filename});
             
-            // Volume Bar (Crimson/Brass/Black)
             const vol_width = 15;
             const vol_filled = @min(@as(usize, @intFromFloat((global_vol / 1.5) * @as(f32, @floatFromInt(vol_width)))), vol_width);
             try stdout.print("\x1b[37m  [ VOL  ]\x1b[0m :: \x1b[33m[\x1b[0m", .{});
@@ -89,7 +93,6 @@ pub fn main() !void {
             }
             try stdout.print("\x1b[33m]\x1b[0m \x1b[37m{d:.1}\x1b[0m\x1b[K\n\n", .{global_vol});
 
-            // Progress Bar (Crimson/Black)
             const bar_width = 42;
             const filled = @as(usize, @intFromFloat(progress * @as(f32, @floatFromInt(bar_width))));
             try stdout.print("  \x1b[91m[\x1b[0m ", .{});
@@ -98,11 +101,12 @@ pub fn main() !void {
             }
             try stdout.print(" \x1b[91m]\x1b[0m \x1b[37m{d:0>2}%\x1b[0m\x1b[K\n\n", .{@as(usize, @intFromFloat(progress * 100.0))});
 
-            // Input Map
             try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[+]\x1b[0m Up | \x1b[91m[-]\x1b[0m Down | \x1b[91m[Enter]\x1b[0m Skip | \x1b[91m[q]\x1b[0m Quit\x1b[K\n", .{});
-            try stdout.print("\x1b[J", .{}); // Clear any artifacting below the UI
+            try stdout.print("\x1b[J", .{}); 
+            
+            // Push the buffered frame to the terminal
+            try stdout.flush();
 
-            // POSIX Polling (Unchanged)
             const ready = std.posix.poll(&pfd, 0) catch 0;
             if (ready > 0 and (pfd[0].revents & std.posix.POLL.IN) != 0) {
                 var buf: [16]u8 = undefined;
