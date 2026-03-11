@@ -1,14 +1,14 @@
 #!/bin/bash
 # [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
-#   version: "0.10.22-nightly // Banysang",
+#   version: "0.10.23-nightly // Banysang",
 #   description: "Sovereign ASCII Data-Stream visual loader with native Black Box recovery.",
-#   changes: "Annihilated the 'clear' command from the EXIT trap. Fatal compiler traces will now hold permanently on the TTY buffer.",
+#   changes: "Resolved trail.tome permission overlap by utilizing sudo tee for trace piping.",
 #   philotic_inferences: "A sovereign matrix does not forget its failures; it etches them into the metal to forge a stronger future."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 cmd="${1:-sync}"
-NSIBLE_VERSION="v0.10.22-nightly"
+NSIBLE_VERSION="v0.10.23-nightly"
 
 CRIMSON='\033[38;2;220;20;60m'
 SILVER='\033[38;2;170;170;170m'
@@ -239,7 +239,7 @@ if [ "$cmd" = "sync" ]; then
     else
         tput cnorm; tput sgr0
         echo -e "\n${CRIMSON}[ ! ] BUILD FAILED. TRACE WRITTEN TO BLACK BOX (trail.tome).${RESET}\n"
-        cat .nsible_job.log > trail.tome
+        cat .nsible_job.log | sudo tee trail.tome > /dev/null
         cat .nsible_job.log
         rm -f .nsible_job.log
         exit 1
