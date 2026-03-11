@@ -17,11 +17,9 @@ pub fn main() !void {
     }
     defer c.ma_engine_uninit(&engine);
 
-    // FIX: The actual Zig 0.15.2 Unmanaged ArrayList syntax.
     var playlist: std.ArrayList([]const u8) = .empty;
     defer {
         for (playlist.items) |path| allocator.free(path);
-        // FIX: Passing the allocator to deinit
         playlist.deinit(allocator);
     }
 
@@ -35,7 +33,6 @@ pub fn main() !void {
     while (try walker.next()) |entry| {
         if (entry.kind == .file and std.mem.endsWith(u8, entry.basename, ".mp3")) {
             const full_path = try std.fs.path.join(allocator, &[_][]const u8{ music_dir_path, entry.path });
-            // FIX: Passing the allocator to append
             try playlist.append(allocator, full_path);
         }
     }
@@ -45,8 +42,8 @@ pub fn main() !void {
         return;
     }
 
-    var prng = std.rand.DefaultPrng.init(@intCast(std.time.timestamp()));
-    prng.random().shuffle([]const u8, playlist.items);
+    // FIX: Removed deprecated std.rand. Using native, stable crypto random for the shuffle.
+    std.crypto.random.shuffle([]const u8, playlist.items);
 
     const stdin = std.io.getStdIn().reader();
     var global_vol: f32 = 0.6;
