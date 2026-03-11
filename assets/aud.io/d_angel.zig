@@ -20,7 +20,7 @@ pub fn main() !void {
     defer c.ma_engine_uninit(&engine);
 
     // 3. Dynamic Playlist Generation
-    // FIX: Using std.ArrayList([]const u8) explicitly to ensure .init is found
+    // FIX: Using the explicit Type call to ensure .init() is visible to the compiler
     var playlist = std.ArrayList([]const u8).init(allocator);
     defer {
         for (playlist.items) |path| allocator.free(path);
