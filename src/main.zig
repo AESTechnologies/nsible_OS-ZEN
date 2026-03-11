@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.15-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Patched ANSI bleed; Woven aud.io matrix. Resolved Zig 0.15 nightly breaking change by migrating aud_io_library to std.ArrayListUnmanaged.",
+//   changes: "Corrected aud.io.tome absolute pathing. Bulletproofed .!XX-. GZL reflex to trap all active modals before dropping the kernel.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -409,7 +409,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 
 fn parseAudioTome(allocator: std.mem.Allocator) !void {
     aud_io_library.clearRetainingCapacity();
-    const file = std.fs.cwd().openFile("assets/aud.io.tome", .{}) catch return;
+    const file = std.fs.cwd().openFile("aud.io.tome", .{}) catch return;
     defer file.close();
     const raw_data = try file.readToEndAlloc(allocator, 1024 * 1024 * 50);
     defer allocator.free(raw_data);
@@ -704,7 +704,17 @@ pub fn main() !void {
 					is_bash_pipe = false;
 					journal_len = 0;
 					reflex_triggered = true;
-                } else {
+                } else if (is_aud_io_modal) {
+                    is_aud_io_modal = false;
+                    triggerBackgroundIndexer(void_allocator);
+                    journal_len = 0;
+                    reflex_triggered = true;
+                } else if (is_calc_modal) { is_calc_modal = false; journal_len = 0; reflex_triggered = true; }
+                else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; journal_len = 0; reflex_triggered = true; }
+                else if (is_memo_modal) { is_memo_modal = false; journal_len = 0; reflex_triggered = true; }
+                else if (is_trail_modal) { is_trail_modal = false; journal_len = 0; reflex_triggered = true; }
+                else if (is_assist_modal) { is_assist_modal = false; journal_len = 0; reflex_triggered = true; }
+                else {
                     exitSequence();
                 }
             } 
