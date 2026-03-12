@@ -131,12 +131,13 @@ pub fn main() !void {
                 }
             }
 
+            // FIX: Restored correct smoothing logic
             if (is_paused) {
-                  smooth_peak += (current_peak - smooth_peak) * 0.85; // Sharp Attack
+                smooth_peak = 0.0;
+            } else if (current_peak > smooth_peak) {
+                smooth_peak += (current_peak - smooth_peak) * 0.85; // Sharp Attack
             } else {
                 smooth_peak += (current_peak - smooth_peak) * 0.35; // Fast Decay
-            } else {
-                smooth_peak += (current_peak - smooth_peak) * 0.15;
             }
 
             try stdout.writeAll("\x1b[H"); 
@@ -173,23 +174,18 @@ pub fn main() !void {
                     const center_dist = @abs((col_f / width_f) - 0.5) * 2.0;
                     const freq_react = 1.0 - (center_dist * 0.5); 
                     
-                    // FIX: Widened the spatial spread, slowed the roll, reduced the weight to 20%.
-                    // FIX: Faster roll (18.0) and squared dynamic range for deeper highs/lows
+                    // FIX: Cleared variable collisions
                     const eq_val = (@sin(time_t * 18.0 + col_f * 0.15) + 1.0) * 0.5;
                     const noise = std.crypto.random.float(f32) * 0.05; 
                     
-                    // Squaring the audio_level forces the matrix to react exponentially
                     const dynamic_audio = audio_level * audio_level * 1.2; 
                     const signal_mult = dynamic_audio * (global_vol / 1.5) * 2.0;
                     
                     const wave_val = ((eq_val * 0.3) + (freq_react * 0.7) + noise) * signal_mult;
                     
-                    const signal_mult = audio_level * (global_vol / 1.5) * 1.5;
-                    // The visual is now dominated by the center swell and the raw amplitude
-                    const wave_val = ((eq_val * 0.2) + (freq_react * 0.8) + noise) * signal_mult;
-                    
                     const threshold = @as(f32, @floatFromInt(vis_height - row)) / @as(f32, @floatFromInt(vis_height));
                     
+                    // FIX: Restored correct brace structure
                     if (wave_val > threshold) {
                         if (threshold > 0.7) {
                             try stdout.writeAll("\x1b[91m█\x1b[0m"); 
@@ -197,6 +193,7 @@ pub fn main() !void {
                             try stdout.writeAll("\x1b[33m▆\x1b[0m"); 
                         } else {
                             try stdout.writeAll("\x1b[37m▃\x1b[0m"); 
+                        }
                     } else {
                         try stdout.writeAll(" ");
                     }
@@ -257,5 +254,3 @@ pub fn main() !void {
         }
     }
 }
-
-
