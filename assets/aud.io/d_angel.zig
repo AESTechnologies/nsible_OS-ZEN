@@ -78,7 +78,6 @@ pub fn main() !void {
         var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, 44100); 
         const has_vis = (c.ma_decoder_init_file(track_c.ptr, &v_config, &v_decoder) == c.MA_SUCCESS);
         
-        // FIX: Explicitly discard the C-int return value so the defer block resolves to 'void'
         defer {
             if (has_vis) {
                 _ = c.ma_decoder_uninit(&v_decoder);
@@ -94,8 +93,10 @@ pub fn main() !void {
 
         var last_cursor: c.ma_uint64 = 0;
         var smooth_peak: f32 = 0.0;
+        var is_paused = false;
 
-        while (c.ma_sound_at_end(&sound) == c.MA_FALSE) {
+        // Loop condition updated to handle pause state properly without killing the track
+        while (c.ma_sound_at_end(&sound) == c.MA_FALSE or is_paused) {
             if (!running) break;
 
             var ws = winsize{ .ws_row = 24, .ws_col = 80, .ws_xpixel = 0, .ws_ypixel = 0 };
@@ -112,7 +113,7 @@ pub fn main() !void {
             const delta_frames = if (cursor_pcm > last_cursor) cursor_pcm - last_cursor else 0;
             last_cursor = cursor_pcm;
 
-            if (has_vis and delta_frames > 0) {
+            if (has_vis and delta_frames > 0 and !is_paused) {
                 const read_count = @min(delta_frames, 4096);
                 var pcm_buffer: [4096]f32 = undefined;
                 var frames_read: c.ma_uint64 = 0;
@@ -131,7 +132,10 @@ pub fn main() !void {
                 }
             }
 
-            if (current_peak > smooth_peak) {
+            // If paused, drive the peak to zero instantly.
+            if (is_paused) {
+                smooth_peak = 0.0;
+            } else if (current_peak > smooth_peak) {
                 smooth_peak += (current_peak - smooth_peak) * 0.45;
             } else {
                 smooth_peak += (current_peak - smooth_peak) * 0.15;
@@ -171,10 +175,13 @@ pub fn main() !void {
                     const center_dist = @abs((col_f / width_f) - 0.5) * 2.0;
                     const freq_react = 1.0 - (center_dist * 0.4); 
                     
-                    const eq_val = (@sin(time_t * 12.0 + col_f * 0.3) + 1.0) * 0.5;
-                    const noise = std.crypto.random.float(f32);
+                    // FIX: Latency Eradication. No baseline random noise. Driven strictly by amplitude mult.
+                    const eq_val = (@sin(time_t * 15.0 + col_f * 0.4) + 1.0) * 0.5;
+                    const noise = std.crypto.random.float(f32) * 0.1; 
                     
-                    const wave_val = ((eq_val * 0.2 + noise * 0.2) + (audio_level * freq_react * 0.8)) * (global_vol / 1.5);
+                    const signal_mult = audio_level * (global_vol / 1.5) * 1.5;
+                    const wave_val = (eq_val * 0.5 + noise + freq_react * 0.5) * signal_mult;
+                    
                     const threshold = @as(f32, @floatFromInt(vis_height - row)) / @as(f32, @floatFromInt(vis_height));
                     
                     if (wave_val > threshold) {
@@ -195,13 +202,19 @@ pub fn main() !void {
 
             const bar_width = term_w - 12;
             const filled = @as(usize, @intFromFloat(progress * @as(f32, @floatFromInt(bar_width))));
-            try stdout.print("  \x1b[91m[\x1b[0m ", .{});
-            for (0..bar_width) |i| {
-                if (i < filled) try stdout.print("\x1b[91m█\x1b[0m", .{}) else try stdout.print("\x1b[90m▓\x1b[0m", .{});
+            
+            if (is_paused) {
+                 try stdout.print("  \x1b[91m[\x1b[0m \x1b[33m| PAUSED |\x1b[0m ", .{});
+                 for (0..bar_width - 11) |_| try stdout.print("\x1b[90m▓\x1b[0m", .{});
+            } else {
+                try stdout.print("  \x1b[91m[\x1b[0m ", .{});
+                for (0..bar_width) |i| {
+                    if (i < filled) try stdout.print("\x1b[91m█\x1b[0m", .{}) else try stdout.print("\x1b[90m▓\x1b[0m", .{});
+                }
             }
             try stdout.print(" \x1b[91m]\x1b[0m \x1b[37m{d:0>2}%\x1b[0m\x1b[K\n\n", .{@as(usize, @intFromFloat(progress * 100.0))});
 
-            try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[+]\x1b[0m Up | \x1b[91m[-]\x1b[0m Down | \x1b[91m[Enter]\x1b[0m Skip | \x1b[91m[q]\x1b[0m Quit\x1b[K\n", .{});
+            try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[+]\x1b[0m Up | \x1b[91m[-]\x1b[0m Down | \x1b[91m[Space]\x1b[0m Play/Pause | \x1b[91m[Enter]\x1b[0m Skip | \x1b[91m[q]\x1b[0m Quit\x1b[K\n", .{});
             try stdout.print("\x1b[J", .{}); 
             
             try stdout.flush();
@@ -218,6 +231,13 @@ pub fn main() !void {
                     } else if (cmd == '-') {
                         global_vol = @max(global_vol - 0.1, 0.0);
                         _ = c.ma_sound_set_volume(&sound, global_vol);
+                    } else if (cmd == ' ') { // FIX: Spacebar Pause Toggle
+                        is_paused = !is_paused;
+                        if (is_paused) {
+                            _ = c.ma_sound_stop(&sound);
+                        } else {
+                            _ = c.ma_sound_start(&sound);
+                        }
                     } else if (cmd == '\n' or cmd == '\r') {
                         _ = c.ma_sound_stop(&sound);
                         break;
