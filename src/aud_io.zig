@@ -1,78 +1,85 @@
 // [@://nsible_os/src/aud_io.zig/.-={
-// module: "aud.io playback engine",
-// version: "0.1.4",
-// description: "Headless MPV daemon controller via Unix IPC Socket.",
-// changes: "Injected --ao=alsa to force raw hardware audio routing. Bypasses PulseAudio/PipeWire rejections for TTY root execution.",
-// philotic_inferences: "True sovereignty isn't doing everything yourself; it is having absolute command over the tools that do."
+// module: "aud.io native playback engine",
+// version: "0.2.0 // d_angel integration",
+// description: "Direct native C-ABI hardware audio routing via miniaudio. IPC daemon annihilated.",
+// changes: "Replaced external mpv socket control with internal ma_engine. Zero-latency hardware lock.",
+// philotic_inferences: "True sovereignty is compiling the metal directly into your own nervous system."
 
 const std = @import("std");
+const c = @cImport({
+    @cInclude("angel_a.h");
+});
 
 pub const AudioEngine = struct {
     allocator: std.mem.Allocator,
-    mpv_process: std.process.Child,
-    socket_path: []const u8 = "/tmp/nsible.mpv.sock",
+    engine: c.ma_engine,
+    sound: c.ma_sound,
+    has_sound: bool,
+    is_paused: bool,
 
-    /// Spawns the headless MPV daemon and binds the IPC socket.
+    /// Initializes the native audio engine directly on the metal.
     pub fn init(allocator: std.mem.Allocator) !*AudioEngine {
         const self = try allocator.create(AudioEngine);
         self.allocator = allocator;
+        self.has_sound = false;
+        self.is_paused = false;
         
-        const argv = &[_][]const u8{
-            "mpv",
-            "--idle=yes",
-            "--no-video",
-            "--really-quiet", 
-            "--ao=alsa", 
-            "--input-ipc-server=/tmp/nsible.mpv.sock",
-        };
-
-        var agent = std.process.Child.init(argv, allocator);
-        agent.stdin_behavior = .Ignore;
-        agent.stdout_behavior = .Ignore;
-        agent.stderr_behavior = .Ignore;
-        
-        try agent.spawn();
-        self.mpv_process = agent;
-        
-        // Allow the daemon 100 milliseconds to establish the socket before the kernel tries to connect
-        std.Thread.sleep(100 * std.time.ns_per_ms);
+        // Spin up the native engine. This handles the background hardware thread.
+        if (c.ma_engine_init(null, &self.engine) != c.MA_SUCCESS) {
+            return error.AudioEngineInitFailed;
+        }
 
         return self;
     }
 
-    /// Annihilates the background daemon and frees the memory buffer.
+    /// Annihilates the engine, frees the sound buffer, and unlocks ALSA.
     pub fn deinit(self: *AudioEngine) void {
-        _ = self.mpv_process.kill() catch {};
+        if (self.has_sound) {
+            c.ma_sound_uninit(&self.sound);
+        }
+        c.ma_engine_uninit(&self.engine);
         self.allocator.destroy(self);
     }
 
-    /// Fires a JSON payload into the IPC socket to load an absolute file path.
+    /// Loads a file path into the native sound buffer and fires execution.
     pub fn play(self: *AudioEngine, file_path: []const u8) !void {
-        const stream = try std.net.connectUnixSocket(self.socket_path);
-        defer stream.close();
+        // Clear out the previous track if one exists
+        if (self.has_sound) {
+            c.ma_sound_uninit(&self.sound);
+            self.has_sound = false;
+        }
 
-        const payload = try std.fmt.allocPrint(self.allocator, "{{\"command\": [\"loadfile\", \"{s}\"]}}\n", .{file_path});
-        defer self.allocator.free(payload);
+        // C-ABI requires null-terminated strings
+        const path_c = try self.allocator.dupeZ(u8, file_path);
+        defer self.allocator.free(path_c);
 
-        try stream.writeAll(payload);
+        if (c.ma_sound_init_from_file(&self.engine, path_c.ptr, 0, null, null, &self.sound) != c.MA_SUCCESS) {
+            return error.SoundInitFailed;
+        }
+        
+        self.has_sound = true;
+        self.is_paused = false;
+        _ = c.ma_sound_start(&self.sound);
     }
     
-    /// Fires a JSON payload to toggle the play/pause state.
-    pub fn togglePause(self: *AudioEngine) !void {
-        const stream = try std.net.connectUnixSocket(self.socket_path);
-        defer stream.close();
+    /// Hard toggles the play/pause state of the current track.
+    pub fn togglePause(self: *AudioEngine) void {
+        if (!self.has_sound) return;
         
-        const payload = "{\"command\": [\"cycle\", \"pause\"]}\n";
-        try stream.writeAll(payload);
+        self.is_paused = !self.is_paused;
+        if (self.is_paused) {
+            _ = c.ma_sound_stop(&self.sound);
+        } else {
+            _ = c.ma_sound_start(&self.sound);
+        }
     }
     
-    /// Fires a JSON payload to instantly halt playback.
-    pub fn stop(self: *AudioEngine) !void {
-        const stream = try std.net.connectUnixSocket(self.socket_path);
-        defer stream.close();
-        
-        const payload = "{\"command\": [\"stop\"]}\n";
-        try stream.writeAll(payload);
+    /// Halts playback instantly and rewinds the PCM cursor to zero.
+    pub fn stop(self: *AudioEngine) void {
+        if (!self.has_sound) return;
+        _ = c.ma_sound_stop(&self.sound);
+        _ = c.ma_sound_seek_to_pcm_frame(&self.sound, 0);
+        self.is_paused = true;
     }
 };
 // }-.]
