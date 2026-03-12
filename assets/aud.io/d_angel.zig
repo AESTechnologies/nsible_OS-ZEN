@@ -95,7 +95,6 @@ pub fn main() !void {
         var smooth_peak: f32 = 0.0;
         var is_paused = false;
 
-        // Loop condition updated to handle pause state properly without killing the track
         while (c.ma_sound_at_end(&sound) == c.MA_FALSE or is_paused) {
             if (!running) break;
 
@@ -132,7 +131,6 @@ pub fn main() !void {
                 }
             }
 
-            // If paused, drive the peak to zero instantly.
             if (is_paused) {
                 smooth_peak = 0.0;
             } else if (current_peak > smooth_peak) {
@@ -173,14 +171,15 @@ pub fn main() !void {
                     const width_f = @as(f32, @floatFromInt(vis_width));
                     
                     const center_dist = @abs((col_f / width_f) - 0.5) * 2.0;
-                    const freq_react = 1.0 - (center_dist * 0.4); 
+                    const freq_react = 1.0 - (center_dist * 0.5); 
                     
-                    // FIX: Latency Eradication. No baseline random noise. Driven strictly by amplitude mult.
-                    const eq_val = (@sin(time_t * 15.0 + col_f * 0.4) + 1.0) * 0.5;
-                    const noise = std.crypto.random.float(f32) * 0.1; 
+                    // FIX: Widened the spatial spread, slowed the roll, reduced the weight to 20%.
+                    const eq_val = (@sin(time_t * 8.0 + col_f * 0.1) + 1.0) * 0.5;
+                    const noise = std.crypto.random.float(f32) * 0.05; 
                     
                     const signal_mult = audio_level * (global_vol / 1.5) * 1.5;
-                    const wave_val = (eq_val * 0.5 + noise + freq_react * 0.5) * signal_mult;
+                    // The visual is now dominated by the center swell and the raw amplitude
+                    const wave_val = ((eq_val * 0.2) + (freq_react * 0.8) + noise) * signal_mult;
                     
                     const threshold = @as(f32, @floatFromInt(vis_height - row)) / @as(f32, @floatFromInt(vis_height));
                     
@@ -231,7 +230,7 @@ pub fn main() !void {
                     } else if (cmd == '-') {
                         global_vol = @max(global_vol - 0.1, 0.0);
                         _ = c.ma_sound_set_volume(&sound, global_vol);
-                    } else if (cmd == ' ') { // FIX: Spacebar Pause Toggle
+                    } else if (cmd == ' ') { 
                         is_paused = !is_paused;
                         if (is_paused) {
                             _ = c.ma_sound_stop(&sound);
