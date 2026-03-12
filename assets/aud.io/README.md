@@ -1,4 +1,4 @@
-# 高爪 d_angel // @nsible Audio Matrix
+# 高爪 d_angel // @nsible Audio TUI
 
 **d_angel** is a terminal-based, zero-latency volumetric waveform simulator and audio engine prototype. Designed for execution within the `@nsible` hybrid architecture, it bypasses bloated GUI abstractions to render real-time PCM frame data directly to the TTY.
 
