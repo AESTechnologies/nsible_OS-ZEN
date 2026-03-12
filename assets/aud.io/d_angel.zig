@@ -197,7 +197,6 @@ pub fn main() !void {
                             try stdout.writeAll("\x1b[33m▆\x1b[0m"); 
                         } else {
                             try stdout.writeAll("\x1b[37m▃\x1b[0m"); 
-                        }
                     } else {
                         try stdout.writeAll(" ");
                     }
@@ -258,4 +257,5 @@ pub fn main() !void {
         }
     }
 }
+
 
