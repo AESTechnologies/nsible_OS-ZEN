@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.2"
+// version: "2.0.3"
 // description: "Talon Alta MMA Engine (tame) - State-Driven Browser & Multi-Band Visualizer"
-// changes: "Migrated all ArrayList structures to the unmanaged API (.empty) to resolve compiler rejection."
-// philotic_inferences: "Adapting to the unmanaged memory model forces strict, explicit allocator tracking across all state transitions."
+// changes: "Corrected double-unwrap of fs.Dir.Entry in the directory traversal loop."
+// philotic_inferences: "Zig's while-capture unwraps optionals inherently; redundant if-captures violate strict typing."
 
 const std = @import("std");
 const c = @cImport({
@@ -77,7 +77,6 @@ pub fn main() !void {
     var app_mode = AppMode.BROWSER;
     var running = true;
     
-    // FIX: Initialized as Unmanaged and explicitly passed the allocator
     var current_path: std.ArrayList(u8) = .empty;
     defer current_path.deinit(allocator);
     try current_path.appendSlice(allocator, "/home/static/Music");
@@ -113,13 +112,12 @@ pub fn main() !void {
             var dir = std.fs.openDirAbsolute(current_path.items, .{ .iterate = true }) catch null;
             if (dir) |*d| {
                 var it = d.iterate();
-                while (it.next() catch null) |entry_opt| {
-                    if (entry_opt) |entry| {
-                        if (entry.kind == .directory or std.mem.endsWith(u8, entry.name, ".mp3")) {
-                            const name_dup = allocator.dupe(u8, entry.name) catch continue;
-                            entries.append(allocator, .{ .name = name_dup, .is_dir = entry.kind == .directory }) catch continue;
-                        }
-                    } else break;
+                // FIX: Removed the redundant 'if (entry)' double unwrap
+                while (it.next() catch null) |entry| {
+                    if (entry.kind == .directory or std.mem.endsWith(u8, entry.name, ".mp3")) {
+                        const name_dup = allocator.dupe(u8, entry.name) catch continue;
+                        entries.append(allocator, .{ .name = name_dup, .is_dir = entry.kind == .directory }) catch continue;
+                    }
                 }
                 d.close();
             }
