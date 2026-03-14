@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.5"
-// description: "Audio Visualizer & State-Driven Media Engine"
-// changes: "Integrated active playlist queue for Play/Shuffle All. Added /media quick-jump hotkey."
-// philotic_inferences: "Queuing dynamically loaded arrays provides flexible continuous playback without blocking the directory reader."
+// version: "2.0.6"
+// description: "高爪 Audio Visualizer & Autonomous Media Engine"
+// changes: "Abolished external scripts. Integrated native, silent block-device mounting into the 'm' media jump."
+// philotic_inferences: "Software must serve the human. Relying on manual external scripts for internal app navigation is a failure of UX."
 
 const std = @import("std");
 const c = @cImport({
@@ -196,6 +196,19 @@ pub fn main() !void {
                             browser_scroll = 0;
                         }
                     } else if (cmd == 'm') {
+                        // === [ AUTONOMOUS MOUNT INJECTION ] ===
+                        // Spawns a silent OS call to udisks2 to mount any unmapped block devices natively before jumping.
+                        const mount_cmd = "for b in $(lsblk -rno PATH,TYPE,MOUNTPOINT | awk '$2==\"part\" && $3==\"\" {print $1}'); do udisksctl mount -b $b >/dev/null 2>&1 || true; done";
+                        const res = std.process.Child.run(.{
+                            .allocator = allocator,
+                            .argv = &[_][]const u8{ "sh", "-c", mount_cmd },
+                        }) catch null;
+                        
+                        if (res) |r| {
+                            allocator.free(r.stdout);
+                            allocator.free(r.stderr);
+                        }
+
                         current_path.clearRetainingCapacity();
                         try current_path.appendSlice(allocator, "/media");
                         browser_cursor = 0;
