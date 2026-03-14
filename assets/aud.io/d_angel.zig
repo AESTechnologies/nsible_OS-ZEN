@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "1.0.6"
-// description: "Talon Alta MMA Engine (tame) - Buffer-Locked Audio Visualizer"
-// changes: "Synced decoder sample rate to engine to eliminate 90% drift. Locked terminal line height to eliminate scroll ghosting. Untethered visual math from volume scale."
-// philotic_inferences: "A locked terminal buffer requires strict absolute line counting to prevent vertical scroll artifacts."
+// version: "2.0.0"
+// description: "Talon Alta MMA Engine (tame) - State-Driven Browser & Multi-Band Visualizer"
+// changes: "Implemented BROWSER/PLAYER State Machine for dynamic SSD traversal. Increased UI bottom-margin to eliminate scroll ghosting."
+// philotic_inferences: "A State Machine isolates directory I/O from the blocking audio render loop, allowing seamless transition between navigation and playback."
 
 const std = @import("std");
 const c = @cImport({
@@ -20,7 +20,6 @@ const TIOCGWINSZ = 0x5413;
 
 extern "c" fn ioctl(fd: i32, request: usize, ...) i32;
 
-// === [ UI CONFIGURATION ] ===
 const VisConfig = struct {
     wave_high: []const u8 = "\x1b[91m█\x1b[0m", 
     wave_mid:  []const u8 = "\x1b[33m▆\x1b[0m",
@@ -35,6 +34,17 @@ const VisConfig = struct {
     thresh_mid:  f32 = 0.4,
 };
 
+// === [ ENGINE STATES ] ===
+const AppMode = enum {
+    BROWSER,
+    PLAYER,
+};
+
+const FileEntry = struct {
+    name: []const u8,
+    is_dir: bool,
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -46,39 +56,7 @@ pub fn main() !void {
     if (c.ma_engine_init(null, &engine) != c.MA_SUCCESS) return;
     defer c.ma_engine_uninit(&engine);
     
-    // FIX: Extract engine's sample rate to perfectly align the visualizer decoder
     const engine_sr = c.ma_engine_get_sample_rate(&engine);
-
-    var playlist: std.ArrayList([]const u8) = .empty;
-    defer {
-        for (playlist.items) |path| allocator.free(path);
-        playlist.deinit(allocator);
-    }
-
-    const music_dir_path = "/home/static/Music";
-    var dir = try std.fs.openDirAbsolute(music_dir_path, .{ .iterate = true });
-    defer dir.close();
-
-    var walker = try dir.walk(allocator);
-    defer walker.deinit();
-
-    while (try walker.next()) |entry| {
-        if (entry.kind == .file and std.mem.endsWith(u8, entry.basename, ".mp3")) {
-            const full_path = try std.fs.path.join(allocator, &[_][]const u8{ music_dir_path, entry.path });
-            try playlist.append(allocator, full_path);
-        }
-    }
-
-    if (playlist.items.len == 0) return;
-
-    std.crypto.random.shuffle([]const u8, playlist.items);
-
-    var global_vol: f32 = 0.6;
-    var running = true;
-    
-    var vis_mode: usize = 0;
-    const num_vis_modes = 4;
-    const vis_names = [_][]const u8{ "SINE WAVE", "PULSE CENTER", "CHAOS BANDS", "HORIZON" };
 
     var pfd = [_]std.posix.pollfd{
         .{ .fd = std.posix.STDIN_FILENO, .events = std.posix.POLL.IN, .revents = 0 },
@@ -95,99 +73,76 @@ pub fn main() !void {
         stdout.flush() catch {};
     }
 
-    for (playlist.items) |track| {
-        if (!running) break;
+    // === [ STATE VARIABLES ] ===
+    var app_mode = AppMode.BROWSER;
+    var running = true;
+    
+    // Default starting directory. Change this to point to your SSD mount (e.g., "/mnt/ext_ssd/Music")
+    var current_path = try std.ArrayList(u8).initCapacity(allocator, std.fs.MAX_PATH_BYTES);
+    defer current_path.deinit();
+    try current_path.appendSlice("/home/static/Music");
 
-        var sound: c.ma_sound = undefined;
-        const track_c = try allocator.dupeZ(u8, track);
-        defer allocator.free(track_c);
+    var browser_cursor: usize = 0;
+    var browser_scroll: usize = 0;
+    
+    var active_track_path = try std.ArrayList(u8).initCapacity(allocator, std.fs.MAX_PATH_BYTES);
+    defer active_track_path.deinit();
 
-        if (c.ma_sound_init_from_file(&engine, track_c.ptr, 0, null, null, &sound) != c.MA_SUCCESS) continue;
-        defer c.ma_sound_uninit(&sound);
+    var global_vol: f32 = 0.6;
+    var vis_mode: usize = 0;
+    const num_vis_modes = 4;
+    const vis_names = [_][]const u8{ "SINE WAVE", "PULSE CENTER", "CHAOS BANDS", "HORIZON" };
 
-        var v_decoder: c.ma_decoder = undefined;
-        // FIX: Match decoder initialization precisely to the engine sample rate
-        var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, engine_sr); 
-        const has_vis = (c.ma_decoder_init_file(track_c.ptr, &v_config, &v_decoder) == c.MA_SUCCESS);
+    // === [ MAIN MASTER LOOP ] ===
+    while (running) {
         
-        defer {
-            if (has_vis) {
-                _ = c.ma_decoder_uninit(&v_decoder);
-            }
-        }
-
-        _ = c.ma_sound_set_volume(&sound, global_vol);
-        _ = c.ma_sound_start(&sound);
-
-        const filename = std.fs.path.basename(track);
-        var length_pcm: c.ma_uint64 = 1;
-        _ = c.ma_sound_get_length_in_pcm_frames(&sound, &length_pcm);
-
-        var smooth_peak: f32 = 0.0;
-        var smooth_bass: f32 = 0.0;
-        var smooth_mid: f32 = 0.0;
-        var smooth_treb: f32 = 0.0;
-        var lf_sample_state: f32 = 0.0;
-        var last_sample: f32 = 0.0;
-
-        var is_paused = false;
-
-        while (c.ma_sound_at_end(&sound) == c.MA_FALSE or is_paused) {
-            if (!running) break;
-
+        // === [ BROWSER STATE ] ===
+        if (app_mode == .BROWSER) {
             var ws = winsize{ .ws_row = 24, .ws_col = 80, .ws_xpixel = 0, .ws_ypixel = 0 };
             _ = ioctl(std.posix.STDOUT_FILENO, TIOCGWINSZ, &ws);
-            
             const term_w = if (ws.ws_col > 20) @as(usize, ws.ws_col) else 80;
             const term_h = if (ws.ws_row > 10) @as(usize, ws.ws_row) else 24;
 
-            var cursor_pcm: c.ma_uint64 = 0;
-            _ = c.ma_sound_get_cursor_in_pcm_frames(&sound, &cursor_pcm);
-            const progress = if (length_pcm > 0) @as(f32, @floatFromInt(cursor_pcm)) / @as(f32, @floatFromInt(length_pcm)) else 0.0;
-            
-            var current_peak: f32 = 0.0;
-            var current_bass: f32 = 0.0;
-            var current_mid: f32 = 0.0;
-            var current_treb: f32 = 0.0;
+            var entries = std.ArrayList(FileEntry).init(allocator);
+            defer {
+                for (entries.items) |e| allocator.free(e.name);
+                entries.deinit();
+            }
 
-            if (has_vis and !is_paused) {
-                var pcm_buffer: [4096]f32 = undefined;
-                var frames_read: c.ma_uint64 = 0;
-                
-                _ = c.ma_decoder_seek_to_pcm_frame(&v_decoder, cursor_pcm);
-                _ = c.ma_decoder_read_pcm_frames(&v_decoder, &pcm_buffer, 4096, &frames_read);
-                
-                for (0..@as(usize, @intCast(frames_read))) |i| {
-                    const s = pcm_buffer[i];
-                    const abs_s = @abs(s);
-                    if (abs_s > current_peak) current_peak = abs_s;
-
-                    lf_sample_state += (s - lf_sample_state) * 0.08;
-                    if (@abs(lf_sample_state) > current_bass) current_bass = @abs(lf_sample_state);
-
-                    const diff = s - last_sample;
-                    if (@abs(diff) > current_treb) current_treb = @abs(diff);
-
-                    const mid_val = s - lf_sample_state - (diff * 0.5);
-                    if (@abs(mid_val) > current_mid) current_mid = @abs(mid_val);
-
-                    last_sample = s;
+            // Read Directory
+            var dir = std.fs.openDirAbsolute(current_path.items, .{ .iterate = true }) catch null;
+            if (dir) |*d| {
+                var it = d.iterate();
+                while (it.next() catch null) |entry_opt| {
+                    if (entry_opt) |entry| {
+                        if (entry.kind == .directory or std.mem.endsWith(u8, entry.name, ".mp3")) {
+                            const name_dup = allocator.dupe(u8, entry.name) catch continue;
+                            entries.append(.{ .name = name_dup, .is_dir = entry.kind == .directory }) catch continue;
+                        }
+                    } else break;
                 }
+                d.close();
             }
 
-            if (is_paused) {
-                smooth_peak = 0.0; smooth_bass = 0.0; smooth_mid = 0.0; smooth_treb = 0.0;
-            } else {
-                smooth_peak += (current_peak - smooth_peak) * if (current_peak > smooth_peak) @as(f32, 0.88) else @as(f32, 0.42);
-                smooth_bass += (current_bass - smooth_bass) * if (current_bass > smooth_bass) @as(f32, 0.85) else @as(f32, 0.35);
-                smooth_mid  += (current_mid  - smooth_mid)  * if (current_mid  > smooth_mid)  @as(f32, 0.88) else @as(f32, 0.40);
-                smooth_treb += (current_treb - smooth_treb) * if (current_treb > smooth_treb) @as(f32, 0.92) else @as(f32, 0.50);
-            }
+            // Quick Sort: Directories first, then alphabetical
+            std.sort.block(FileEntry, entries.items, {}, struct {
+                fn lessThan(context: void, lhs: FileEntry, rhs: FileEntry) bool {
+                    _ = context;
+                    if (lhs.is_dir and !rhs.is_dir) return true;
+                    if (!lhs.is_dir and rhs.is_dir) return false;
+                    return std.mem.lessThan(u8, lhs.name, rhs.name);
+                }
+            }.lessThan);
 
-            try stdout.writeAll("\x1b[H"); 
+            if (browser_cursor >= entries.items.len) browser_cursor = if (entries.items.len > 0) entries.items.len - 1 else 0;
+
+            const max_display = term_h - 10;
+            if (browser_cursor < browser_scroll) browser_scroll = browser_cursor;
+            if (browser_cursor >= browser_scroll + max_display) browser_scroll = browser_cursor - max_display + 1;
+
+            try stdout.writeAll("\x1b[H");
             
-            // TOP UI BUCKET: Exactly 6 Lines
-            const header_txt = " 高爪 @://aud.nsible.io  高高";
+            const header_txt = " 高爪 @://aud.nsible.io [ INDEXER ] ";
             const pad_len = if (term_w > header_txt.len + 6) (term_w - header_txt.len - 6) / 2 else 2;
             try stdout.print("\x1b[91m[ ", .{});
             for (0..pad_len) |_| try stdout.writeAll("=");
@@ -195,107 +150,30 @@ pub fn main() !void {
             for (0..pad_len) |_| try stdout.writeAll("=");
             try stdout.print(" ]\x1b[K\n\n\x1b[0m", .{});
 
-            try stdout.print("\x1b[37m  [ FILE ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n", .{filename});
-            
-            const vol_width = @min(20, term_w - 20);
-            const vol_filled = @min(@as(usize, @intFromFloat((global_vol / 1.8) * @as(f32, @floatFromInt(vol_width)))), vol_width);
-            try stdout.print("\x1b[37m  [ VOL  ]\x1b[0m :: \x1b[33m[\x1b[0m", .{});
-            for (0..vol_width) |i| {
-                if (i < vol_filled) try stdout.print("\x1b[91m#\x1b[0m", .{}) else try stdout.print("\x1b[90m-\x1b[0m", .{});
-            }
-            try stdout.print("\x1b[33m]\x1b[0m \x1b[37m{d:.1}\x1b[0m\x1b[K\n", .{global_vol});
-            
-            try stdout.print("\x1b[37m  [ VIS  ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n\n", .{vis_names[vis_mode]});
+            try stdout.print("\x1b[37m  [ PATH ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n\n", .{current_path.items});
 
-            // FIX: Subtract exactly 12 lines to prevent terminal overflow and UI ghosting
-            const vis_height = if (term_h > 12) term_h - 12 else 2;
-            const vis_width = term_w - 4;
-            
-            for (0..vis_height) |row| {
-                try stdout.writeAll("  ");
-                for (0..vis_width) |col| {
-                    const time_t = @as(f32, @floatFromInt(cursor_pcm)) / @as(f32, @floatFromInt(engine_sr));
-                    const col_f = @as(f32, @floatFromInt(col));
-                    const width_f = @as(f32, @floatFromInt(vis_width));
-                    
-                    const center_dist = @abs((col_f / width_f) - 0.5) * 2.0;
-                    const freq_react = 1.0 - (center_dist * 0.5); 
-                    const noise = std.crypto.random.float(f32) * 0.05; 
-                    
-                    var wave_val: f32 = 0.0;
-
-                    // FIX: Untethered math from volume scaling. Tuned constants for structural padding.
-                    switch (vis_mode) {
-                        0 => {
-                            const eq_val = (@sin(time_t * 18.0 + col_f * 0.15) + 1.0) * 0.5;
-                            const level = @min((smooth_peak * 0.5) + (smooth_bass * 1.5), 1.0);
-                            wave_val = ((eq_val * 0.2) + (freq_react * 0.8) + noise) * level;
-                        },
-                        1 => {
-                            const block_width = smooth_bass * smooth_bass * 2.0;
-                            const in_block = if (center_dist < block_width) @as(f32, 1.0) else @as(f32, 0.0);
-                            const scatter = if (center_dist > block_width) smooth_treb * 2.5 else 0.0;
-                            wave_val = ((in_block * 0.8) + (scatter * noise * 4.0)) * @min(smooth_peak * 1.5, 1.0);
-                        },
-                        2 => {
-                            const eq_val = (@sin(col_f * 0.8 + time_t * 25.0) + @cos(col_f * 0.4 - time_t * 10.0) + 2.0) * 0.25;
-                            const level = @min(smooth_mid * 1.8, 1.0);
-                            const spike = smooth_treb * noise * 5.0;
-                            wave_val = ((eq_val * 0.6) + (freq_react * 0.4) + spike) * level;
-                        },
-                        3 => {
-                            const eq_val = (@sin(time_t * 8.0 + col_f * 0.02) + 1.0) * 0.5;
-                            const level = @min(smooth_bass * 2.2, 1.0);
-                            wave_val = ((eq_val * 0.2) + 0.1 + noise) * level; // Lowered baseline padding to 0.1
-                        },
-                        else => {}
-                    }
-                    
-                    const threshold = @as(f32, @floatFromInt(vis_height - row)) / @as(f32, @floatFromInt(vis_height));
-                    
-                    if (wave_val > threshold) {
-                        if (threshold > cfg.thresh_high) {
-                            try stdout.writeAll(cfg.wave_high); 
-                        } else if (threshold > cfg.thresh_mid) {
-                            try stdout.writeAll(cfg.wave_mid); 
+            if (entries.items.len == 0) {
+                try stdout.print("  \x1b[90m... No media found in this sector ...\x1b[0m\x1b[K\n", .{});
+                for (0..max_display - 1) |_| try stdout.writeAll("\x1b[K\n");
+            } else {
+                for (0..max_display) |i| {
+                    const idx = browser_scroll + i;
+                    if (idx < entries.items.len) {
+                        const e = entries.items[idx];
+                        const cursor_char = if (idx == browser_cursor) "\x1b[91m>\x1b[0m" else " ";
+                        if (e.is_dir) {
+                            try stdout.print("  {s} \x1b[33m[{s}]\x1b[0m\x1b[K\n", .{cursor_char, e.name});
                         } else {
-                            try stdout.writeAll(cfg.wave_low); 
+                            try stdout.print("  {s} \x1b[37m{s}\x1b[0m\x1b[K\n", .{cursor_char, e.name});
                         }
                     } else {
-                        const depth = threshold - wave_val;
-                        if (depth < cfg.floor_shallow_depth) {
-                            try stdout.writeAll(cfg.floor_shallow_char); 
-                        } else if (depth < cfg.floor_deep_depth) {
-                            try stdout.writeAll(cfg.floor_deep_char); 
-                        } else {
-                            try stdout.writeAll(" ");
-                        }
+                        try stdout.writeAll("\x1b[K\n");
                     }
                 }
-                try stdout.writeAll("\x1b[K\n");
             }
 
-            // BOTTOM UI BUCKET: Exactly 4 Lines
-            try stdout.writeAll("\n");
-
-            const bar_width = term_w - 12;
-            const filled = @as(usize, @intFromFloat(progress * @as(f32, @floatFromInt(bar_width))));
-            
-            if (is_paused) {
-                 try stdout.print("  \x1b[91m[\x1b[0m \x1b[33m| PAUSED |\x1b[0m ", .{});
-                 for (0..bar_width - 11) |_| try stdout.print("\x1b[90m▓\x1b[0m", .{});
-            } else {
-                try stdout.print("  \x1b[91m[\x1b[0m ", .{});
-                for (0..bar_width) |i| {
-                    if (i < filled) try stdout.print("\x1b[91m█\x1b[0m", .{}) else try stdout.print("\x1b[90m▓\x1b[0m", .{});
-                }
-            }
-            try stdout.print(" \x1b[91m]\x1b[0m \x1b[37m{d:0>2}%\x1b[0m\x1b[K\n\n", .{@as(usize, @intFromFloat(progress * 100.0))});
-
-            // NO newline at the end of the final line to prevent structural displacement
-            try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[r]\x1b[0m Rstrt | \x1b[91m[z]\x1b[0m Vis | \x1b[91m[+|-]\x1b[0m Vol | \x1b[91m[Spc]\x1b[0m Play | \x1b[91m[Ent]\x1b[0m Skip | \x1b[91m[q]\x1b[0m Quit\x1b[K", .{});
+            try stdout.print("\n\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[w|s]\x1b[0m Nav | \x1b[91m[Ent]\x1b[0m Enter/Play | \x1b[91m[b]\x1b[0m Back Dir | \x1b[91m[q]\x1b[0m Quit\x1b[K", .{});
             try stdout.print("\x1b[J", .{}); 
-            
             try stdout.flush();
 
             const ready = std.posix.poll(&pfd, 0) catch 0;
@@ -304,34 +182,278 @@ pub fn main() !void {
                 const amt = std.posix.read(std.posix.STDIN_FILENO, &buf) catch 0;
                 if (amt > 0) {
                     const cmd = buf[0];
-                    if (cmd == '+') {
-                        global_vol = @min(global_vol + 0.1, 1.5);
-                        _ = c.ma_sound_set_volume(&sound, global_vol);
-                    } else if (cmd == '-') {
-                        global_vol = @max(global_vol - 0.1, 0.0);
-                        _ = c.ma_sound_set_volume(&sound, global_vol);
-                    } else if (cmd == ' ') { 
-                        is_paused = !is_paused;
-                        if (is_paused) {
-                            _ = c.ma_sound_stop(&sound);
-                        } else {
-                            _ = c.ma_sound_start(&sound);
+                    if (cmd == 'w' and browser_cursor > 0) {
+                        browser_cursor -= 1;
+                    } else if (cmd == 's' and entries.items.len > 0 and browser_cursor < entries.items.len - 1) {
+                        browser_cursor += 1;
+                    } else if (cmd == 'b') {
+                        if (std.fs.path.dirname(current_path.items)) |parent| {
+                            current_path.clearRetainingCapacity();
+                            try current_path.appendSlice(parent);
+                            browser_cursor = 0;
+                            browser_scroll = 0;
                         }
-                    } else if (cmd == 'z') {
-                        vis_mode = (vis_mode + 1) % num_vis_modes;
-                    } else if (cmd == 'r') {
-                        _ = c.ma_sound_seek_to_pcm_frame(&sound, 0);
                     } else if (cmd == '\n' or cmd == '\r') {
-                        _ = c.ma_sound_stop(&sound);
-                        break;
+                        if (entries.items.len > 0) {
+                            const selected = entries.items[browser_cursor];
+                            if (selected.is_dir) {
+                                const new_path = try std.fs.path.join(allocator, &[_][]const u8{ current_path.items, selected.name });
+                                current_path.clearRetainingCapacity();
+                                try current_path.appendSlice(new_path);
+                                allocator.free(new_path);
+                                browser_cursor = 0;
+                                browser_scroll = 0;
+                            } else {
+                                const new_file = try std.fs.path.join(allocator, &[_][]const u8{ current_path.items, selected.name });
+                                active_track_path.clearRetainingCapacity();
+                                try active_track_path.appendSlice(new_file);
+                                allocator.free(new_file);
+                                app_mode = .PLAYER; // Trigger state change to Visualizer
+                            }
+                        }
                     } else if (cmd == 'q') {
                         running = false;
-                        _ = c.ma_sound_stop(&sound);
-                        break;
                     }
                 }
             }
-            std.Thread.sleep(60 * std.time.ns_per_ms);
+            std.Thread.sleep(30 * std.time.ns_per_ms);
+        }
+
+        // === [ PLAYER STATE ] ===
+        if (app_mode == .PLAYER) {
+            var sound: c.ma_sound = undefined;
+            const track_c = try allocator.dupeZ(u8, active_track_path.items);
+            defer allocator.free(track_c);
+
+            if (c.ma_sound_init_from_file(&engine, track_c.ptr, 0, null, null, &sound) != c.MA_SUCCESS) {
+                app_mode = .BROWSER;
+                continue;
+            }
+            defer c.ma_sound_uninit(&sound);
+
+            var v_decoder: c.ma_decoder = undefined;
+            var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, engine_sr); 
+            const has_vis = (c.ma_decoder_init_file(track_c.ptr, &v_config, &v_decoder) == c.MA_SUCCESS);
+            
+            defer {
+                if (has_vis) _ = c.ma_decoder_uninit(&v_decoder);
+            }
+
+            _ = c.ma_sound_set_volume(&sound, global_vol);
+            _ = c.ma_sound_start(&sound);
+
+            const filename = std.fs.path.basename(active_track_path.items);
+            var length_pcm: c.ma_uint64 = 1;
+            _ = c.ma_sound_get_length_in_pcm_frames(&sound, &length_pcm);
+
+            var smooth_peak: f32 = 0.0;
+            var smooth_bass: f32 = 0.0;
+            var smooth_mid: f32 = 0.0;
+            var smooth_treb: f32 = 0.0;
+            var lf_sample_state: f32 = 0.0;
+            var last_sample: f32 = 0.0;
+            var is_paused = false;
+
+            while (c.ma_sound_at_end(&sound) == c.MA_FALSE or is_paused) {
+                if (app_mode != .PLAYER or !running) break;
+
+                var ws = winsize{ .ws_row = 24, .ws_col = 80, .ws_xpixel = 0, .ws_ypixel = 0 };
+                _ = ioctl(std.posix.STDOUT_FILENO, TIOCGWINSZ, &ws);
+                const term_w = if (ws.ws_col > 20) @as(usize, ws.ws_col) else 80;
+                const term_h = if (ws.ws_row > 10) @as(usize, ws.ws_row) else 24;
+
+                var cursor_pcm: c.ma_uint64 = 0;
+                _ = c.ma_sound_get_cursor_in_pcm_frames(&sound, &cursor_pcm);
+                const progress = if (length_pcm > 0) @as(f32, @floatFromInt(cursor_pcm)) / @as(f32, @floatFromInt(length_pcm)) else 0.0;
+                
+                var current_peak: f32 = 0.0;
+                var current_bass: f32 = 0.0;
+                var current_mid: f32 = 0.0;
+                var current_treb: f32 = 0.0;
+
+                if (has_vis and !is_paused) {
+                    var pcm_buffer: [4096]f32 = undefined;
+                    var frames_read: c.ma_uint64 = 0;
+                    
+                    _ = c.ma_decoder_seek_to_pcm_frame(&v_decoder, cursor_pcm);
+                    _ = c.ma_decoder_read_pcm_frames(&v_decoder, &pcm_buffer, 4096, &frames_read);
+                    
+                    for (0..@as(usize, @intCast(frames_read))) |i| {
+                        const s = pcm_buffer[i];
+                        const abs_s = @abs(s);
+                        if (abs_s > current_peak) current_peak = abs_s;
+
+                        lf_sample_state += (s - lf_sample_state) * 0.08;
+                        if (@abs(lf_sample_state) > current_bass) current_bass = @abs(lf_sample_state);
+
+                        const diff = s - last_sample;
+                        if (@abs(diff) > current_treb) current_treb = @abs(diff);
+
+                        const mid_val = s - lf_sample_state - (diff * 0.5);
+                        if (@abs(mid_val) > current_mid) current_mid = @abs(mid_val);
+
+                        last_sample = s;
+                    }
+                }
+
+                if (is_paused) {
+                    smooth_peak = 0.0; smooth_bass = 0.0; smooth_mid = 0.0; smooth_treb = 0.0;
+                } else {
+                    smooth_peak += (current_peak - smooth_peak) * if (current_peak > smooth_peak) @as(f32, 0.88) else @as(f32, 0.42);
+                    smooth_bass += (current_bass - smooth_bass) * if (current_bass > smooth_bass) @as(f32, 0.85) else @as(f32, 0.35);
+                    smooth_mid  += (current_mid  - smooth_mid)  * if (current_mid  > smooth_mid)  @as(f32, 0.88) else @as(f32, 0.40);
+                    smooth_treb += (current_treb - smooth_treb) * if (current_treb > smooth_treb) @as(f32, 0.92) else @as(f32, 0.50);
+                }
+
+                try stdout.writeAll("\x1b[H"); 
+                
+                const header_txt = " 高爪 @://aud.nsible.io  高高";
+                const pad_len = if (term_w > header_txt.len + 6) (term_w - header_txt.len - 6) / 2 else 2;
+                try stdout.print("\x1b[91m[ ", .{});
+                for (0..pad_len) |_| try stdout.writeAll("=");
+                try stdout.print("{s}", .{header_txt});
+                for (0..pad_len) |_| try stdout.writeAll("=");
+                try stdout.print(" ]\x1b[K\n\n\x1b[0m", .{});
+
+                try stdout.print("\x1b[37m  [ FILE ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n", .{filename});
+                
+                const vol_width = @min(20, term_w - 20);
+                const vol_filled = @min(@as(usize, @intFromFloat((global_vol / 1.8) * @as(f32, @floatFromInt(vol_width)))), vol_width);
+                try stdout.print("\x1b[37m  [ VOL  ]\x1b[0m :: \x1b[33m[\x1b[0m", .{});
+                for (0..vol_width) |i| {
+                    if (i < vol_filled) try stdout.print("\x1b[91m#\x1b[0m", .{}) else try stdout.print("\x1b[90m-\x1b[0m", .{});
+                }
+                try stdout.print("\x1b[33m]\x1b[0m \x1b[37m{d:.1}\x1b[0m\x1b[K\n", .{global_vol});
+                
+                try stdout.print("\x1b[37m  [ VIS  ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n\n", .{vis_names[vis_mode]});
+
+                // FIX: Aggressive safety margin (14 lines) to guarantee zero ghosting
+                const vis_height = if (term_h > 14) term_h - 14 else 2;
+                const vis_width = term_w - 4;
+                
+                for (0..vis_height) |row| {
+                    try stdout.writeAll("  ");
+                    for (0..vis_width) |col| {
+                        const time_t = @as(f32, @floatFromInt(cursor_pcm)) / @as(f32, @floatFromInt(engine_sr));
+                        const col_f = @as(f32, @floatFromInt(col));
+                        const width_f = @as(f32, @floatFromInt(vis_width));
+                        
+                        const center_dist = @abs((col_f / width_f) - 0.5) * 2.0;
+                        const freq_react = 1.0 - (center_dist * 0.5); 
+                        const noise = std.crypto.random.float(f32) * 0.05; 
+                        
+                        var wave_val: f32 = 0.0;
+
+                        switch (vis_mode) {
+                            0 => {
+                                const eq_val = (@sin(time_t * 18.0 + col_f * 0.15) + 1.0) * 0.5;
+                                const level = @min((smooth_peak * 0.5) + (smooth_bass * 1.5), 1.0);
+                                wave_val = ((eq_val * 0.2) + (freq_react * 0.8) + noise) * level;
+                            },
+                            1 => {
+                                const block_width = smooth_bass * smooth_bass * 2.0;
+                                const in_block = if (center_dist < block_width) @as(f32, 1.0) else @as(f32, 0.0);
+                                const scatter = if (center_dist > block_width) smooth_treb * 2.5 else 0.0;
+                                wave_val = ((in_block * 0.8) + (scatter * noise * 4.0)) * @min(smooth_peak * 1.5, 1.0);
+                            },
+                            2 => {
+                                const eq_val = (@sin(col_f * 0.8 + time_t * 25.0) + @cos(col_f * 0.4 - time_t * 10.0) + 2.0) * 0.25;
+                                const level = @min(smooth_mid * 1.8, 1.0);
+                                const spike = smooth_treb * noise * 5.0;
+                                wave_val = ((eq_val * 0.6) + (freq_react * 0.4) + spike) * level;
+                            },
+                            3 => {
+                                const eq_val = (@sin(time_t * 8.0 + col_f * 0.02) + 1.0) * 0.5;
+                                const level = @min(smooth_bass * 2.2, 1.0);
+                                wave_val = ((eq_val * 0.2) + 0.1 + noise) * level;
+                            },
+                            else => {}
+                        }
+                        
+                        const threshold = @as(f32, @floatFromInt(vis_height - row)) / @as(f32, @floatFromInt(vis_height));
+                        
+                        if (wave_val > threshold) {
+                            if (threshold > cfg.thresh_high) {
+                                try stdout.writeAll(cfg.wave_high); 
+                            } else if (threshold > cfg.thresh_mid) {
+                                try stdout.writeAll(cfg.wave_mid); 
+                            } else {
+                                try stdout.writeAll(cfg.wave_low); 
+                            }
+                        } else {
+                            const depth = threshold - wave_val;
+                            if (depth < cfg.floor_shallow_depth) {
+                                try stdout.writeAll(cfg.floor_shallow_char); 
+                            } else if (depth < cfg.floor_deep_depth) {
+                                try stdout.writeAll(cfg.floor_deep_char); 
+                            } else {
+                                try stdout.writeAll(" ");
+                            }
+                        }
+                    }
+                    try stdout.writeAll("\x1b[K\n");
+                }
+
+                try stdout.writeAll("\n");
+
+                const bar_width = term_w - 12;
+                const filled = @as(usize, @intFromFloat(progress * @as(f32, @floatFromInt(bar_width))));
+                
+                if (is_paused) {
+                     try stdout.print("  \x1b[91m[\x1b[0m \x1b[33m| PAUSED |\x1b[0m ", .{});
+                     for (0..bar_width - 11) |_| try stdout.print("\x1b[90m▓\x1b[0m", .{});
+                } else {
+                    try stdout.print("  \x1b[91m[\x1b[0m ", .{});
+                    for (0..bar_width) |i| {
+                        if (i < filled) try stdout.print("\x1b[91m█\x1b[0m", .{}) else try stdout.print("\x1b[90m▓\x1b[0m", .{});
+                    }
+                }
+                try stdout.print(" \x1b[91m]\x1b[0m \x1b[37m{d:0>2}%\x1b[0m\x1b[K\n\n", .{@as(usize, @intFromFloat(progress * 100.0))});
+
+                try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[r]\x1b[0m Rstrt | \x1b[91m[z]\x1b[0m Vis | \x1b[91m[+|-]\x1b[0m Vol | \x1b[91m[Spc]\x1b[0m Play | \x1b[91m[b]\x1b[0m Back | \x1b[91m[q]\x1b[0m Quit\x1b[K", .{});
+                try stdout.print("\x1b[J", .{}); 
+                
+                try stdout.flush();
+
+                const ready = std.posix.poll(&pfd, 0) catch 0;
+                if (ready > 0 and (pfd[0].revents & std.posix.POLL.IN) != 0) {
+                    var buf: [16]u8 = undefined;
+                    const amt = std.posix.read(std.posix.STDIN_FILENO, &buf) catch 0;
+                    if (amt > 0) {
+                        const cmd = buf[0];
+                        if (cmd == '+') {
+                            global_vol = @min(global_vol + 0.1, 1.5);
+                            _ = c.ma_sound_set_volume(&sound, global_vol);
+                        } else if (cmd == '-') {
+                            global_vol = @max(global_vol - 0.1, 0.0);
+                            _ = c.ma_sound_set_volume(&sound, global_vol);
+                        } else if (cmd == ' ') { 
+                            is_paused = !is_paused;
+                            if (is_paused) {
+                                _ = c.ma_sound_stop(&sound);
+                            } else {
+                                _ = c.ma_sound_start(&sound);
+                            }
+                        } else if (cmd == 'z') {
+                            vis_mode = (vis_mode + 1) % num_vis_modes;
+                        } else if (cmd == 'r') {
+                            _ = c.ma_sound_seek_to_pcm_frame(&sound, 0);
+                        } else if (cmd == 'b' or cmd == '\n' or cmd == '\r') {
+                            _ = c.ma_sound_stop(&sound);
+                            app_mode = .BROWSER; // Return to indexer
+                            break;
+                        } else if (cmd == 'q') {
+                            _ = c.ma_sound_stop(&sound);
+                            running = false;
+                            break;
+                        }
+                    }
+                }
+                std.Thread.sleep(60 * std.time.ns_per_ms);
+            }
+            
+            // Auto-return to browser when track naturally finishes
+            if (running) app_mode = .BROWSER; 
         }
     }
 }
