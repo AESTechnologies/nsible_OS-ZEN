@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.12"
+// version: "2.0.13"
 // description: "高爪 Audio Visualizer & Autonomous Media Engine"
-// changes: "Non-destructive injection of 'EVENT HORIZON' visualization math (Bass=Void, Mids=Orbital, Treb=Matter)."
-// philotic_inferences: "Audio data is not strictly linear. Mapping frequency to spatial gravity creates a tactile visualization of amplitude."
+// changes: "Abolished loop-level screen clears. Implemented state-transition tracking to eliminate TTY strobe flicker."
+// philotic_inferences: "A full buffer wipe is highly destructive. It must only be executed during a definitive context switch."
 
 const std = @import("std");
 const c = @cImport({
@@ -80,6 +80,7 @@ pub fn main() !void {
     }
 
     var app_mode = AppMode.BROWSER;
+    var prev_app_mode = app_mode; // === [ STATE TRACKER ] ===
     var running = true;
     
     var current_path: std.ArrayList(u8) = .empty;
@@ -98,15 +99,19 @@ pub fn main() !void {
 
     var global_vol: f32 = 0.6;
     var vis_mode: usize = 0;
-    const num_vis_modes = 5; // Expanded for Event Horizon
+    const num_vis_modes = 5;
     const vis_names = [_][]const u8{ "SINE WAVE", "PULSE CENTER", "CHAOS BANDS", "HORIZON", "EVENT HORIZON" };
 
     while (running) {
         
-        if (app_mode == .BROWSER) {
-            try stdout.writeAll("\x1b[2J\x1b[H"); 
+        // === [ CONTEXT SWITCH WIPE ] ===
+        if (app_mode != prev_app_mode) {
+            try stdout.writeAll("\x1b[2J\x1b[H");
             try stdout.flush();
-            
+            prev_app_mode = app_mode;
+        }
+
+        if (app_mode == .BROWSER) {
             var ws = winsize{ .ws_row = 24, .ws_col = 80, .ws_xpixel = 0, .ws_ypixel = 0 };
             _ = ioctl(std.posix.STDOUT_FILENO, TIOCGWINSZ, &ws);
             const term_w = if (ws.ws_col > 20) @as(usize, ws.ws_col) else 80;
@@ -155,7 +160,7 @@ pub fn main() !void {
             if (browser_cursor < browser_scroll) browser_scroll = browser_cursor;
             if (browser_cursor >= browser_scroll + max_display) browser_scroll = browser_cursor - max_display + 1;
 
-            try stdout.writeAll("\x1b[H");
+            try stdout.writeAll("\x1b[H"); // Paint over, don't clear
             
             const header_txt = " 高爪 @://aud.nsible.io [ INDEXER ] ";
             const pad_len = if (term_w > header_txt.len + 6) (term_w - header_txt.len - 6) / 2 else 2;
@@ -188,7 +193,7 @@ pub fn main() !void {
             }
 
             try stdout.print("\n\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[w|s]\x1b[0m Nav | \x1b[91m[Ent]\x1b[0m In/Play | \x1b[91m[p|x]\x1b[0m Play/Shfl All | \x1b[91m[m]\x1b[0m Media | \x1b[91m[b]\x1b[0m Back | \x1b[91m[q]\x1b[0m Quit\x1b[K", .{});
-            try stdout.print("\x1b[J", .{}); 
+            try stdout.print("\x1b[J", .{}); // Eat leftover ghosts
             try stdout.flush();
 
             const ready = std.posix.poll(&pfd, 0) catch 0;
@@ -268,11 +273,7 @@ pub fn main() !void {
             std.Thread.sleep(20 * std.time.ns_per_ms);
         }
 
-        // PLAYER STATE
         if (app_mode == .PLAYER) {
-            try stdout.writeAll("\x1b[2J\x1b[H"); 
-            try stdout.flush();
-            
             var sound: c.ma_sound = undefined;
             const current_track = active_playlist.items[active_track_idx];
             const track_c = try allocator.dupeZ(u8, current_track);
@@ -419,21 +420,14 @@ pub fn main() !void {
                                 wave_val = ((eq_val * 0.2) + 0.1) * @min(smooth_bass * 2.2, 1.0);
                             },
                             4 => {
-                                // === [ EVENT HORIZON PHYSICS ] ===
                                 const void_radius = smooth_bass * 0.8 + 0.05; 
-                                
                                 if (center_dist < void_radius) {
-                                    wave_val = 0.0; // The Void consumes the waveform
+                                    wave_val = 0.0;
                                 } else {
                                     const dist_edge = center_dist - void_radius;
-                                    
-                                    // Mids warp the space right at the edge
                                     const orbital_wave = (@sin(time_t * 15.0 - dist_edge * 10.0) + 1.0) * 0.5;
                                     const space_warp = (1.0 - @min(dist_edge * 3.0, 1.0)) * (smooth_mid * 1.8 + 0.2) * orbital_wave;
-                                    
-                                    // Treble acts as volatile matter escaping the disk
                                     const matter_ejecta = smooth_treb * noise * 6.0;
-                                    
                                     wave_val = @min(space_warp + matter_ejecta, 1.0);
                                 }
                             },
