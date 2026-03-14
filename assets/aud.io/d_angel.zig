@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.13"
-// description: "高爪 Audio Visualizer & Autonomous Media Engine"
-// changes: "Abolished loop-level screen clears. Implemented state-transition tracking to eliminate TTY strobe flicker."
-// philotic_inferences: "A full buffer wipe is highly destructive. It must only be executed during a definitive context switch."
+// version: "2.0.14"
+// description: "Talon Alta MMA Engine (tame) - Audio Visualizer & Autonomous Media Engine"
+// changes: "Injected d_angel_s state persistence to serialize and resume the active queue across sessions."
+// philotic_inferences: "A truly autonomous engine never loses its context. Memory must survive the death of the process."
 
 const std = @import("std");
 const c = @cImport({
@@ -80,7 +80,7 @@ pub fn main() !void {
     }
 
     var app_mode = AppMode.BROWSER;
-    var prev_app_mode = app_mode; // === [ STATE TRACKER ] ===
+    var prev_app_mode = app_mode;
     var running = true;
     
     var current_path: std.ArrayList(u8) = .empty;
@@ -98,13 +98,35 @@ pub fn main() !void {
     var active_track_idx: usize = 0;
 
     var global_vol: f32 = 0.6;
-    var vis_mode: usize = 0;
+    var vis_mode: usize = 4; // Default to Event Horizon
     const num_vis_modes = 5;
     const vis_names = [_][]const u8{ "SINE WAVE", "PULSE CENTER", "CHAOS BANDS", "HORIZON", "EVENT HORIZON" };
 
+    // === [ STATE PERSISTENCE: LOAD GHOST ] ===
+    if (std.fs.cwd().openFile(".d_angel_state.nsb", .{})) |file| {
+        var buf_reader = std.io.bufferedReader(file.reader());
+        var in_stream = buf_reader.reader();
+        var buf: [4096]u8 = undefined;
+        
+        if (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch null) |idx_str| {
+            active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
+            while (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch null) |line| {
+                if (line.len > 0) {
+                    const path_dup = allocator.dupe(u8, line) catch continue;
+                    active_playlist.append(allocator, path_dup) catch continue;
+                }
+            }
+            if (active_playlist.items.len > 0) {
+                if (active_track_idx >= active_playlist.items.len) active_track_idx = 0;
+                app_mode = .PLAYER;
+                prev_app_mode = .PLAYER;
+            }
+        }
+        file.close();
+    } else |_| {}
+
     while (running) {
         
-        // === [ CONTEXT SWITCH WIPE ] ===
         if (app_mode != prev_app_mode) {
             try stdout.writeAll("\x1b[2J\x1b[H");
             try stdout.flush();
@@ -160,7 +182,7 @@ pub fn main() !void {
             if (browser_cursor < browser_scroll) browser_scroll = browser_cursor;
             if (browser_cursor >= browser_scroll + max_display) browser_scroll = browser_cursor - max_display + 1;
 
-            try stdout.writeAll("\x1b[H"); // Paint over, don't clear
+            try stdout.writeAll("\x1b[H");
             
             const header_txt = " 高爪 @://aud.nsible.io [ INDEXER ] ";
             const pad_len = if (term_w > header_txt.len + 6) (term_w - header_txt.len - 6) / 2 else 2;
@@ -193,7 +215,7 @@ pub fn main() !void {
             }
 
             try stdout.print("\n\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[w|s]\x1b[0m Nav | \x1b[91m[Ent]\x1b[0m In/Play | \x1b[91m[p|x]\x1b[0m Play/Shfl All | \x1b[91m[m]\x1b[0m Media | \x1b[91m[b]\x1b[0m Back | \x1b[91m[q]\x1b[0m Quit\x1b[K", .{});
-            try stdout.print("\x1b[J", .{}); // Eat leftover ghosts
+            try stdout.print("\x1b[J", .{}); 
             try stdout.flush();
 
             const ready = std.posix.poll(&pfd, 0) catch 0;
@@ -475,7 +497,13 @@ pub fn main() !void {
                         else if (cmd == 'z') vis_mode = (vis_mode + 1) % num_vis_modes
                         else if (cmd == 'r') _ = c.ma_sound_seek_to_pcm_frame(&sound, 0)
                         else if (cmd == '\n' or cmd == '\r') { _ = c.ma_sound_stop(&sound); break; }
-                        else if (cmd == 'b') { _ = c.ma_sound_stop(&sound); app_mode = .BROWSER; break; }
+                        else if (cmd == 'b') { 
+                            _ = c.ma_sound_stop(&sound); 
+                            for (active_playlist.items) |path| allocator.free(path);
+                            active_playlist.clearRetainingCapacity();
+                            app_mode = .BROWSER; 
+                            break; 
+                        }
                         else if (cmd == 'q') { _ = c.ma_sound_stop(&sound); running = false; break; }
                     }
                 }
@@ -483,9 +511,27 @@ pub fn main() !void {
             }
             if (app_mode == .PLAYER) {
                 active_track_idx += 1;
-                if (active_track_idx >= active_playlist.items.len) app_mode = .BROWSER;
+                if (active_track_idx >= active_playlist.items.len) {
+                    for (active_playlist.items) |path| allocator.free(path);
+                    active_playlist.clearRetainingCapacity();
+                    app_mode = .BROWSER;
+                }
             }
         }
+    }
+
+    // === [ STATE PERSISTENCE: DUMP GHOST ] ===
+    if (active_playlist.items.len > 0) {
+        if (std.fs.cwd().createFile(".d_angel_state.nsb", .{ .truncate = true })) |file| {
+            var writer = file.writer();
+            writer.print("{d}\n", .{active_track_idx}) catch {};
+            for (active_playlist.items) |path| {
+                writer.print("{s}\n", .{path}) catch {};
+            }
+            file.close();
+        } else |_| {}
+    } else {
+        std.fs.cwd().deleteFile(".d_angel_state.nsb") catch {};
     }
 }
 // }-.]
