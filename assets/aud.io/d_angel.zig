@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.4"
-// description: "Talon Alta MMA Engine (tame) - Zero-Latency Browser & Multi-Band Visualizer"
-// changes: "Severed terminal Canonical Mode and Echo for immediate raw key registration."
-// philotic_inferences: "Disabling line-buffering forces a direct, zero-latency conduit between user intent and engine state."
+// version: "2.0.5"
+// description: "Audio Visualizer & State-Driven Media Engine"
+// changes: "Integrated active playlist queue for Play/Shuffle All. Added /media quick-jump hotkey."
+// philotic_inferences: "Queuing dynamically loaded arrays provides flexible continuous playback without blocking the directory reader."
 
 const std = @import("std");
 const c = @cImport({
@@ -34,7 +34,6 @@ const VisConfig = struct {
     thresh_mid:  f32 = 0.4,
 };
 
-// === [ ENGINE STATES ] ===
 const AppMode = enum {
     BROWSER,
     PLAYER,
@@ -52,7 +51,6 @@ pub fn main() !void {
 
     const cfg = VisConfig{};
 
-    // === [ TERMINAL RAW MODE ] ===
     const orig_term = try std.posix.tcgetattr(std.posix.STDIN_FILENO);
     var raw_term = orig_term;
     raw_term.lflag.ICANON = false;
@@ -81,7 +79,6 @@ pub fn main() !void {
         stdout.flush() catch {};
     }
 
-    // === [ STATE VARIABLES ] ===
     var app_mode = AppMode.BROWSER;
     var running = true;
     
@@ -92,18 +89,20 @@ pub fn main() !void {
     var browser_cursor: usize = 0;
     var browser_scroll: usize = 0;
     
-    var active_track_path: std.ArrayList(u8) = .empty;
-    defer active_track_path.deinit(allocator);
+    var active_playlist: std.ArrayList([]const u8) = .empty;
+    defer {
+        for (active_playlist.items) |path| allocator.free(path);
+        active_playlist.deinit(allocator);
+    }
+    var active_track_idx: usize = 0;
 
     var global_vol: f32 = 0.6;
     var vis_mode: usize = 0;
     const num_vis_modes = 4;
     const vis_names = [_][]const u8{ "SINE WAVE", "PULSE CENTER", "CHAOS BANDS", "HORIZON" };
 
-    // === [ MAIN MASTER LOOP ] ===
     while (running) {
         
-        // === [ BROWSER STATE ] ===
         if (app_mode == .BROWSER) {
             var ws = winsize{ .ws_row = 24, .ws_col = 80, .ws_xpixel = 0, .ws_ypixel = 0 };
             _ = ioctl(std.posix.STDOUT_FILENO, TIOCGWINSZ, &ws);
@@ -116,7 +115,6 @@ pub fn main() !void {
                 entries.deinit(allocator);
             }
 
-            // Read Directory
             var dir = std.fs.openDirAbsolute(current_path.items, .{ .iterate = true }) catch null;
             if (dir) |*d| {
                 var it = d.iterate();
@@ -129,7 +127,6 @@ pub fn main() !void {
                 d.close();
             }
 
-            // Quick Sort: Directories first, then alphabetical
             std.sort.block(FileEntry, entries.items, {}, struct {
                 fn lessThan(context: void, lhs: FileEntry, rhs: FileEntry) bool {
                     _ = context;
@@ -177,7 +174,7 @@ pub fn main() !void {
                 }
             }
 
-            try stdout.print("\n\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[w|s]\x1b[0m Nav | \x1b[91m[Ent]\x1b[0m Enter/Play | \x1b[91m[b]\x1b[0m Back Dir | \x1b[91m[q]\x1b[0m Quit\x1b[K", .{});
+            try stdout.print("\n\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[w|s]\x1b[0m Nav | \x1b[91m[Ent]\x1b[0m In/Play | \x1b[91m[p|x]\x1b[0m Play/Shfl All | \x1b[91m[m]\x1b[0m Media | \x1b[91m[b]\x1b[0m Back | \x1b[91m[q]\x1b[0m Quit\x1b[K", .{});
             try stdout.print("\x1b[J", .{}); 
             try stdout.flush();
 
@@ -198,6 +195,29 @@ pub fn main() !void {
                             browser_cursor = 0;
                             browser_scroll = 0;
                         }
+                    } else if (cmd == 'm') {
+                        current_path.clearRetainingCapacity();
+                        try current_path.appendSlice(allocator, "/media");
+                        browser_cursor = 0;
+                        browser_scroll = 0;
+                    } else if (cmd == 'p' or cmd == 'x') {
+                        for (active_playlist.items) |path| allocator.free(path);
+                        active_playlist.clearRetainingCapacity();
+
+                        for (entries.items) |e| {
+                            if (!e.is_dir) {
+                                const full_path = try std.fs.path.join(allocator, &[_][]const u8{ current_path.items, e.name });
+                                try active_playlist.append(allocator, full_path);
+                            }
+                        }
+
+                        if (active_playlist.items.len > 0) {
+                            if (cmd == 'x') {
+                                std.crypto.random.shuffle([]const u8, active_playlist.items);
+                            }
+                            active_track_idx = 0;
+                            app_mode = .PLAYER;
+                        }
                     } else if (cmd == '\n' or cmd == '\r') {
                         if (entries.items.len > 0) {
                             const selected = entries.items[browser_cursor];
@@ -209,10 +229,11 @@ pub fn main() !void {
                                 browser_cursor = 0;
                                 browser_scroll = 0;
                             } else {
+                                for (active_playlist.items) |path| allocator.free(path);
+                                active_playlist.clearRetainingCapacity();
                                 const new_file = try std.fs.path.join(allocator, &[_][]const u8{ current_path.items, selected.name });
-                                active_track_path.clearRetainingCapacity();
-                                try active_track_path.appendSlice(allocator, new_file);
-                                allocator.free(new_file);
+                                try active_playlist.append(allocator, new_file);
+                                active_track_idx = 0;
                                 app_mode = .PLAYER; 
                             }
                         }
@@ -221,17 +242,19 @@ pub fn main() !void {
                     }
                 }
             }
-            std.Thread.sleep(30 * std.time.ns_per_ms);
+            std.Thread.sleep(20 * std.time.ns_per_ms);
         }
 
         // === [ PLAYER STATE ] ===
         if (app_mode == .PLAYER) {
             var sound: c.ma_sound = undefined;
-            const track_c = try allocator.dupeZ(u8, active_track_path.items);
+            const current_track = active_playlist.items[active_track_idx];
+            const track_c = try allocator.dupeZ(u8, current_track);
             defer allocator.free(track_c);
 
             if (c.ma_sound_init_from_file(&engine, track_c.ptr, 0, null, null, &sound) != c.MA_SUCCESS) {
-                app_mode = .BROWSER;
+                active_track_idx += 1;
+                if (active_track_idx >= active_playlist.items.len) app_mode = .BROWSER;
                 continue;
             }
             defer c.ma_sound_uninit(&sound);
@@ -247,7 +270,7 @@ pub fn main() !void {
             _ = c.ma_sound_set_volume(&sound, global_vol);
             _ = c.ma_sound_start(&sound);
 
-            const filename = std.fs.path.basename(active_track_path.items);
+            const filename = std.fs.path.basename(current_track);
             var length_pcm: c.ma_uint64 = 1;
             _ = c.ma_sound_get_length_in_pcm_frames(&sound, &length_pcm);
 
@@ -414,7 +437,7 @@ pub fn main() !void {
                 }
                 try stdout.print(" \x1b[91m]\x1b[0m \x1b[37m{d:0>2}%\x1b[0m\x1b[K\n\n", .{@as(usize, @intFromFloat(progress * 100.0))});
 
-                try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[r]\x1b[0m Rstrt | \x1b[91m[z]\x1b[0m Vis | \x1b[91m[+|-]\x1b[0m Vol | \x1b[91m[Spc]\x1b[0m Play | \x1b[91m[b]\x1b[0m Back | \x1b[91m[q]\x1b[0m Quit\x1b[K", .{});
+                try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[r]\x1b[0m Rstrt | \x1b[91m[z]\x1b[0m Vis | \x1b[91m[+|-]\x1b[0m Vol | \x1b[91m[Spc]\x1b[0m Play | \x1b[91m[Ent]\x1b[0m Skip | \x1b[91m[b]\x1b[0m Browse | \x1b[91m[q]\x1b[0m Quit\x1b[K", .{});
                 try stdout.print("\x1b[J", .{}); 
                 
                 try stdout.flush();
@@ -442,7 +465,10 @@ pub fn main() !void {
                             vis_mode = (vis_mode + 1) % num_vis_modes;
                         } else if (cmd == 'r') {
                             _ = c.ma_sound_seek_to_pcm_frame(&sound, 0);
-                        } else if (cmd == 'b' or cmd == '\n' or cmd == '\r') {
+                        } else if (cmd == '\n' or cmd == '\r') {
+                            _ = c.ma_sound_stop(&sound);
+                            break; 
+                        } else if (cmd == 'b') {
                             _ = c.ma_sound_stop(&sound);
                             app_mode = .BROWSER; 
                             break;
@@ -456,7 +482,12 @@ pub fn main() !void {
                 std.Thread.sleep(60 * std.time.ns_per_ms);
             }
             
-            if (running) app_mode = .BROWSER; 
+            if (app_mode == .PLAYER) {
+                active_track_idx += 1;
+                if (active_track_idx >= active_playlist.items.len) {
+                    app_mode = .BROWSER;
+                }
+            }
         }
     }
 }
