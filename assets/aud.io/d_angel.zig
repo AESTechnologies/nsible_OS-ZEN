@@ -135,14 +135,14 @@ pub fn main() !void {
             if (is_paused) {
                 smooth_peak = 0.0;
             } else if (current_peak > smooth_peak) {
-                smooth_peak += (current_peak - smooth_peak) * 0.85; // Sharp Attack
+                smooth_peak += (current_peak - smooth_peak) * 0.88; // Sharp Attack
             } else {
-                smooth_peak += (current_peak - smooth_peak) * 0.35; // Fast Decay
+                smooth_peak += (current_peak - smooth_peak) * 0.42; // Fast Decay
             }
 
             try stdout.writeAll("\x1b[H"); 
             
-            const header_txt = " 高爪 @NSIBLE ENGINE ";
+            const header_txt = " 高爪 @://aud.nsible.io  高高";
             const pad_len = if (term_w > header_txt.len + 6) (term_w - header_txt.len - 6) / 2 else 2;
             try stdout.print("\x1b[91m[ ", .{});
             for (0..pad_len) |_| try stdout.writeAll("=");
@@ -153,7 +153,7 @@ pub fn main() !void {
             try stdout.print("\x1b[37m  [ FILE ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n", .{filename});
             
             const vol_width = @min(20, term_w - 20);
-            const vol_filled = @min(@as(usize, @intFromFloat((global_vol / 1.5) * @as(f32, @floatFromInt(vol_width)))), vol_width);
+            const vol_filled = @min(@as(usize, @intFromFloat((global_vol / 1.8) * @as(f32, @floatFromInt(vol_width)))), vol_width);
             try stdout.print("\x1b[37m  [ VOL  ]\x1b[0m :: \x1b[33m[\x1b[0m", .{});
             for (0..vol_width) |i| {
                 if (i < vol_filled) try stdout.print("\x1b[91m#\x1b[0m", .{}) else try stdout.print("\x1b[90m-\x1b[0m", .{});
@@ -162,7 +162,7 @@ pub fn main() !void {
 
             const vis_height = if (term_h > 14) term_h - 14 else 2;
             const vis_width = term_w - 4;
-            const audio_level = @min(smooth_peak * 2.0, 1.0);
+            const audio_level = @min(smooth_peak * 1.17, 1.0);
             
             for (0..vis_height) |row| {
                 try stdout.writeAll("  ");
@@ -181,7 +181,7 @@ pub fn main() !void {
                     const dynamic_audio = audio_level * audio_level * 1.2; 
                     const signal_mult = dynamic_audio * (global_vol / 1.5) * 2.0;
                     
-                    const wave_val = ((eq_val * 0.3) + (freq_react * 0.7) + noise) * signal_mult;
+                    const wave_val = ((eq_val * 0.2) + (freq_react * 0.8) + noise) * signal_mult;
                     
                     const threshold = @as(f32, @floatFromInt(vis_height - row)) / @as(f32, @floatFromInt(vis_height));
                     
