@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.10"
+// version: "2.0.11"
 // description: "高爪 Audio Visualizer & Autonomous Media Engine"
-// changes: "Injected strict terminal flush on track transition to eliminate browser ghosting."
-// philotic_inferences: "The matrix must be purged completely before a new state can be rendered to prevent buffer collisions."
+// changes: "Engineered a tactile `··[@]··` graphical volume fader mapped to 0-150% with dynamic color clipping thresholds."
+// philotic_inferences: "A UI must communicate state instantaneously. Color-shifting a physical slider provides zero-latency cognitive feedback on gain limits."
 
 const std = @import("std");
 const c = @cImport({
@@ -104,7 +104,6 @@ pub fn main() !void {
     while (running) {
         
         if (app_mode == .BROWSER) {
-            // FIX: Hard flush when re-entering the BROWSER state
             try stdout.writeAll("\x1b[2J\x1b[H"); 
             try stdout.flush();
             
@@ -271,7 +270,6 @@ pub fn main() !void {
 
         // PLAYER STATE
         if (app_mode == .PLAYER) {
-            // FIX: Hard flush immediately upon entering the PLAYER state for a new track
             try stdout.writeAll("\x1b[2J\x1b[H"); 
             try stdout.flush();
             
@@ -364,7 +362,29 @@ pub fn main() !void {
                 for (0..pad_len_p) |_| try stdout.writeAll("=");
                 try stdout.print(" ]\x1b[K\n\n\x1b[0m", .{});
                 try stdout.print("\x1b[37m  [ FILE ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n", .{filename});
-                try stdout.print("\x1b[37m  [ VOL  ]\x1b[0m :: \x1b[33m{d:.1}\x1b[0m\x1b[K\n", .{global_vol});
+                
+                // === [ TACTICAL VOLUME FADER LOGIC ] ===
+                const vol_pct = @as(usize, @intFromFloat(global_vol * 100.0));
+                var vol_color = "\x1b[91m"; // Base @NSIBLE-RED
+                if (vol_pct >= 140) {
+                    vol_color = "\x1b[97m"; // Bright White (Critical Clipping)
+                } else if (vol_pct >= 120) {
+                    vol_color = "\x1b[33m"; // Amber (Warning Overdrive)
+                }
+
+                const slider_width: usize = 20;
+                const thumb_pos = @as(usize, @intFromFloat((global_vol / 1.5) * @as(f32, @floatFromInt(slider_width - 1))));
+
+                try stdout.print("\x1b[37m  [ VOL  ]\x1b[0m :: ", .{});
+                for (0..slider_width) |i| {
+                    if (i == thumb_pos) {
+                        try stdout.print("{s}[@]\x1b[0m", .{vol_color});
+                    } else {
+                        try stdout.print("\x1b[90m·\x1b[0m", .{});
+                    }
+                }
+                try stdout.print(" {s}{d: >3}%\x1b[0m\x1b[K\n", .{vol_color, vol_pct});
+                
                 try stdout.print("\x1b[37m  [ VIS  ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n\n", .{vis_names[vis_mode]});
 
                 const vis_height = if (term_h > 14) term_h - 14 else 2;
