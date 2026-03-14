@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.1"
+// version: "2.0.2"
 // description: "Talon Alta MMA Engine (tame) - State-Driven Browser & Multi-Band Visualizer"
-// changes: "Removed deprecated MAX_PATH_BYTES dependency for compiler resilience."
-// philotic_inferences: "Dynamic ArrayList initialization prevents rigid standard library version collisions."
+// changes: "Migrated all ArrayList structures to the unmanaged API (.empty) to resolve compiler rejection."
+// philotic_inferences: "Adapting to the unmanaged memory model forces strict, explicit allocator tracking across all state transitions."
 
 const std = @import("std");
 const c = @cImport({
@@ -77,17 +77,16 @@ pub fn main() !void {
     var app_mode = AppMode.BROWSER;
     var running = true;
     
-    // FIX: Switched to dynamic initialization to avoid std.fs version drift
-    var current_path = std.ArrayList(u8).init(allocator);
-    defer current_path.deinit();
-    try current_path.appendSlice("/home/static/Music");
+    // FIX: Initialized as Unmanaged and explicitly passed the allocator
+    var current_path: std.ArrayList(u8) = .empty;
+    defer current_path.deinit(allocator);
+    try current_path.appendSlice(allocator, "/home/static/Music");
 
     var browser_cursor: usize = 0;
     var browser_scroll: usize = 0;
     
-    // FIX: Switched to dynamic initialization
-    var active_track_path = std.ArrayList(u8).init(allocator);
-    defer active_track_path.deinit();
+    var active_track_path: std.ArrayList(u8) = .empty;
+    defer active_track_path.deinit(allocator);
 
     var global_vol: f32 = 0.6;
     var vis_mode: usize = 0;
@@ -104,10 +103,10 @@ pub fn main() !void {
             const term_w = if (ws.ws_col > 20) @as(usize, ws.ws_col) else 80;
             const term_h = if (ws.ws_row > 10) @as(usize, ws.ws_row) else 24;
 
-            var entries = std.ArrayList(FileEntry).init(allocator);
+            var entries: std.ArrayList(FileEntry) = .empty;
             defer {
                 for (entries.items) |e| allocator.free(e.name);
-                entries.deinit();
+                entries.deinit(allocator);
             }
 
             // Read Directory
@@ -118,7 +117,7 @@ pub fn main() !void {
                     if (entry_opt) |entry| {
                         if (entry.kind == .directory or std.mem.endsWith(u8, entry.name, ".mp3")) {
                             const name_dup = allocator.dupe(u8, entry.name) catch continue;
-                            entries.append(.{ .name = name_dup, .is_dir = entry.kind == .directory }) catch continue;
+                            entries.append(allocator, .{ .name = name_dup, .is_dir = entry.kind == .directory }) catch continue;
                         }
                     } else break;
                 }
@@ -190,7 +189,7 @@ pub fn main() !void {
                     } else if (cmd == 'b') {
                         if (std.fs.path.dirname(current_path.items)) |parent| {
                             current_path.clearRetainingCapacity();
-                            try current_path.appendSlice(parent);
+                            try current_path.appendSlice(allocator, parent);
                             browser_cursor = 0;
                             browser_scroll = 0;
                         }
@@ -200,16 +199,16 @@ pub fn main() !void {
                             if (selected.is_dir) {
                                 const new_path = try std.fs.path.join(allocator, &[_][]const u8{ current_path.items, selected.name });
                                 current_path.clearRetainingCapacity();
-                                try current_path.appendSlice(new_path);
+                                try current_path.appendSlice(allocator, new_path);
                                 allocator.free(new_path);
                                 browser_cursor = 0;
                                 browser_scroll = 0;
                             } else {
                                 const new_file = try std.fs.path.join(allocator, &[_][]const u8{ current_path.items, selected.name });
                                 active_track_path.clearRetainingCapacity();
-                                try active_track_path.appendSlice(new_file);
+                                try active_track_path.appendSlice(allocator, new_file);
                                 allocator.free(new_file);
-                                app_mode = .PLAYER; // Trigger state change to Visualizer
+                                app_mode = .PLAYER; 
                             }
                         }
                     } else if (cmd == 'q') {
