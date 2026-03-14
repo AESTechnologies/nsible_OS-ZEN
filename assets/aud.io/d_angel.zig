@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.14"
-// description: "Talon Alta MMA Engine (tame) - Audio Visualizer & Autonomous Media Engine"
-// changes: "Injected d_angel_s state persistence to serialize and resume the active queue across sessions."
-// philotic_inferences: "A truly autonomous engine never loses its context. Memory must survive the death of the process."
+// version: "2.0.15"
+// description: "高爪 Audio Visualizer & Autonomous Media Engine"
+// changes: "Abolished deprecated std.io.bufferedReader. Bypassed volatile I/O stream API entirely in favor of direct memory allocation for state persistence."
+// philotic_inferences: "When the underlying standard library fractures, route around it. Memory is faster than fighting deprecated file streams."
 
 const std = @import("std");
 const c = @cImport({
@@ -98,31 +98,33 @@ pub fn main() !void {
     var active_track_idx: usize = 0;
 
     var global_vol: f32 = 0.6;
-    var vis_mode: usize = 4; // Default to Event Horizon
+    var vis_mode: usize = 4; 
     const num_vis_modes = 5;
     const vis_names = [_][]const u8{ "SINE WAVE", "PULSE CENTER", "CHAOS BANDS", "HORIZON", "EVENT HORIZON" };
 
-    // === [ STATE PERSISTENCE: LOAD GHOST ] ===
-    if (std.fs.cwd().openFile(".d_angel_state.nsb", .{})) |file| {
-        var buf_reader = std.io.bufferedReader(file.reader());
-        var in_stream = buf_reader.reader();
-        var buf: [4096]u8 = undefined;
+    // === [ STATE PERSISTENCE: MEMORY ALLOCATED LOAD ] ===
+    if (std.fs.cwd().readFileAlloc(allocator, ".d_angel_state.nsb", 10 * 1024 * 1024)) |content| {
+        defer allocator.free(content);
+        var it = std.mem.splitScalar(u8, content, '\n');
         
-        if (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch null) |idx_str| {
-            active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
-            while (in_stream.readUntilDelimiterOrEof(&buf, '\n') catch null) |line| {
-                if (line.len > 0) {
-                    const path_dup = allocator.dupe(u8, line) catch continue;
-                    active_playlist.append(allocator, path_dup) catch continue;
-                }
-            }
-            if (active_playlist.items.len > 0) {
-                if (active_track_idx >= active_playlist.items.len) active_track_idx = 0;
-                app_mode = .PLAYER;
-                prev_app_mode = .PLAYER;
+        if (it.next()) |idx_str| {
+            if (idx_str.len > 0) {
+                active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
             }
         }
-        file.close();
+        
+        while (it.next()) |line| {
+            if (line.len > 0) {
+                const path_dup = allocator.dupe(u8, line) catch continue;
+                active_playlist.append(allocator, path_dup) catch continue;
+            }
+        }
+        
+        if (active_playlist.items.len > 0) {
+            if (active_track_idx >= active_playlist.items.len) active_track_idx = 0;
+            app_mode = .PLAYER;
+            prev_app_mode = .PLAYER;
+        }
     } else |_| {}
 
     while (running) {
@@ -520,15 +522,18 @@ pub fn main() !void {
         }
     }
 
-    // === [ STATE PERSISTENCE: DUMP GHOST ] ===
+    // === [ STATE PERSISTENCE: DIRECT DUMP ] ===
     if (active_playlist.items.len > 0) {
         if (std.fs.cwd().createFile(".d_angel_state.nsb", .{ .truncate = true })) |file| {
-            var writer = file.writer();
-            writer.print("{d}\n", .{active_track_idx}) catch {};
+            defer file.close();
+            var buf: [128]u8 = undefined;
+            const idx_str = std.fmt.bufPrint(&buf, "{d}\n", .{active_track_idx}) catch "0\n";
+            file.writeAll(idx_str) catch {};
+            
             for (active_playlist.items) |path| {
-                writer.print("{s}\n", .{path}) catch {};
+                file.writeAll(path) catch {};
+                file.writeAll("\n") catch {};
             }
-            file.close();
         } else |_| {}
     } else {
         std.fs.cwd().deleteFile(".d_angel_state.nsb") catch {};
