@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.11"
+// version: "2.0.12"
 // description: "高爪 Audio Visualizer & Autonomous Media Engine"
-// changes: "Engineered a tactile `··[@]··` graphical volume fader mapped to 0-150% with dynamic color clipping thresholds."
-// philotic_inferences: "A UI must communicate state instantaneously. Color-shifting a physical slider provides zero-latency cognitive feedback on gain limits."
+// changes: "Non-destructive injection of 'EVENT HORIZON' visualization math (Bass=Void, Mids=Orbital, Treb=Matter)."
+// philotic_inferences: "Audio data is not strictly linear. Mapping frequency to spatial gravity creates a tactile visualization of amplitude."
 
 const std = @import("std");
 const c = @cImport({
@@ -98,8 +98,8 @@ pub fn main() !void {
 
     var global_vol: f32 = 0.6;
     var vis_mode: usize = 0;
-    const num_vis_modes = 4;
-    const vis_names = [_][]const u8{ "SINE WAVE", "PULSE CENTER", "CHAOS BANDS", "HORIZON" };
+    const num_vis_modes = 5; // Expanded for Event Horizon
+    const vis_names = [_][]const u8{ "SINE WAVE", "PULSE CENTER", "CHAOS BANDS", "HORIZON", "EVENT HORIZON" };
 
     while (running) {
         
@@ -363,13 +363,12 @@ pub fn main() !void {
                 try stdout.print(" ]\x1b[K\n\n\x1b[0m", .{});
                 try stdout.print("\x1b[37m  [ FILE ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n", .{filename});
                 
-                // === [ TACTICAL VOLUME FADER LOGIC ] ===
                 const vol_pct = @as(usize, @intFromFloat(global_vol * 100.0));
-                var vol_color = "\x1b[91m"; // Base @NSIBLE-RED
+                var vol_color = "\x1b[91m";
                 if (vol_pct >= 140) {
-                    vol_color = "\x1b[97m"; // Bright White (Critical Clipping)
+                    vol_color = "\x1b[97m";
                 } else if (vol_pct >= 120) {
-                    vol_color = "\x1b[33m"; // Amber (Warning Overdrive)
+                    vol_color = "\x1b[33m";
                 }
 
                 const slider_width: usize = 20;
@@ -398,11 +397,13 @@ pub fn main() !void {
                         const width_f = @as(f32, @floatFromInt(vis_width));
                         const center_dist = @abs((col_f / width_f) - 0.5) * 2.0;
                         const freq_react = 1.0 - (center_dist * 0.5); 
+                        const noise = std.crypto.random.float(f32) * 0.05; 
                         var wave_val: f32 = 0.0;
+
                         switch (vis_mode) {
                             0 => {
                                 const eq_val = (@sin(time_t * 18.0 + col_f * 0.15) + 1.0) * 0.5;
-                                wave_val = ((eq_val * 0.2) + (freq_react * 0.8)) * @min((smooth_peak * 0.5) + (smooth_bass * 1.5), 1.0);
+                                wave_val = ((eq_val * 0.2) + (freq_react * 0.8) + noise) * @min((smooth_peak * 0.5) + (smooth_bass * 1.5), 1.0);
                             },
                             1 => {
                                 const block_width = smooth_bass * smooth_bass * 2.0;
@@ -416,6 +417,25 @@ pub fn main() !void {
                             3 => {
                                 const eq_val = (@sin(time_t * 8.0 + col_f * 0.02) + 1.0) * 0.5;
                                 wave_val = ((eq_val * 0.2) + 0.1) * @min(smooth_bass * 2.2, 1.0);
+                            },
+                            4 => {
+                                // === [ EVENT HORIZON PHYSICS ] ===
+                                const void_radius = smooth_bass * 0.8 + 0.05; 
+                                
+                                if (center_dist < void_radius) {
+                                    wave_val = 0.0; // The Void consumes the waveform
+                                } else {
+                                    const dist_edge = center_dist - void_radius;
+                                    
+                                    // Mids warp the space right at the edge
+                                    const orbital_wave = (@sin(time_t * 15.0 - dist_edge * 10.0) + 1.0) * 0.5;
+                                    const space_warp = (1.0 - @min(dist_edge * 3.0, 1.0)) * (smooth_mid * 1.8 + 0.2) * orbital_wave;
+                                    
+                                    // Treble acts as volatile matter escaping the disk
+                                    const matter_ejecta = smooth_treb * noise * 6.0;
+                                    
+                                    wave_val = @min(space_warp + matter_ejecta, 1.0);
+                                }
                             },
                             else => {}
                         }
