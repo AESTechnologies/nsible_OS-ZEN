@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.0"
+// version: "2.0.1"
 // description: "Talon Alta MMA Engine (tame) - State-Driven Browser & Multi-Band Visualizer"
-// changes: "Implemented BROWSER/PLAYER State Machine for dynamic SSD traversal. Increased UI bottom-margin to eliminate scroll ghosting."
-// philotic_inferences: "A State Machine isolates directory I/O from the blocking audio render loop, allowing seamless transition between navigation and playback."
+// changes: "Removed deprecated MAX_PATH_BYTES dependency for compiler resilience."
+// philotic_inferences: "Dynamic ArrayList initialization prevents rigid standard library version collisions."
 
 const std = @import("std");
 const c = @cImport({
@@ -77,15 +77,16 @@ pub fn main() !void {
     var app_mode = AppMode.BROWSER;
     var running = true;
     
-    // Default starting directory. Change this to point to your SSD mount (e.g., "/mnt/ext_ssd/Music")
-    var current_path = try std.ArrayList(u8).initCapacity(allocator, std.fs.MAX_PATH_BYTES);
+    // FIX: Switched to dynamic initialization to avoid std.fs version drift
+    var current_path = std.ArrayList(u8).init(allocator);
     defer current_path.deinit();
     try current_path.appendSlice("/home/static/Music");
 
     var browser_cursor: usize = 0;
     var browser_scroll: usize = 0;
     
-    var active_track_path = try std.ArrayList(u8).initCapacity(allocator, std.fs.MAX_PATH_BYTES);
+    // FIX: Switched to dynamic initialization
+    var active_track_path = std.ArrayList(u8).init(allocator);
     defer active_track_path.deinit();
 
     var global_vol: f32 = 0.6;
@@ -327,7 +328,6 @@ pub fn main() !void {
                 
                 try stdout.print("\x1b[37m  [ VIS  ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n\n", .{vis_names[vis_mode]});
 
-                // FIX: Aggressive safety margin (14 lines) to guarantee zero ghosting
                 const vis_height = if (term_h > 14) term_h - 14 else 2;
                 const vis_width = term_w - 4;
                 
@@ -440,7 +440,7 @@ pub fn main() !void {
                             _ = c.ma_sound_seek_to_pcm_frame(&sound, 0);
                         } else if (cmd == 'b' or cmd == '\n' or cmd == '\r') {
                             _ = c.ma_sound_stop(&sound);
-                            app_mode = .BROWSER; // Return to indexer
+                            app_mode = .BROWSER; 
                             break;
                         } else if (cmd == 'q') {
                             _ = c.ma_sound_stop(&sound);
@@ -452,7 +452,6 @@ pub fn main() !void {
                 std.Thread.sleep(60 * std.time.ns_per_ms);
             }
             
-            // Auto-return to browser when track naturally finishes
             if (running) app_mode = .BROWSER; 
         }
     }
