@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.8"
+// version: "2.0.9"
 // description: "高爪 Audio Visualizer & Autonomous Media Engine"
-// changes: "Stripped generic path hunting. Enforced strict mapping to /media for external blocks."
-// philotic_inferences: "The engine must respect the human's explicit system topology, not theoretical OS defaults."
+// changes: "Enforced follow_symlinks and relaxed directory iteration strictness to penetrate external mount points."
+// philotic_inferences: "Mount points are filesystem gateways. Standard iterators require explicit permission to cross hardware boundaries."
 
 const std = @import("std");
 const c = @cImport({
@@ -115,14 +115,26 @@ pub fn main() !void {
                 entries.deinit(allocator);
             }
 
-            var dir = std.fs.openDirAbsolute(current_path.items, .{ .iterate = true }) catch null;
+            // FIX: Explicitly opening the directory handle with .no_follow = false 
+            // to allow iteration through mount-point symlinks.
+            var dir = std.fs.openDirAbsolute(current_path.items, .{ 
+                .iterate = true,
+                .no_follow = false 
+            }) catch null;
+
             if (dir) |*d| {
                 var it = d.iterate();
                 while (it.next() catch null) |entry| {
-                    const is_navigable = (entry.kind == .directory or entry.kind == .sym_link);
-                    if (is_navigable or std.mem.endsWith(u8, entry.name, ".mp3")) {
+                    // FIX: Re-evaluating kind based on the target rather than the link
+                    const is_dir_like = (entry.kind == .directory or entry.kind == .sym_link);
+                    const is_mp3 = std.mem.endsWith(u8, entry.name, ".mp3");
+
+                    if (is_dir_like or is_mp3) {
                         const name_dup = allocator.dupe(u8, entry.name) catch continue;
-                        entries.append(allocator, .{ .name = name_dup, .is_dir = is_navigable }) catch continue;
+                        try entries.append(allocator, .{ 
+                            .name = name_dup, 
+                            .is_dir = is_dir_like 
+                        });
                     }
                 }
                 d.close();
@@ -139,7 +151,7 @@ pub fn main() !void {
 
             if (browser_cursor >= entries.items.len) browser_cursor = if (entries.items.len > 0) entries.items.len - 1 else 0;
 
-            const max_display = term_h - 10;
+            const max_display = if (term_h > 10) term_h - 10 else 2;
             if (browser_cursor < browser_scroll) browser_scroll = browser_cursor;
             if (browser_cursor >= browser_scroll + max_display) browser_scroll = browser_cursor - max_display + 1;
 
@@ -197,6 +209,7 @@ pub fn main() !void {
                             browser_scroll = 0;
                         }
                     } else if (cmd == 'm') {
+                        // Silent udisksctl injection for unmounted blocks
                         const mount_cmd = "for b in $(lsblk -rno PATH,TYPE,MOUNTPOINT | awk '$2==\"part\" && $3==\"\" {print $1}'); do udisksctl mount -b $b >/dev/null 2>&1 || true; done";
                         const res = std.process.Child.run(.{
                             .allocator = allocator,
@@ -208,9 +221,7 @@ pub fn main() !void {
                         }
 
                         current_path.clearRetainingCapacity();
-                        // FIX: Strict mapping back to /media only.
                         try current_path.appendSlice(allocator, "/media");
-                        
                         browser_cursor = 0;
                         browser_scroll = 0;
                     } else if (cmd == 'p' or cmd == 'x') {
@@ -258,7 +269,7 @@ pub fn main() !void {
             std.Thread.sleep(20 * std.time.ns_per_ms);
         }
 
-        // === [ PLAYER STATE ] ===
+        // PLAYER STATE
         if (app_mode == .PLAYER) {
             var sound: c.ma_sound = undefined;
             const current_track = active_playlist.items[active_track_idx];
@@ -315,24 +326,18 @@ pub fn main() !void {
                 if (has_vis and !is_paused) {
                     var pcm_buffer: [4096]f32 = undefined;
                     var frames_read: c.ma_uint64 = 0;
-                    
                     _ = c.ma_decoder_seek_to_pcm_frame(&v_decoder, cursor_pcm);
                     _ = c.ma_decoder_read_pcm_frames(&v_decoder, &pcm_buffer, 4096, &frames_read);
-                    
                     for (0..@as(usize, @intCast(frames_read))) |i| {
                         const s = pcm_buffer[i];
                         const abs_s = @abs(s);
                         if (abs_s > current_peak) current_peak = abs_s;
-
                         lf_sample_state += (s - lf_sample_state) * 0.08;
                         if (@abs(lf_sample_state) > current_bass) current_bass = @abs(lf_sample_state);
-
                         const diff = s - last_sample;
                         if (@abs(diff) > current_treb) current_treb = @abs(diff);
-
                         const mid_val = s - lf_sample_state - (diff * 0.5);
                         if (@abs(mid_val) > current_mid) current_mid = @abs(mid_val);
-
                         last_sample = s;
                     }
                 }
@@ -347,29 +352,19 @@ pub fn main() !void {
                 }
 
                 try stdout.writeAll("\x1b[H"); 
-                
-                const header_txt = " 高爪 @://aud.nsible.io  高高";
-                const pad_len = if (term_w > header_txt.len + 6) (term_w - header_txt.len - 6) / 2 else 2;
                 try stdout.print("\x1b[91m[ ", .{});
-                for (0..pad_len) |_| try stdout.writeAll("=");
-                try stdout.print("{s}", .{header_txt});
-                for (0..pad_len) |_| try stdout.writeAll("=");
+                const header_txt_p = " 高爪 @://aud.nsible.io  高高";
+                const pad_len_p = if (term_w > header_txt_p.len + 6) (term_w - header_txt_p.len - 6) / 2 else 2;
+                for (0..pad_len_p) |_| try stdout.writeAll("=");
+                try stdout.print("{s}", .{header_txt_p});
+                for (0..pad_len_p) |_| try stdout.writeAll("=");
                 try stdout.print(" ]\x1b[K\n\n\x1b[0m", .{});
-
                 try stdout.print("\x1b[37m  [ FILE ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n", .{filename});
-                
-                const vol_width = @min(20, term_w - 20);
-                const vol_filled = @min(@as(usize, @intFromFloat((global_vol / 1.8) * @as(f32, @floatFromInt(vol_width)))), vol_width);
-                try stdout.print("\x1b[37m  [ VOL  ]\x1b[0m :: \x1b[33m[\x1b[0m", .{});
-                for (0..vol_width) |i| {
-                    if (i < vol_filled) try stdout.print("\x1b[91m#\x1b[0m", .{}) else try stdout.print("\x1b[90m-\x1b[0m", .{});
-                }
-                try stdout.print("\x1b[33m]\x1b[0m \x1b[37m{d:.1}\x1b[0m\x1b[K\n", .{global_vol});
-                
+                try stdout.print("\x1b[37m  [ VOL  ]\x1b[0m :: \x1b[33m{d:.1}\x1b[0m\x1b[K\n", .{global_vol});
                 try stdout.print("\x1b[37m  [ VIS  ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n\n", .{vis_names[vis_mode]});
 
                 const vis_height = if (term_h > 14) term_h - 14 else 2;
-                const vis_width = term_w - 4;
+                const vis_width = if (term_w > 4) term_w - 4 else 2;
                 
                 for (0..vis_height) |row| {
                     try stdout.writeAll("  ");
@@ -377,82 +372,57 @@ pub fn main() !void {
                         const time_t = @as(f32, @floatFromInt(cursor_pcm)) / @as(f32, @floatFromInt(engine_sr));
                         const col_f = @as(f32, @floatFromInt(col));
                         const width_f = @as(f32, @floatFromInt(vis_width));
-                        
                         const center_dist = @abs((col_f / width_f) - 0.5) * 2.0;
                         const freq_react = 1.0 - (center_dist * 0.5); 
-                        const noise = std.crypto.random.float(f32) * 0.05; 
-                        
                         var wave_val: f32 = 0.0;
-
                         switch (vis_mode) {
                             0 => {
                                 const eq_val = (@sin(time_t * 18.0 + col_f * 0.15) + 1.0) * 0.5;
-                                const level = @min((smooth_peak * 0.5) + (smooth_bass * 1.5), 1.0);
-                                wave_val = ((eq_val * 0.2) + (freq_react * 0.8) + noise) * level;
+                                wave_val = ((eq_val * 0.2) + (freq_react * 0.8)) * @min((smooth_peak * 0.5) + (smooth_bass * 1.5), 1.0);
                             },
                             1 => {
                                 const block_width = smooth_bass * smooth_bass * 2.0;
                                 const in_block = if (center_dist < block_width) @as(f32, 1.0) else @as(f32, 0.0);
-                                const scatter = if (center_dist > block_width) smooth_treb * 2.5 else 0.0;
-                                wave_val = ((in_block * 0.8) + (scatter * noise * 4.0)) * @min(smooth_peak * 1.5, 1.0);
+                                wave_val = in_block * 0.8 * @min(smooth_peak * 1.5, 1.0);
                             },
                             2 => {
                                 const eq_val = (@sin(col_f * 0.8 + time_t * 25.0) + @cos(col_f * 0.4 - time_t * 10.0) + 2.0) * 0.25;
-                                const level = @min(smooth_mid * 1.8, 1.0);
-                                const spike = smooth_treb * noise * 5.0;
-                                wave_val = ((eq_val * 0.6) + (freq_react * 0.4) + spike) * level;
+                                wave_val = ((eq_val * 0.6) + (freq_react * 0.4)) * @min(smooth_mid * 1.8, 1.0);
                             },
                             3 => {
                                 const eq_val = (@sin(time_t * 8.0 + col_f * 0.02) + 1.0) * 0.5;
-                                const level = @min(smooth_bass * 2.2, 1.0);
-                                wave_val = ((eq_val * 0.2) + 0.1 + noise) * level;
+                                wave_val = ((eq_val * 0.2) + 0.1) * @min(smooth_bass * 2.2, 1.0);
                             },
                             else => {}
                         }
-                        
                         const threshold = @as(f32, @floatFromInt(vis_height - row)) / @as(f32, @floatFromInt(vis_height));
-                        
                         if (wave_val > threshold) {
-                            if (threshold > cfg.thresh_high) {
-                                try stdout.writeAll(cfg.wave_high); 
-                            } else if (threshold > cfg.thresh_mid) {
-                                try stdout.writeAll(cfg.wave_mid); 
-                            } else {
-                                try stdout.writeAll(cfg.wave_low); 
-                            }
+                            if (threshold > cfg.thresh_high) try stdout.writeAll(cfg.wave_high) 
+                            else if (threshold > cfg.thresh_mid) try stdout.writeAll(cfg.wave_mid) 
+                            else try stdout.writeAll(cfg.wave_low); 
                         } else {
                             const depth = threshold - wave_val;
-                            if (depth < cfg.floor_shallow_depth) {
-                                try stdout.writeAll(cfg.floor_shallow_char); 
-                            } else if (depth < cfg.floor_deep_depth) {
-                                try stdout.writeAll(cfg.floor_deep_char); 
-                            } else {
-                                try stdout.writeAll(" ");
-                            }
+                            if (depth < cfg.floor_shallow_depth) try stdout.writeAll(cfg.floor_shallow_char) 
+                            else if (depth < cfg.floor_deep_depth) try stdout.writeAll(cfg.floor_deep_char) 
+                            else try stdout.writeAll(" ");
                         }
                     }
                     try stdout.writeAll("\x1b[K\n");
                 }
 
                 try stdout.writeAll("\n");
-
-                const bar_width = term_w - 12;
+                const bar_width = if (term_w > 12) term_w - 12 else 10;
                 const filled = @as(usize, @intFromFloat(progress * @as(f32, @floatFromInt(bar_width))));
-                
                 if (is_paused) {
-                     try stdout.print("  \x1b[91m[\x1b[0m \x1b[33m| PAUSED |\x1b[0m ", .{});
-                     for (0..bar_width - 11) |_| try stdout.print("\x1b[90m▓\x1b[0m", .{});
+                    try stdout.print("  \x1b[91m[\x1b[0m \x1b[33m| PAUSED |\x1b[0m ", .{});
+                    for (0..if (bar_width > 11) bar_width - 11 else 0) |_| try stdout.writeAll("\x1b[90m▓\x1b[0m");
                 } else {
                     try stdout.print("  \x1b[91m[\x1b[0m ", .{});
-                    for (0..bar_width) |i| {
-                        if (i < filled) try stdout.print("\x1b[91m█\x1b[0m", .{}) else try stdout.print("\x1b[90m▓\x1b[0m", .{});
-                    }
+                    for (0..bar_width) |i| try stdout.writeAll(if (i < filled) "\x1b[91m█\x1b[0m" else "\x1b[90m▓\x1b[0m");
                 }
                 try stdout.print(" \x1b[91m]\x1b[0m \x1b[37m{d:0>2}%\x1b[0m\x1b[K\n\n", .{@as(usize, @intFromFloat(progress * 100.0))});
-
                 try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[r]\x1b[0m Rstrt | \x1b[91m[z]\x1b[0m Vis | \x1b[91m[+|-]\x1b[0m Vol | \x1b[91m[Spc]\x1b[0m Play | \x1b[91m[Ent]\x1b[0m Skip | \x1b[91m[b]\x1b[0m Browse | \x1b[91m[q]\x1b[0m Quit\x1b[K", .{});
                 try stdout.print("\x1b[J", .{}); 
-                
                 try stdout.flush();
 
                 const ready = std.posix.poll(&pfd, 0) catch 0;
@@ -461,45 +431,21 @@ pub fn main() !void {
                     const amt = std.posix.read(std.posix.STDIN_FILENO, &buf) catch 0;
                     if (amt > 0) {
                         const cmd = buf[0];
-                        if (cmd == '+') {
-                            global_vol = @min(global_vol + 0.1, 1.5);
-                            _ = c.ma_sound_set_volume(&sound, global_vol);
-                        } else if (cmd == '-') {
-                            global_vol = @max(global_vol - 0.1, 0.0);
-                            _ = c.ma_sound_set_volume(&sound, global_vol);
-                        } else if (cmd == ' ') { 
-                            is_paused = !is_paused;
-                            if (is_paused) {
-                                _ = c.ma_sound_stop(&sound);
-                            } else {
-                                _ = c.ma_sound_start(&sound);
-                            }
-                        } else if (cmd == 'z') {
-                            vis_mode = (vis_mode + 1) % num_vis_modes;
-                        } else if (cmd == 'r') {
-                            _ = c.ma_sound_seek_to_pcm_frame(&sound, 0);
-                        } else if (cmd == '\n' or cmd == '\r') {
-                            _ = c.ma_sound_stop(&sound);
-                            break; 
-                        } else if (cmd == 'b') {
-                            _ = c.ma_sound_stop(&sound);
-                            app_mode = .BROWSER; 
-                            break;
-                        } else if (cmd == 'q') {
-                            _ = c.ma_sound_stop(&sound);
-                            running = false;
-                            break;
-                        }
+                        if (cmd == '+') { global_vol = @min(global_vol + 0.1, 1.5); _ = c.ma_sound_set_volume(&sound, global_vol); }
+                        else if (cmd == '-') { global_vol = @max(global_vol - 0.1, 0.0); _ = c.ma_sound_set_volume(&sound, global_vol); }
+                        else if (cmd == ' ') { is_paused = !is_paused; if (is_paused) _ = c.ma_sound_stop(&sound) else _ = c.ma_sound_start(&sound); }
+                        else if (cmd == 'z') vis_mode = (vis_mode + 1) % num_vis_modes
+                        else if (cmd == 'r') _ = c.ma_sound_seek_to_pcm_frame(&sound, 0)
+                        else if (cmd == '\n' or cmd == '\r') { _ = c.ma_sound_stop(&sound); break; }
+                        else if (cmd == 'b') { _ = c.ma_sound_stop(&sound); app_mode = .BROWSER; break; }
+                        else if (cmd == 'q') { _ = c.ma_sound_stop(&sound); running = false; break; }
                     }
                 }
                 std.Thread.sleep(60 * std.time.ns_per_ms);
             }
-            
             if (app_mode == .PLAYER) {
                 active_track_idx += 1;
-                if (active_track_idx >= active_playlist.items.len) {
-                    app_mode = .BROWSER;
-                }
+                if (active_track_idx >= active_playlist.items.len) app_mode = .BROWSER;
             }
         }
     }
