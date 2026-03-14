@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.9"
+// version: "2.0.10"
 // description: "高爪 Audio Visualizer & Autonomous Media Engine"
-// changes: "Enforced follow_symlinks and relaxed directory iteration strictness to penetrate external mount points."
-// philotic_inferences: "Mount points are filesystem gateways. Standard iterators require explicit permission to cross hardware boundaries."
+// changes: "Injected strict terminal flush on track transition to eliminate browser ghosting."
+// philotic_inferences: "The matrix must be purged completely before a new state can be rendered to prevent buffer collisions."
 
 const std = @import("std");
 const c = @cImport({
@@ -104,6 +104,10 @@ pub fn main() !void {
     while (running) {
         
         if (app_mode == .BROWSER) {
+            // FIX: Hard flush when re-entering the BROWSER state
+            try stdout.writeAll("\x1b[2J\x1b[H"); 
+            try stdout.flush();
+            
             var ws = winsize{ .ws_row = 24, .ws_col = 80, .ws_xpixel = 0, .ws_ypixel = 0 };
             _ = ioctl(std.posix.STDOUT_FILENO, TIOCGWINSZ, &ws);
             const term_w = if (ws.ws_col > 20) @as(usize, ws.ws_col) else 80;
@@ -115,8 +119,6 @@ pub fn main() !void {
                 entries.deinit(allocator);
             }
 
-            // FIX: Explicitly opening the directory handle with .no_follow = false 
-            // to allow iteration through mount-point symlinks.
             var dir = std.fs.openDirAbsolute(current_path.items, .{ 
                 .iterate = true,
                 .no_follow = false 
@@ -125,7 +127,6 @@ pub fn main() !void {
             if (dir) |*d| {
                 var it = d.iterate();
                 while (it.next() catch null) |entry| {
-                    // FIX: Re-evaluating kind based on the target rather than the link
                     const is_dir_like = (entry.kind == .directory or entry.kind == .sym_link);
                     const is_mp3 = std.mem.endsWith(u8, entry.name, ".mp3");
 
@@ -209,7 +210,6 @@ pub fn main() !void {
                             browser_scroll = 0;
                         }
                     } else if (cmd == 'm') {
-                        // Silent udisksctl injection for unmounted blocks
                         const mount_cmd = "for b in $(lsblk -rno PATH,TYPE,MOUNTPOINT | awk '$2==\"part\" && $3==\"\" {print $1}'); do udisksctl mount -b $b >/dev/null 2>&1 || true; done";
                         const res = std.process.Child.run(.{
                             .allocator = allocator,
@@ -271,6 +271,10 @@ pub fn main() !void {
 
         // PLAYER STATE
         if (app_mode == .PLAYER) {
+            // FIX: Hard flush immediately upon entering the PLAYER state for a new track
+            try stdout.writeAll("\x1b[2J\x1b[H"); 
+            try stdout.flush();
+            
             var sound: c.ma_sound = undefined;
             const current_track = active_playlist.items[active_track_idx];
             const track_c = try allocator.dupeZ(u8, current_track);
