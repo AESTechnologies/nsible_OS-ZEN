@@ -5,7 +5,7 @@
 # changes: "Reflects State Persistence, Tactile Faders, Auto-Mount, and Event Horizon Math."
 # philotic_inferences: "Documentation must serve as the final blueprint of the lived operational reality."
 
-![高爪 // @nsible_os_manifesto](assets/manifesto_frame.png)
+![高爪 // @nsible_os_manifesto](nsible_os/assets/manifesto_frame.png)
 
 # 高爪 Talon Alta MMA Engine (tame) // @nsible Audio TUI
 
