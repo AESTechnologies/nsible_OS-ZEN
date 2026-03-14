@@ -7,7 +7,7 @@
 
 ![高爪 // @nsible OS aud.io](/assets/manifesto_frame.png)
 
-# 高爪 Talon Alta MMA Engine (tame) // @nsible Audio TUI
+# 高爪 @nsible Audio TUI
 
 **d_angel** is a terminal-based, zero-latency volumetric waveform visualizer and state-driven autonomous media engine. Designed for execution within the `@nsible` hybrid architecture, it bypasses bloated GUI abstractions to render real-time PCM frame data and filesystem navigation directly to the TTY in strict @NSIBLE-RED aesthetics.
 
