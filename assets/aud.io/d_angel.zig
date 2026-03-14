@@ -1,3 +1,10 @@
+// [@://nsible_os/src/d_angel.zig/.-={
+// module: "aud.io"
+// version: "1.0.5"
+// description: "Audio Player and Multi-Band Visualizer"
+// changes: "Extracted visualizer UI elements into a VisConfig struct for rapid iteration."
+// philotic_inferences: "Centralizing UI constants reduces friction during aesthetic evaluation."
+
 const std = @import("std");
 const c = @cImport({
     @cInclude("angel_a.h");
@@ -13,10 +20,30 @@ const TIOCGWINSZ = 0x5413;
 
 extern "c" fn ioctl(fd: i32, request: usize, ...) i32;
 
+// === [ UI CONFIGURATION ] ===
+const VisConfig = struct {
+    // Primary Operative Colors & Characters (@NSIBLE-RED focused)
+    wave_high: []const u8 = "\x1b[91m█\x1b[0m", 
+    wave_mid:  []const u8 = "\x1b[33m▆\x1b[0m",
+    wave_low:  []const u8 = "\x1b[37m▃\x1b[0m",
+    
+    // Depth of Silence (Noise Floor)
+    floor_shallow_char:  []const u8 = "\x1b[37m░\x1b[0m",
+    floor_shallow_depth: f32 = 0.1,
+    floor_deep_char:     []const u8 = "\x1b[90m·\x1b[0m",
+    floor_deep_depth:    f32 = 0.3,
+    
+    // Wave rendering height thresholds
+    thresh_high: f32 = 0.7,
+    thresh_mid:  f32 = 0.4,
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
+
+    const cfg = VisConfig{};
 
     var engine: c.ma_engine = undefined;
     if (c.ma_engine_init(null, &engine) != c.MA_SUCCESS) return;
@@ -48,6 +75,10 @@ pub fn main() !void {
 
     var global_vol: f32 = 0.6;
     var running = true;
+    
+    var vis_mode: usize = 0;
+    const num_vis_modes = 4;
+    const vis_names = [_][]const u8{ "SINE WAVE", "PULSE CENTER", "CHAOS BANDS", "HORIZON" };
 
     var pfd = [_]std.posix.pollfd{
         .{ .fd = std.posix.STDIN_FILENO, .events = std.posix.POLL.IN, .revents = 0 },
@@ -75,7 +106,7 @@ pub fn main() !void {
         defer c.ma_sound_uninit(&sound);
 
         var v_decoder: c.ma_decoder = undefined;
-        var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, 44100); 
+        var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, 0); 
         const has_vis = (c.ma_decoder_init_file(track_c.ptr, &v_config, &v_decoder) == c.MA_SUCCESS);
         
         defer {
@@ -91,8 +122,13 @@ pub fn main() !void {
         var length_pcm: c.ma_uint64 = 1;
         _ = c.ma_sound_get_length_in_pcm_frames(&sound, &length_pcm);
 
-        var last_cursor: c.ma_uint64 = 0;
         var smooth_peak: f32 = 0.0;
+        var smooth_bass: f32 = 0.0;
+        var smooth_mid: f32 = 0.0;
+        var smooth_treb: f32 = 0.0;
+        var lf_sample_state: f32 = 0.0;
+        var last_sample: f32 = 0.0;
+
         var is_paused = false;
 
         while (c.ma_sound_at_end(&sound) == c.MA_FALSE or is_paused) {
@@ -109,35 +145,42 @@ pub fn main() !void {
             const progress = if (length_pcm > 0) @as(f32, @floatFromInt(cursor_pcm)) / @as(f32, @floatFromInt(length_pcm)) else 0.0;
             
             var current_peak: f32 = 0.0;
-            const delta_frames = if (cursor_pcm > last_cursor) cursor_pcm - last_cursor else 0;
-            last_cursor = cursor_pcm;
+            var current_bass: f32 = 0.0;
+            var current_mid: f32 = 0.0;
+            var current_treb: f32 = 0.0;
 
-            if (has_vis and delta_frames > 0 and !is_paused) {
-                const read_count = @min(delta_frames, 4096);
+            if (has_vis and !is_paused) {
                 var pcm_buffer: [4096]f32 = undefined;
                 var frames_read: c.ma_uint64 = 0;
                 
-                _ = c.ma_decoder_read_pcm_frames(&v_decoder, &pcm_buffer, read_count, &frames_read);
+                _ = c.ma_decoder_seek_to_pcm_frame(&v_decoder, cursor_pcm);
+                _ = c.ma_decoder_read_pcm_frames(&v_decoder, &pcm_buffer, 4096, &frames_read);
                 
-                var max_amp: f32 = 0.0;
                 for (0..@as(usize, @intCast(frames_read))) |i| {
-                    const amp = @abs(pcm_buffer[i]);
-                    if (amp > max_amp) max_amp = amp;
-                }
-                current_peak = max_amp;
-                
-                if (delta_frames > 4096) {
-                    _ = c.ma_decoder_seek_to_pcm_frame(&v_decoder, cursor_pcm);
+                    const s = pcm_buffer[i];
+                    const abs_s = @abs(s);
+                    if (abs_s > current_peak) current_peak = abs_s;
+
+                    lf_sample_state += (s - lf_sample_state) * 0.08;
+                    if (@abs(lf_sample_state) > current_bass) current_bass = @abs(lf_sample_state);
+
+                    const diff = s - last_sample;
+                    if (@abs(diff) > current_treb) current_treb = @abs(diff);
+
+                    const mid_val = s - lf_sample_state - (diff * 0.5);
+                    if (@abs(mid_val) > current_mid) current_mid = @abs(mid_val);
+
+                    last_sample = s;
                 }
             }
 
-            // FIX: Restored correct smoothing logic
             if (is_paused) {
-                smooth_peak = 0.0;
-            } else if (current_peak > smooth_peak) {
-                smooth_peak += (current_peak - smooth_peak) * 0.88; // Sharp Attack
+                smooth_peak = 0.0; smooth_bass = 0.0; smooth_mid = 0.0; smooth_treb = 0.0;
             } else {
-                smooth_peak += (current_peak - smooth_peak) * 0.42; // Fast Decay
+                smooth_peak += (current_peak - smooth_peak) * if (current_peak > smooth_peak) @as(f32, 0.88) else @as(f32, 0.42);
+                smooth_bass += (current_bass - smooth_bass) * if (current_bass > smooth_bass) @as(f32, 0.85) else @as(f32, 0.35);
+                smooth_mid  += (current_mid  - smooth_mid)  * if (current_mid  > smooth_mid)  @as(f32, 0.88) else @as(f32, 0.40);
+                smooth_treb += (current_treb - smooth_treb) * if (current_treb > smooth_treb) @as(f32, 0.92) else @as(f32, 0.50);
             }
 
             try stdout.writeAll("\x1b[H"); 
@@ -158,11 +201,13 @@ pub fn main() !void {
             for (0..vol_width) |i| {
                 if (i < vol_filled) try stdout.print("\x1b[91m#\x1b[0m", .{}) else try stdout.print("\x1b[90m-\x1b[0m", .{});
             }
-            try stdout.print("\x1b[33m]\x1b[0m \x1b[37m{d:.1}\x1b[0m\x1b[K\n\n", .{global_vol});
+            try stdout.print("\x1b[33m]\x1b[0m \x1b[37m{d:.1}\x1b[0m\x1b[K\n", .{global_vol});
+            
+            try stdout.print("\x1b[37m  [ VIS  ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n\n", .{vis_names[vis_mode]});
 
-            const vis_height = if (term_h > 14) term_h - 14 else 2;
+            const vis_height = if (term_h > 15) term_h - 15 else 2;
             const vis_width = term_w - 4;
-            const audio_level = @min(smooth_peak * 1.17, 1.0);
+            const vol_scale = (global_vol / 1.5);
             
             for (0..vis_height) |row| {
                 try stdout.writeAll("  ");
@@ -173,29 +218,55 @@ pub fn main() !void {
                     
                     const center_dist = @abs((col_f / width_f) - 0.5) * 2.0;
                     const freq_react = 1.0 - (center_dist * 0.5); 
-                    
-                    // FIX: Cleared variable collisions
-                    const eq_val = (@sin(time_t * 18.0 + col_f * 0.15) + 1.0) * 0.5;
                     const noise = std.crypto.random.float(f32) * 0.05; 
                     
-                    const dynamic_audio = audio_level * audio_level * 1.2; 
-                    const signal_mult = dynamic_audio * (global_vol / 1.5) * 2.0;
-                    
-                    const wave_val = ((eq_val * 0.2) + (freq_react * 0.8) + noise) * signal_mult;
+                    var wave_val: f32 = 0.0;
+
+                    switch (vis_mode) {
+                        0 => {
+                            const eq_val = (@sin(time_t * 18.0 + col_f * 0.15) + 1.0) * 0.5;
+                            const level = @min((smooth_peak * 0.5) + (smooth_bass * 1.5), 1.0) * vol_scale * 2.0;
+                            wave_val = ((eq_val * 0.2) + (freq_react * 0.8) + noise) * level * level;
+                        },
+                        1 => {
+                            const block_width = smooth_bass * smooth_bass * 2.0;
+                            const in_block = if (center_dist < block_width) @as(f32, 1.0) else @as(f32, 0.0);
+                            const scatter = if (center_dist > block_width) smooth_treb * 2.5 else 0.0;
+                            wave_val = ((in_block * 0.8) + (scatter * noise * 4.0)) * vol_scale * 2.0;
+                        },
+                        2 => {
+                            const eq_val = (@sin(col_f * 0.8 + time_t * 25.0) + @cos(col_f * 0.4 - time_t * 10.0) + 2.0) * 0.25;
+                            const level = @min(smooth_mid * 1.8, 1.0) * vol_scale * 2.0;
+                            const spike = smooth_treb * noise * 5.0;
+                            wave_val = ((eq_val * 0.6) + (freq_react * 0.4) + spike) * level * level;
+                        },
+                        3 => {
+                            const eq_val = (@sin(time_t * 8.0 + col_f * 0.02) + 1.0) * 0.5;
+                            const level = @min(smooth_bass * 2.2, 1.0) * vol_scale * 2.5;
+                            wave_val = ((eq_val * 0.1) + 0.9 + noise) * level * level;
+                        },
+                        else => {}
+                    }
                     
                     const threshold = @as(f32, @floatFromInt(vis_height - row)) / @as(f32, @floatFromInt(vis_height));
                     
-                    // FIX: Restored correct brace structure
                     if (wave_val > threshold) {
-                        if (threshold > 0.7) {
-                            try stdout.writeAll("\x1b[91m█\x1b[0m"); 
-                        } else if (threshold > 0.4) {
-                            try stdout.writeAll("\x1b[33m▆\x1b[0m"); 
+                        if (threshold > cfg.thresh_high) {
+                            try stdout.writeAll(cfg.wave_high); 
+                        } else if (threshold > cfg.thresh_mid) {
+                            try stdout.writeAll(cfg.wave_mid); 
                         } else {
-                            try stdout.writeAll("\x1b[37m▃\x1b[0m"); 
+                            try stdout.writeAll(cfg.wave_low); 
                         }
                     } else {
-                        try stdout.writeAll(" ");
+                        const depth = threshold - wave_val;
+                        if (depth < cfg.floor_shallow_depth) {
+                            try stdout.writeAll(cfg.floor_shallow_char); 
+                        } else if (depth < cfg.floor_deep_depth) {
+                            try stdout.writeAll(cfg.floor_deep_char); 
+                        } else {
+                            try stdout.writeAll(" ");
+                        }
                     }
                 }
                 try stdout.writeAll("\x1b[K\n");
@@ -216,7 +287,7 @@ pub fn main() !void {
             }
             try stdout.print(" \x1b[91m]\x1b[0m \x1b[37m{d:0>2}%\x1b[0m\x1b[K\n\n", .{@as(usize, @intFromFloat(progress * 100.0))});
 
-            try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[+]\x1b[0m Up | \x1b[91m[-]\x1b[0m Down | \x1b[91m[Space]\x1b[0m Play/Pause | \x1b[91m[Enter]\x1b[0m Skip | \x1b[91m[q]\x1b[0m Quit\x1b[K\n", .{});
+            try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[r]\x1b[0m Rstrt | \x1b[91m[z]\x1b[0m Vis | \x1b[91m[+|-]\x1b[0m Vol | \x1b[91m[Spc]\x1b[0m Play | \x1b[91m[Ent]\x1b[0m Skip | \x1b[91m[q]\x1b[0m Quit\x1b[K\n", .{});
             try stdout.print("\x1b[J", .{}); 
             
             try stdout.flush();
@@ -240,6 +311,10 @@ pub fn main() !void {
                         } else {
                             _ = c.ma_sound_start(&sound);
                         }
+                    } else if (cmd == 'z') {
+                        vis_mode = (vis_mode + 1) % num_vis_modes;
+                    } else if (cmd == 'r') {
+                        _ = c.ma_sound_seek_to_pcm_frame(&sound, 0);
                     } else if (cmd == '\n' or cmd == '\r') {
                         _ = c.ma_sound_stop(&sound);
                         break;
@@ -254,3 +329,4 @@ pub fn main() !void {
         }
     }
 }
+// }-.]
