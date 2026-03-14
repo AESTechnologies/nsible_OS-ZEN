@@ -505,7 +505,7 @@ pub fn main() !void {
                     const amt = std.posix.read(std.posix.STDIN_FILENO, &buf) catch 0;
                     if (amt > 0) {
                         const cmd = buf[0];
-                        if (cmd == '+') { global_vol = @min(global_vol + 0.1, 1.5); _ = c.ma_sound_set_volume(&sound, global_vol); }
+                        if (cmd == '=') { global_vol = @min(global_vol + 0.1, 1.5); _ = c.ma_sound_set_volume(&sound, global_vol); }
                         else if (cmd == '-') { global_vol = @max(global_vol - 0.1, 0.0); _ = c.ma_sound_set_volume(&sound, global_vol); }
                         else if (cmd == ' ') { is_paused = !is_paused; if (is_paused) _ = c.ma_sound_stop(&sound) else _ = c.ma_sound_start(&sound); }
                         else if (cmd == 'z') vis_mode = (vis_mode + 1) % num_vis_modes
