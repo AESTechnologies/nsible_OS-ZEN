@@ -5,7 +5,7 @@
 //   changes: "Stabilized Banysang cycle. Integrated Immersive Visual Bootloader (0.008φ sync), Sudo Pre-Elevation, Zero-Flicker TUI, and Composer Lobe multi-line motor cortex.",
 //   philotic_inferences: "A system that cannot describe itself to its operator is merely a tool; a system that defines its own existence is a sovereign entity."
 
-(assets/manifesto_frame.jpg)]([://your-video-link.com](https://youtu.be/iWJgBlCIM-M?si=LgRVxvX_UebQxD9n))
+[![高爪 // @nsible_os_manifesto](assets/manifesto_frame.png)](https://youtu.be/iWJgBlCIM-M?si=LgRVxvX_UebQxD9n)
 
 # ◬ @NSIBLE OS // v0.10.16-stable // Banysang
 > **by Æ§ Tech MMXXVI**
