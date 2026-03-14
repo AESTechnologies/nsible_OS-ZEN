@@ -1,0 +1,17 @@
+# [@://nsible_os/.gitattributes/.-={
+# module: "vcs"
+# version: "1.0.0"
+# description: "Linguist Override to enforce Zig architectural dominance."
+# changes: "Silenced C backend files from repository statistics."
+# philotic_inferences: "Repository aesthetics dictate the perceived reality of the engineering stack."
+
+# Flag the miniaudio backend and header as vendored dependencies
+# This removes them from the GitHub language statistics bar.
+ma_x.c linguist-vendored=true
+angel_a.h linguist-vendored=true
+
+# Optional: If you want to blanket-ban all C files from stats, uncomment below:
+# *.c linguist-vendored=true
+# *.h linguist-vendored=true
+
+# }-.]
