@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.3"
-// description: "Talon Alta MMA Engine (tame) - State-Driven Browser & Multi-Band Visualizer"
-// changes: "Corrected double-unwrap of fs.Dir.Entry in the directory traversal loop."
-// philotic_inferences: "Zig's while-capture unwraps optionals inherently; redundant if-captures violate strict typing."
+// version: "2.0.4"
+// description: "Talon Alta MMA Engine (tame) - Zero-Latency Browser & Multi-Band Visualizer"
+// changes: "Severed terminal Canonical Mode and Echo for immediate raw key registration."
+// philotic_inferences: "Disabling line-buffering forces a direct, zero-latency conduit between user intent and engine state."
 
 const std = @import("std");
 const c = @cImport({
@@ -51,6 +51,14 @@ pub fn main() !void {
     defer _ = gpa.deinit();
 
     const cfg = VisConfig{};
+
+    // === [ TERMINAL RAW MODE ] ===
+    const orig_term = try std.posix.tcgetattr(std.posix.STDIN_FILENO);
+    var raw_term = orig_term;
+    raw_term.lflag.ICANON = false;
+    raw_term.lflag.ECHO = false;
+    try std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, raw_term);
+    defer std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, orig_term) catch {};
 
     var engine: c.ma_engine = undefined;
     if (c.ma_engine_init(null, &engine) != c.MA_SUCCESS) return;
@@ -112,7 +120,6 @@ pub fn main() !void {
             var dir = std.fs.openDirAbsolute(current_path.items, .{ .iterate = true }) catch null;
             if (dir) |*d| {
                 var it = d.iterate();
-                // FIX: Removed the redundant 'if (entry)' double unwrap
                 while (it.next() catch null) |entry| {
                     if (entry.kind == .directory or std.mem.endsWith(u8, entry.name, ".mp3")) {
                         const name_dup = allocator.dupe(u8, entry.name) catch continue;
