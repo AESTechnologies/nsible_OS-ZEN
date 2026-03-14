@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "2.0.15"
+// version: "2.0.16"
 // description: "高爪 Audio Visualizer & Autonomous Media Engine"
-// changes: "Abolished deprecated std.io.bufferedReader. Bypassed volatile I/O stream API entirely in favor of direct memory allocation for state persistence."
-// philotic_inferences: "When the underlying standard library fractures, route around it. Memory is faster than fighting deprecated file streams."
+// changes: "Fixed quit-index increment bug. Expanded state persistence to remember BROWSER path. Upgraded [r] to function as Previous Track if struck < 1.0s."
+// philotic_inferences: "State memory must include spatial location, not just operational data. Navigation tools must adapt based on time context."
 
 const std = @import("std");
 const c = @cImport({
@@ -102,17 +102,27 @@ pub fn main() !void {
     const num_vis_modes = 5;
     const vis_names = [_][]const u8{ "SINE WAVE", "PULSE CENTER", "CHAOS BANDS", "HORIZON", "EVENT HORIZON" };
 
-    // === [ STATE PERSISTENCE: MEMORY ALLOCATED LOAD ] ===
+    // === [ STATE PERSISTENCE: PATH & QUEUE LOAD ] ===
     if (std.fs.cwd().readFileAlloc(allocator, ".d_angel_state.nsb", 10 * 1024 * 1024)) |content| {
         defer allocator.free(content);
         var it = std.mem.splitScalar(u8, content, '\n');
         
+        // 1. Ingest Browser Path
+        if (it.next()) |path_str| {
+            if (path_str.len > 0) {
+                current_path.clearRetainingCapacity();
+                current_path.appendSlice(allocator, path_str) catch {};
+            }
+        }
+        
+        // 2. Ingest Track Index
         if (it.next()) |idx_str| {
             if (idx_str.len > 0) {
                 active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
             }
         }
         
+        // 3. Ingest Playlist
         while (it.next()) |line| {
             if (line.len > 0) {
                 const path_dup = allocator.dupe(u8, line) catch continue;
@@ -332,6 +342,8 @@ pub fn main() !void {
             var lf_sample_state: f32 = 0.0;
             var last_sample: f32 = 0.0;
             var is_paused = false;
+            
+            var next_track_offset: isize = 1; // 1 = Next, -1 = Prev
 
             while (c.ma_sound_at_end(&sound) == c.MA_FALSE or is_paused) {
                 if (app_mode != .PLAYER or !running) break;
@@ -497,8 +509,21 @@ pub fn main() !void {
                         else if (cmd == '-') { global_vol = @max(global_vol - 0.1, 0.0); _ = c.ma_sound_set_volume(&sound, global_vol); }
                         else if (cmd == ' ') { is_paused = !is_paused; if (is_paused) _ = c.ma_sound_stop(&sound) else _ = c.ma_sound_start(&sound); }
                         else if (cmd == 'z') vis_mode = (vis_mode + 1) % num_vis_modes
-                        else if (cmd == 'r') _ = c.ma_sound_seek_to_pcm_frame(&sound, 0)
-                        else if (cmd == '\n' or cmd == '\r') { _ = c.ma_sound_stop(&sound); break; }
+                        else if (cmd == 'r') {
+                            const time_t = @as(f32, @floatFromInt(cursor_pcm)) / @as(f32, @floatFromInt(engine_sr));
+                            if (time_t < 1.0) {
+                                next_track_offset = -1; // Flag for previous track
+                                _ = c.ma_sound_stop(&sound);
+                                break;
+                            } else {
+                                _ = c.ma_sound_seek_to_pcm_frame(&sound, 0);
+                            }
+                        }
+                        else if (cmd == '\n' or cmd == '\r') {
+                            next_track_offset = 1;
+                            _ = c.ma_sound_stop(&sound); 
+                            break; 
+                        }
                         else if (cmd == 'b') { 
                             _ = c.ma_sound_stop(&sound); 
                             for (active_playlist.items) |path| allocator.free(path);
@@ -506,37 +531,48 @@ pub fn main() !void {
                             app_mode = .BROWSER; 
                             break; 
                         }
-                        else if (cmd == 'q') { _ = c.ma_sound_stop(&sound); running = false; break; }
+                        else if (cmd == 'q') { 
+                            _ = c.ma_sound_stop(&sound); 
+                            running = false; 
+                            break; 
+                        }
                     }
                 }
                 std.Thread.sleep(60 * std.time.ns_per_ms);
             }
-            if (app_mode == .PLAYER) {
-                active_track_idx += 1;
-                if (active_track_idx >= active_playlist.items.len) {
-                    for (active_playlist.items) |path| allocator.free(path);
-                    active_playlist.clearRetainingCapacity();
-                    app_mode = .BROWSER;
+            if (app_mode == .PLAYER and running) {
+                if (next_track_offset == 1) {
+                    active_track_idx += 1;
+                    if (active_track_idx >= active_playlist.items.len) {
+                        for (active_playlist.items) |path| allocator.free(path);
+                        active_playlist.clearRetainingCapacity();
+                        app_mode = .BROWSER;
+                    }
+                } else if (next_track_offset == -1) {
+                    if (active_track_idx > 0) {
+                        active_track_idx -= 1;
+                    } else {
+                        active_track_idx = if (active_playlist.items.len > 0) active_playlist.items.len - 1 else 0;
+                    }
                 }
             }
         }
     }
 
     // === [ STATE PERSISTENCE: DIRECT DUMP ] ===
-    if (active_playlist.items.len > 0) {
-        if (std.fs.cwd().createFile(".d_angel_state.nsb", .{ .truncate = true })) |file| {
-            defer file.close();
-            var buf: [128]u8 = undefined;
-            const idx_str = std.fmt.bufPrint(&buf, "{d}\n", .{active_track_idx}) catch "0\n";
-            file.writeAll(idx_str) catch {};
-            
-            for (active_playlist.items) |path| {
-                file.writeAll(path) catch {};
-                file.writeAll("\n") catch {};
-            }
-        } else |_| {}
-    } else {
-        std.fs.cwd().deleteFile(".d_angel_state.nsb") catch {};
-    }
+    if (std.fs.cwd().createFile(".d_angel_state.nsb", .{ .truncate = true })) |file| {
+        defer file.close();
+        file.writeAll(current_path.items) catch {};
+        file.writeAll("\n") catch {};
+        
+        var buf: [128]u8 = undefined;
+        const idx_str = std.fmt.bufPrint(&buf, "{d}\n", .{active_track_idx}) catch "0\n";
+        file.writeAll(idx_str) catch {};
+        
+        for (active_playlist.items) |path| {
+            file.writeAll(path) catch {};
+            file.writeAll("\n") catch {};
+        }
+    } else |_| {}
 }
 // }-.]
