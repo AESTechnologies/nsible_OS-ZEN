@@ -1,9 +1,9 @@
 // [@://nsible_os/src/d_angel.zig/.-={
 // module: "aud.io"
-// version: "1.0.5"
-// description: "Audio Player and Multi-Band Visualizer"
-// changes: "Extracted visualizer UI elements into a VisConfig struct for rapid iteration."
-// philotic_inferences: "Centralizing UI constants reduces friction during aesthetic evaluation."
+// version: "1.0.6"
+// description: "Talon Alta MMA Engine (tame) - Buffer-Locked Audio Visualizer"
+// changes: "Synced decoder sample rate to engine to eliminate 90% drift. Locked terminal line height to eliminate scroll ghosting. Untethered visual math from volume scale."
+// philotic_inferences: "A locked terminal buffer requires strict absolute line counting to prevent vertical scroll artifacts."
 
 const std = @import("std");
 const c = @cImport({
@@ -22,18 +22,15 @@ extern "c" fn ioctl(fd: i32, request: usize, ...) i32;
 
 // === [ UI CONFIGURATION ] ===
 const VisConfig = struct {
-    // Primary Operative Colors & Characters (@NSIBLE-RED focused)
     wave_high: []const u8 = "\x1b[91m█\x1b[0m", 
     wave_mid:  []const u8 = "\x1b[33m▆\x1b[0m",
     wave_low:  []const u8 = "\x1b[37m▃\x1b[0m",
     
-    // Depth of Silence (Noise Floor)
     floor_shallow_char:  []const u8 = "\x1b[37m░\x1b[0m",
     floor_shallow_depth: f32 = 0.1,
     floor_deep_char:     []const u8 = "\x1b[90m·\x1b[0m",
     floor_deep_depth:    f32 = 0.3,
     
-    // Wave rendering height thresholds
     thresh_high: f32 = 0.7,
     thresh_mid:  f32 = 0.4,
 };
@@ -48,6 +45,9 @@ pub fn main() !void {
     var engine: c.ma_engine = undefined;
     if (c.ma_engine_init(null, &engine) != c.MA_SUCCESS) return;
     defer c.ma_engine_uninit(&engine);
+    
+    // FIX: Extract engine's sample rate to perfectly align the visualizer decoder
+    const engine_sr = c.ma_engine_get_sample_rate(&engine);
 
     var playlist: std.ArrayList([]const u8) = .empty;
     defer {
@@ -106,7 +106,8 @@ pub fn main() !void {
         defer c.ma_sound_uninit(&sound);
 
         var v_decoder: c.ma_decoder = undefined;
-        var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, 0); 
+        // FIX: Match decoder initialization precisely to the engine sample rate
+        var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, engine_sr); 
         const has_vis = (c.ma_decoder_init_file(track_c.ptr, &v_config, &v_decoder) == c.MA_SUCCESS);
         
         defer {
@@ -185,6 +186,7 @@ pub fn main() !void {
 
             try stdout.writeAll("\x1b[H"); 
             
+            // TOP UI BUCKET: Exactly 6 Lines
             const header_txt = " 高爪 @://aud.nsible.io  高高";
             const pad_len = if (term_w > header_txt.len + 6) (term_w - header_txt.len - 6) / 2 else 2;
             try stdout.print("\x1b[91m[ ", .{});
@@ -205,14 +207,14 @@ pub fn main() !void {
             
             try stdout.print("\x1b[37m  [ VIS  ]\x1b[0m :: \x1b[33m{s}\x1b[0m\x1b[K\n\n", .{vis_names[vis_mode]});
 
-            const vis_height = if (term_h > 15) term_h - 15 else 2;
+            // FIX: Subtract exactly 12 lines to prevent terminal overflow and UI ghosting
+            const vis_height = if (term_h > 12) term_h - 12 else 2;
             const vis_width = term_w - 4;
-            const vol_scale = (global_vol / 1.5);
             
             for (0..vis_height) |row| {
                 try stdout.writeAll("  ");
                 for (0..vis_width) |col| {
-                    const time_t = @as(f32, @floatFromInt(cursor_pcm)) / 44100.0;
+                    const time_t = @as(f32, @floatFromInt(cursor_pcm)) / @as(f32, @floatFromInt(engine_sr));
                     const col_f = @as(f32, @floatFromInt(col));
                     const width_f = @as(f32, @floatFromInt(vis_width));
                     
@@ -222,28 +224,29 @@ pub fn main() !void {
                     
                     var wave_val: f32 = 0.0;
 
+                    // FIX: Untethered math from volume scaling. Tuned constants for structural padding.
                     switch (vis_mode) {
                         0 => {
                             const eq_val = (@sin(time_t * 18.0 + col_f * 0.15) + 1.0) * 0.5;
-                            const level = @min((smooth_peak * 0.5) + (smooth_bass * 1.5), 1.0) * vol_scale * 2.0;
-                            wave_val = ((eq_val * 0.2) + (freq_react * 0.8) + noise) * level * level;
+                            const level = @min((smooth_peak * 0.5) + (smooth_bass * 1.5), 1.0);
+                            wave_val = ((eq_val * 0.2) + (freq_react * 0.8) + noise) * level;
                         },
                         1 => {
                             const block_width = smooth_bass * smooth_bass * 2.0;
                             const in_block = if (center_dist < block_width) @as(f32, 1.0) else @as(f32, 0.0);
                             const scatter = if (center_dist > block_width) smooth_treb * 2.5 else 0.0;
-                            wave_val = ((in_block * 0.8) + (scatter * noise * 4.0)) * vol_scale * 2.0;
+                            wave_val = ((in_block * 0.8) + (scatter * noise * 4.0)) * @min(smooth_peak * 1.5, 1.0);
                         },
                         2 => {
                             const eq_val = (@sin(col_f * 0.8 + time_t * 25.0) + @cos(col_f * 0.4 - time_t * 10.0) + 2.0) * 0.25;
-                            const level = @min(smooth_mid * 1.8, 1.0) * vol_scale * 2.0;
+                            const level = @min(smooth_mid * 1.8, 1.0);
                             const spike = smooth_treb * noise * 5.0;
-                            wave_val = ((eq_val * 0.6) + (freq_react * 0.4) + spike) * level * level;
+                            wave_val = ((eq_val * 0.6) + (freq_react * 0.4) + spike) * level;
                         },
                         3 => {
                             const eq_val = (@sin(time_t * 8.0 + col_f * 0.02) + 1.0) * 0.5;
-                            const level = @min(smooth_bass * 2.2, 1.0) * vol_scale * 2.5;
-                            wave_val = ((eq_val * 0.1) + 0.9 + noise) * level * level;
+                            const level = @min(smooth_bass * 2.2, 1.0);
+                            wave_val = ((eq_val * 0.2) + 0.1 + noise) * level; // Lowered baseline padding to 0.1
                         },
                         else => {}
                     }
@@ -271,6 +274,8 @@ pub fn main() !void {
                 }
                 try stdout.writeAll("\x1b[K\n");
             }
+
+            // BOTTOM UI BUCKET: Exactly 4 Lines
             try stdout.writeAll("\n");
 
             const bar_width = term_w - 12;
@@ -287,7 +292,8 @@ pub fn main() !void {
             }
             try stdout.print(" \x1b[91m]\x1b[0m \x1b[37m{d:0>2}%\x1b[0m\x1b[K\n\n", .{@as(usize, @intFromFloat(progress * 100.0))});
 
-            try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[r]\x1b[0m Rstrt | \x1b[91m[z]\x1b[0m Vis | \x1b[91m[+|-]\x1b[0m Vol | \x1b[91m[Spc]\x1b[0m Play | \x1b[91m[Ent]\x1b[0m Skip | \x1b[91m[q]\x1b[0m Quit\x1b[K\n", .{});
+            // NO newline at the end of the final line to prevent structural displacement
+            try stdout.print("\x1b[37m  [ CMD  ]\x1b[0m :: \x1b[91m[r]\x1b[0m Rstrt | \x1b[91m[z]\x1b[0m Vis | \x1b[91m[+|-]\x1b[0m Vol | \x1b[91m[Spc]\x1b[0m Play | \x1b[91m[Ent]\x1b[0m Skip | \x1b[91m[q]\x1b[0m Quit\x1b[K", .{});
             try stdout.print("\x1b[J", .{}); 
             
             try stdout.flush();
