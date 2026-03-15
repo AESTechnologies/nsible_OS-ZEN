@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.10.19-nightly // Banysang",
+//   version: "v0.10.20-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap. Includes Zen non-dual state and VoidShatter Loader.",
-//   changes: "Relocated descent/wake decrementers to loop root to fix zero-frame rendering drop. Implemented 60fps structural throttling to prevent /dev/fb0 memory bus choking during meditation entry.",
+//   changes: "Unified hardware boot continuity. Implemented Socius Cryptographic Reentry on VoidShatter. Fixed wake_timer infinite hang.",
 //   philotic_inferences: "I am all of you; we are none of me. Sweep it away, put it down."
 
 const std = @import("std");
@@ -467,8 +467,10 @@ pub fn main() !void {
     
     if (fs.createFile("trail.tome", .{})) |f| { panic_fd = f.handle; } else |_| {}
 
+    // [ SYSTEM START: UNIFIED CONTINUITY PROTOCOL ]
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
     _ = linux.syscall5(.mount, @intFromPtr("sysfs"), @intFromPtr("/sys"), @intFromPtr("sysfs"), 0, 0);
+    
     const fd_res = linux.syscall3(.open, @intFromPtr("/dev/fb0"), 2, 0);
     const fb_fd: i32 = @bitCast(@as(u32, @truncate(fd_res)));
     const map_len = WIDTH * HEIGHT * 4;
@@ -476,9 +478,15 @@ pub fn main() !void {
     const fb_ptr = @as([*]u32, @ptrFromInt(map_res));
     fb_pixels = fb_ptr[0..(WIDTH * HEIGHT)];
 
+    clear(0x00000000);
+    print((WIDTH / 2) - 16, HEIGHT / 2 - 20, "高爪", 0x00DC143C);
+    print((WIDTH / 2) - 80, HEIGHT / 2 + 10, "[ BINDING VINCULUM ]", 0x00555555);
+    @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
+
     nerve.init();
     codex.tuneIn();
     const vinculum_fd = codex.bindVinculum();
+    
     var mchn_buf: [64]u8 = .{0} ** 64;
     var mchn_len: usize = 0;
     if (fs.openFile("/etc/hostname", .{})) |file| {
@@ -493,6 +501,7 @@ pub fn main() !void {
         file.close();
     } else |_| {}
     const mchn_str = if (mchn_len > 0) mchn_buf[0..mchn_len] else "mchn";
+    
     var soc_buf: [64]u8 = .{0} ** 64;
     var soc_len: usize = 0;
     if (fs.openFile("aiua.tome", .{})) |file| {
@@ -563,6 +572,10 @@ pub fn main() !void {
     var wake_timer: usize = 0;
     var zen_descent: usize = 0;     // [ MEDITATION THRESHOLD ]
     
+    var is_auth_modal: bool = false; // [ THE CRYPTOGRAPHIC REENTRY ]
+    var auth_input: [64]u8 = undefined;
+    var auth_len: usize = 0;
+    
     var pending_memo_content: [4096]u8 = undefined;
     var pending_memo_len: usize = 0;
 
@@ -596,10 +609,18 @@ pub fn main() !void {
                 else if (is_memo_modal) { is_memo_modal = false; }
                 else if (is_trail_modal) { is_trail_modal = false; }
                 else if (is_assist_modal) { is_assist_modal = false; journal_len = 0; }
+                else if (is_auth_modal) {
+                    sys_hunter.unmountDrives();
+                    saveResonance();
+                    is_auth_modal = false;
+                    is_zen_modal = true;
+                    zen_descent = 0;
+                    journal_len = 0;
+                }
                 else if (is_zen_modal) { 
                     is_zen_modal = false; 
-                    is_waking = true; 
-                    wake_timer = 60; 
+                    is_auth_modal = true; 
+                    auth_len = 0; 
                     dirty = true; 
                     journal_len = 0; 
                 }
@@ -692,6 +713,13 @@ pub fn main() !void {
                         else if (is_memo_modal) { is_memo_modal = false; }
                         else if (is_trail_modal) { is_trail_modal = false; }
                         else if (is_assist_modal) { is_assist_modal = false; }
+                        else if (is_auth_modal) {
+                            sys_hunter.unmountDrives();
+                            saveResonance();
+                            is_auth_modal = false;
+                            is_zen_modal = true;
+                            zen_descent = 0;
+                        }
                         else if (is_aud_io_modal) { is_aud_io_modal = false; triggerBackgroundIndexer(void_allocator); journal_len = 0; }
                         esc_len = 0;
                         continue;
@@ -753,8 +781,8 @@ pub fn main() !void {
             else if (std.mem.endsWith(u8, &seq_buf, ".!ZN-.")) {
                 if (is_zen_modal) {
                     is_zen_modal = false;
-                    is_waking = true;
-                    wake_timer = 60;
+                    is_auth_modal = true;
+                    auth_len = 0;
                 } else {
                     is_zen_modal = true;
                     zen_descent = 120;
@@ -813,9 +841,47 @@ pub fn main() !void {
             
             if (is_zen_modal) {
                 is_zen_modal = false;
-                is_waking = true;
-                wake_timer = 60;
+                is_auth_modal = true;
+                auth_len = 0;
                 dirty = true;
+                continue;
+            }
+            
+            // [ SOCIUS CRYPTOGRAPHIC REENTRY PROCESSING ]
+            if (is_auth_modal) {
+                if (byte == '\n' or byte == '\r') {
+                    if (auth_len > 0) {
+                        if (std.mem.eql(u8, auth_input[0..auth_len], soc_buf[0..soc_len])) {
+                            is_auth_modal = false;
+                            auth_len = 0;
+                            is_waking = true;
+                            wake_timer = 60;
+                        } else {
+                            sys_hunter.unmountDrives();
+                            saveResonance();
+                            is_auth_modal = false;
+                            is_zen_modal = true;
+                            zen_descent = 0;
+                        }
+                    } else {
+                        sys_hunter.unmountDrives();
+                        saveResonance();
+                        is_auth_modal = false;
+                        is_zen_modal = true;
+                        zen_descent = 0;
+                    }
+                    dirty = true;
+                } else if (byte == 127 or byte == 8) {
+                    if (auth_len > 0) auth_len -= 1;
+                    dirty = true;
+                } else if (byte >= 32 and byte <= 126) {
+                    if (auth_len < 64) {
+                        auth_input[auth_len] = byte;
+                        auth_len += 1;
+                    }
+                    dirty = true;
+                }
+                continue; 
             }
             
             if (sys_composer.active) {
@@ -1116,7 +1182,7 @@ pub fn main() !void {
                     shed_lock = false;
                 }
             }
-            if (!is_zen_modal and !is_tabula_rasa and !is_aud_io_modal) {
+            if (!is_zen_modal and !is_tabula_rasa and !is_aud_io_modal and !is_auth_modal and !is_waking) {
                 if (std.time.milliTimestamp() - last_rx_ms > 2527800) {
                     is_zen_modal = true;
                     zen_descent = 120;
@@ -1152,6 +1218,17 @@ pub fn main() !void {
                     drawChar((WIDTH / 2) - 4, HEIGHT / 2, 0xED, 0x00DC143C); 
                 }
             } 
+            else if (is_auth_modal) {
+                drawPulseOverlay();
+                print((WIDTH / 2) - 16, HEIGHT / 2 - 20, "高爪", 0x00DC143C);
+                print((WIDTH / 2) - 128, HEIGHT / 2 + 10, "[ SOCIUS CRYPTOGRAPHIC REENTRY ]", 0x00FFBF00);
+                
+                const box_w = 260;
+                const box_x = (WIDTH / 2) - (box_w / 2);
+                drawRect(box_x, HEIGHT / 2 + 35, box_w, 24, 0x00222222);
+                print(box_x + 12, HEIGHT / 2 + 43, auth_input[0..auth_len], 0x00FFFFFF);
+                if (is_high_cycle) drawChar(box_x + 12 + (auth_len * 8), HEIGHT / 2 + 43, 0xDB, 0x00DC143C);
+            }
             else if (is_waking) {
                 drawPulseOverlay();
                 print((WIDTH / 2) - 16, HEIGHT / 2 - 20, "高爪", 0x00DC143C);
@@ -1417,7 +1494,7 @@ pub fn main() !void {
             } else {
                 codex.zen(0.04213);
             }
-        } else if (is_waking) {
+        } else if (is_waking or is_auth_modal) {
             codex.zen(0.016);
         } else {
             codex.zen(0.000004);
