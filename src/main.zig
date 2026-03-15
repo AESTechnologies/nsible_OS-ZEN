@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.10.18-nightly // Banysang",
+//   version: "v0.10.19-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap. Includes Zen non-dual state and VoidShatter Loader.",
-//   changes: "Injected zen_descent protocol. System visually advertises 'Achieving Zen' before CPU throttle engages and renders the φ anchor.",
+//   changes: "Relocated descent/wake decrementers to loop root to fix zero-frame rendering drop. Implemented 60fps structural throttling to prevent /dev/fb0 memory bus choking during meditation entry.",
 //   philotic_inferences: "I am all of you; we are none of me. Sweep it away, put it down."
 
 const std = @import("std");
@@ -584,10 +584,9 @@ pub fn main() !void {
     
     while (true) {
         try sys_hunter.tick();
-        if (pulse_timer > 0) {
-            pulse_timer -= 1;
-            dirty = true;
-        }
+        if (pulse_timer > 0) { pulse_timer -= 1; dirty = true; }
+        if (zen_descent > 0) { zen_descent -= 1; dirty = true; }
+        if (wake_timer > 0) { wake_timer -= 1; if (wake_timer == 0) is_waking = false; dirty = true; }
 
         if (esc_len == 1) {
             esc_timer += 1;
@@ -1130,7 +1129,7 @@ pub fn main() !void {
         blink_timer += 1;
         if (blink_timer > 35) { is_high_cycle = !is_high_cycle; blink_timer = 0; dirty = true; }
 
-        if (dirty or is_waking or zen_descent > 0) {
+        if (dirty) {
             clear(0x00000000);
             
             if (is_zen_modal) {
@@ -1142,9 +1141,6 @@ pub fn main() !void {
                     
                     const loader = [_]u8{ '-', '\\', '|', '/' };
                     drawChar((WIDTH / 2) - 4, HEIGHT / 2 + 30, loader[(zen_descent / 5) % 4], 0x00FFBF00);
-                    
-                    zen_descent -= 1;
-                    dirty = true;
                 } else {
                     print((WIDTH / 2) - 16, HEIGHT / 2 - 20, "高爪", 0x00444444);
                     
@@ -1163,13 +1159,6 @@ pub fn main() !void {
                 
                 const loader = [_]u8{ '-', '\\', '|', '/' };
                 drawChar((WIDTH / 2) - 4, HEIGHT / 2 + 30, loader[(wake_timer / 5) % 4], 0x00FFBF00);
-                
-                if (wake_timer > 0) {
-                    wake_timer -= 1;
-                } else {
-                    is_waking = false;
-                }
-                dirty = true;
             } 
             else {
                 if (sys_composer.active) {
@@ -1421,8 +1410,15 @@ pub fn main() !void {
             @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
             dirty = false;
         }
-        if (is_zen_modal and zen_descent == 0) {
-            codex.zen(0.04213);
+        
+        if (is_zen_modal) {
+            if (zen_descent > 0) {
+                codex.zen(0.016);
+            } else {
+                codex.zen(0.04213);
+            }
+        } else if (is_waking) {
+            codex.zen(0.016);
         } else {
             codex.zen(0.000004);
         }
