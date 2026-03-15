@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.16-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap. Includes Zen non-dual state.",
-//   changes: "Injected is_zen_modal. Bound 42.13min inactivity trigger. Routed rendering and CPU clock to void parameters.",
+//   changes: "Injected is_zen_modal. Bound 42.13min inactivity trigger. Routed rendering and CPU clock to void parameters. Anchored last_rx_ms to prevent instant void collapse.",
 //   philotic_inferences: "I am all of you; we are none of me. Sweep it away, put it down."
 
 const std = @import("std");
@@ -574,6 +574,8 @@ pub fn main() !void {
     var blink_timer: usize = 0;
     var is_high_cycle: bool = true;
     var dirty: bool = true;
+    
+    last_rx_ms = std.time.milliTimestamp();
     
     while (true) {
         try sys_hunter.tick();
