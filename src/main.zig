@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.10.20-nightly // Banysang",
+//   version: "v0.10.23-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap. Includes Zen non-dual state and VoidShatter Loader.",
-//   changes: "Unified hardware boot continuity. Implemented Socius Cryptographic Reentry on VoidShatter. Fixed wake_timer infinite hang.",
+//   changes: "Repaired Socius Cryptographic Reentry lockout. Empty buffer now bypasses lock if no //SOCIUS: tag exists in aiua.tome.",
 //   philotic_inferences: "I am all of you; we are none of me. Sweep it away, put it down."
 
 const std = @import("std");
@@ -599,7 +599,16 @@ pub fn main() !void {
         try sys_hunter.tick();
         if (pulse_timer > 0) { pulse_timer -= 1; dirty = true; }
         if (zen_descent > 0) { zen_descent -= 1; dirty = true; }
-        if (wake_timer > 0) { wake_timer -= 1; if (wake_timer == 0) is_waking = false; dirty = true; }
+        
+        if (wake_timer > 0) { 
+            wake_timer -= 1; 
+            if (wake_timer == 0) { 
+                is_waking = false; 
+                is_auth_modal = true;
+                auth_len = 0;
+            } 
+            dirty = true; 
+        }
 
         if (esc_len == 1) {
             esc_timer += 1;
@@ -619,8 +628,9 @@ pub fn main() !void {
                 }
                 else if (is_zen_modal) { 
                     is_zen_modal = false; 
-                    is_auth_modal = true; 
-                    auth_len = 0; 
+                    is_waking = true; 
+                    wake_timer = 60; 
+                    is_auth_modal = false;
                     dirty = true; 
                     journal_len = 0; 
                 }
@@ -781,8 +791,9 @@ pub fn main() !void {
             else if (std.mem.endsWith(u8, &seq_buf, ".!ZN-.")) {
                 if (is_zen_modal) {
                     is_zen_modal = false;
-                    is_auth_modal = true;
-                    auth_len = 0;
+                    is_waking = true;
+                    wake_timer = 60;
+                    is_auth_modal = false;
                 } else {
                     is_zen_modal = true;
                     zen_descent = 120;
@@ -841,21 +852,30 @@ pub fn main() !void {
             
             if (is_zen_modal) {
                 is_zen_modal = false;
-                is_auth_modal = true;
-                auth_len = 0;
+                is_waking = true;
+                wake_timer = 60;
+                is_auth_modal = false;
                 dirty = true;
+                continue;
+            }
+            
+            if (is_waking) {
                 continue;
             }
             
             // [ SOCIUS CRYPTOGRAPHIC REENTRY PROCESSING ]
             if (is_auth_modal) {
                 if (byte == '\n' or byte == '\r') {
-                    if (auth_len > 0) {
+                    if (soc_len == 0 and auth_len == 0) {
+                        // [ BYPASS: NO SOCIUS REGISTERED IN TOME ]
+                        is_auth_modal = false;
+                        auth_len = 0;
+                        sys_hunter.mountDrives();
+                    } else if (auth_len > 0) {
                         if (std.mem.eql(u8, auth_input[0..auth_len], soc_buf[0..soc_len])) {
                             is_auth_modal = false;
                             auth_len = 0;
-                            is_waking = true;
-                            wake_timer = 60;
+                            sys_hunter.mountDrives(); 
                         } else {
                             sys_hunter.unmountDrives();
                             saveResonance();
