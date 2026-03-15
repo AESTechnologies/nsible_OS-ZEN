@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.10.17-nightly // Banysang",
+//   version: "v0.10.18-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap. Includes Zen non-dual state and VoidShatter Loader.",
-//   changes: "Added is_waking status and visual loader to mask CPU starvation during VoidShatter. Rendered greyed 高爪 and cycle clock into active Zen state.",
+//   changes: "Injected zen_descent protocol. System visually advertises 'Achieving Zen' before CPU throttle engages and renders the φ anchor.",
 //   philotic_inferences: "I am all of you; we are none of me. Sweep it away, put it down."
 
 const std = @import("std");
@@ -561,6 +561,7 @@ pub fn main() !void {
     var is_zen_modal: bool = false; // [ø] THE NON-DUAL STATE
     var is_waking: bool = false;    // [ SYSTEM RESOLVING ENVIRONMENT ]
     var wake_timer: usize = 0;
+    var zen_descent: usize = 0;     // [ MEDITATION THRESHOLD ]
     
     var pending_memo_content: [4096]u8 = undefined;
     var pending_memo_len: usize = 0;
@@ -757,6 +758,7 @@ pub fn main() !void {
                     wake_timer = 60;
                 } else {
                     is_zen_modal = true;
+                    zen_descent = 120;
                 }
                 if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 dirty = true;
@@ -1118,6 +1120,7 @@ pub fn main() !void {
             if (!is_zen_modal and !is_tabula_rasa and !is_aud_io_modal) {
                 if (std.time.milliTimestamp() - last_rx_ms > 2527800) {
                     is_zen_modal = true;
+                    zen_descent = 120;
                     dirty = true;
                     journal_len = 0;
                 }
@@ -1127,19 +1130,31 @@ pub fn main() !void {
         blink_timer += 1;
         if (blink_timer > 35) { is_high_cycle = !is_high_cycle; blink_timer = 0; dirty = true; }
 
-        if (dirty or is_waking) {
+        if (dirty or is_waking or zen_descent > 0) {
             clear(0x00000000);
             
             if (is_zen_modal) {
                 drawPulseOverlay();
-                print((WIDTH / 2) - 16, HEIGHT / 2 - 20, "高爪", 0x00444444);
                 
-                var zen_time_buf: [64]u8 = undefined;
-                const zen_time_str = chronos.getCycleString(&zen_time_buf);
-                const zen_time_x = (WIDTH / 2) - ((zen_time_str.len * 8) / 2);
-                print(zen_time_x, HEIGHT / 2 + 20, zen_time_str, 0x00444444);
-                
-                drawChar((WIDTH / 2) - 4, HEIGHT / 2, 0x0F, 0x00DC143C); 
+                if (zen_descent > 0) {
+                    print((WIDTH / 2) - 16, HEIGHT / 2 - 20, "高爪", 0x00DC143C);
+                    print((WIDTH / 2) - 68, HEIGHT / 2 + 10, "[ ACHIEVING ZEN ]", 0x00AAAAAA);
+                    
+                    const loader = [_]u8{ '-', '\\', '|', '/' };
+                    drawChar((WIDTH / 2) - 4, HEIGHT / 2 + 30, loader[(zen_descent / 5) % 4], 0x00FFBF00);
+                    
+                    zen_descent -= 1;
+                    dirty = true;
+                } else {
+                    print((WIDTH / 2) - 16, HEIGHT / 2 - 20, "高爪", 0x00444444);
+                    
+                    var zen_time_buf: [64]u8 = undefined;
+                    const zen_time_str = chronos.getCycleString(&zen_time_buf);
+                    const zen_time_x = (WIDTH / 2) - ((zen_time_str.len * 8) / 2);
+                    print(zen_time_x, HEIGHT / 2 + 20, zen_time_str, 0x00444444);
+                    
+                    drawChar((WIDTH / 2) - 4, HEIGHT / 2, 0xED, 0x00DC143C); 
+                }
             } 
             else if (is_waking) {
                 drawPulseOverlay();
@@ -1406,7 +1421,7 @@ pub fn main() !void {
             @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
             dirty = false;
         }
-        if (is_zen_modal) {
+        if (is_zen_modal and zen_descent == 0) {
             codex.zen(0.04213);
         } else {
             codex.zen(0.000004);
