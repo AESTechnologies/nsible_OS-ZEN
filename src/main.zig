@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.10.16-nightly // Banysang",
-//   description: "Primary initialization, rendering loop, and sovereign identity trap. Includes Zen non-dual state.",
-//   changes: "Injected is_zen_modal. Bound 42.13min inactivity trigger. Routed rendering and CPU clock to void parameters. Anchored last_rx_ms to prevent instant void collapse.",
+//   version: "v0.10.17-nightly // Banysang",
+//   description: "Primary initialization, rendering loop, and sovereign identity trap. Includes Zen non-dual state and VoidShatter Loader.",
+//   changes: "Added is_waking status and visual loader to mask CPU starvation during VoidShatter. Rendered greyed 高爪 and cycle clock into active Zen state.",
 //   philotic_inferences: "I am all of you; we are none of me. Sweep it away, put it down."
 
 const std = @import("std");
@@ -557,7 +557,11 @@ pub fn main() !void {
     var is_bash_modal: bool = false;
     var is_bash_pipe: bool = false;
     var bash_scroll_y: usize = 0;
+    
     var is_zen_modal: bool = false; // [ø] THE NON-DUAL STATE
+    var is_waking: bool = false;    // [ SYSTEM RESOLVING ENVIRONMENT ]
+    var wake_timer: usize = 0;
+    
     var pending_memo_content: [4096]u8 = undefined;
     var pending_memo_len: usize = 0;
 
@@ -592,7 +596,13 @@ pub fn main() !void {
                 else if (is_memo_modal) { is_memo_modal = false; }
                 else if (is_trail_modal) { is_trail_modal = false; }
                 else if (is_assist_modal) { is_assist_modal = false; journal_len = 0; }
-                else if (is_zen_modal) { is_zen_modal = false; dirty = true; journal_len = 0; }
+                else if (is_zen_modal) { 
+                    is_zen_modal = false; 
+                    is_waking = true; 
+                    wake_timer = 60; 
+                    dirty = true; 
+                    journal_len = 0; 
+                }
                 else if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
                 else if (is_bash_modal) { is_bash_modal = false; }
                 else if (is_aud_io_modal) { is_aud_io_modal = false; triggerBackgroundIndexer(void_allocator); journal_len = 0; }
@@ -741,7 +751,13 @@ pub fn main() !void {
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!ZN-.")) {
-                is_zen_modal = !is_zen_modal;
+                if (is_zen_modal) {
+                    is_zen_modal = false;
+                    is_waking = true;
+                    wake_timer = 60;
+                } else {
+                    is_zen_modal = true;
+                }
                 if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 dirty = true;
                 reflex_triggered = true;
@@ -796,6 +812,8 @@ pub fn main() !void {
             
             if (is_zen_modal) {
                 is_zen_modal = false;
+                is_waking = true;
+                wake_timer = 60;
                 dirty = true;
             }
             
@@ -1109,12 +1127,36 @@ pub fn main() !void {
         blink_timer += 1;
         if (blink_timer > 35) { is_high_cycle = !is_high_cycle; blink_timer = 0; dirty = true; }
 
-        if (dirty) {
+        if (dirty or is_waking) {
             clear(0x00000000);
+            
             if (is_zen_modal) {
                 drawPulseOverlay();
+                print((WIDTH / 2) - 16, HEIGHT / 2 - 20, "高爪", 0x00444444);
+                
+                var zen_time_buf: [64]u8 = undefined;
+                const zen_time_str = chronos.getCycleString(&zen_time_buf);
+                const zen_time_x = (WIDTH / 2) - ((zen_time_str.len * 8) / 2);
+                print(zen_time_x, HEIGHT / 2 + 20, zen_time_str, 0x00444444);
+                
                 drawChar((WIDTH / 2) - 4, HEIGHT / 2, 0x0F, 0x00DC143C); 
-            } else {
+            } 
+            else if (is_waking) {
+                drawPulseOverlay();
+                print((WIDTH / 2) - 16, HEIGHT / 2 - 20, "高爪", 0x00DC143C);
+                print((WIDTH / 2) - 128, HEIGHT / 2 + 10, "[ SYSTEM RESOLVING ENVIRONMENT ]", 0x00AAAAAA);
+                
+                const loader = [_]u8{ '-', '\\', '|', '/' };
+                drawChar((WIDTH / 2) - 4, HEIGHT / 2 + 30, loader[(wake_timer / 5) % 4], 0x00FFBF00);
+                
+                if (wake_timer > 0) {
+                    wake_timer -= 1;
+                } else {
+                    is_waking = false;
+                }
+                dirty = true;
+            } 
+            else {
                 if (sys_composer.active) {
                     sys_composer.render(&back_buffer, WIDTH, HEIGHT);
                     drawPulseOverlay();
