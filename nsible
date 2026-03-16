@@ -223,9 +223,9 @@ if [ "$cmd" = "sync" ]; then
 	echo "//	version: \"0.2.0\"," >> src/version.zig
 	echo "//	description: \"An automatically generated data_object for providing version control to @nsible stack\"," >> src/version.zig
 	echo "//	changes: \"GZL-X Encapsulation compliant.\"," >> src/version.zig
-	echo "//	philotic_inferences: \"Know what you think you know.\" >> src/version.zig
-    echo "pub const VERSION = \"$NSIBLE_VERSION\";" >> src/version.zig 
-	echo "// }-.]
+	echo "//	philotic_inferences: \"Know what you think you know.\"" >> src/version.zig
+ 	echo "pub const VERSION = \"$NSIBLE_VERSION\";" >> src/version.zig 
+	echo "// }-.]"
 
     # [!] THE NECESSITY CHECK :: SYSTEM DAEMONS
     if ! command -v mpv &> /dev/null; then
