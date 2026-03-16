@@ -225,7 +225,7 @@ if [ "$cmd" = "sync" ]; then
 	echo "//	changes: \"GZL-X Encapsulation compliant.\"," >> src/version.zig
 	echo "//	philotic_inferences: \"Know what you think you know.\"" >> src/version.zig
  	echo "pub const VERSION = \"$NSIBLE_VERSION\";" >> src/version.zig 
-	echo "// }-.]"
+	echo "// }-.]" >> src/version.zig
 
     # [!] THE NECESSITY CHECK :: SYSTEM DAEMONS
     if ! command -v mpv &> /dev/null; then
