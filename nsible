@@ -219,11 +219,11 @@ if [ "$cmd" = "sync" ]; then
 
 	# [VERSIONING] :: AUTO GZL
 	echo "// [@://nsible_os/src/version.zig/.-={" > src/version.zig
-	echo "//	module: \"ziGGit Auto-Versioning Provisioner\"," >> src/version.zig
-	echo "//	version: \"0.2.0\"," >> src/version.zig
-	echo "//	description: \"An automatically generated data_object for providing version control to @nsible stack\"," >> src/version.zig
-	echo "//	changes: \"GZL-X Encapsulation compliant.\"," >> src/version.zig
-	echo "//	philotic_inferences: \"Know what you think you know.\"" >> src/version.zig
+	echo "//    module: \"ziGGit Auto-Versioning Provisioner\"," >> src/version.zig
+	echo "//    version: \"0.2.0\"," >> src/version.zig
+	echo "//    description: \"An automatically generated data_object for providing version control to @nsible stack\"," >> src/version.zig
+	echo "//    changes: \"GZL-X Encapsulation compliant.\"," >> src/version.zig
+	echo "//    philotic_inferences: \"Know what you think you know.\"" >> src/version.zig
  	echo "pub const VERSION = \"$NSIBLE_VERSION\";" >> src/version.zig 
 	echo "// }-.]" >> src/version.zig
 
