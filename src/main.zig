@@ -169,7 +169,7 @@ if (@"aud.state.io".is_active) {
 	const t_name= @"aud.state.io".track_name[0..@"aud.state.io".track_name_len];
 	var display_name = t_name;
 	if (t_name.len > 28) display_name = t_name[0..28];
-	print(aud_x +150, 6, display_name, 0x00DC143C);
+	print(aud_x + 150, 6, display_name, 0x00DC143C);
 
 	const status_glyph: u8 = if (@"aud.state.io".is_paused) 0x1A else 0x10;
 	const status_color: u32 = if (@"aud.state.io".is_paused) 0x00555555 else 0x00DC143C;
