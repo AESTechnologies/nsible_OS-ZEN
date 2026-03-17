@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Restored 2nd argument to openDirAbsolute. Fixed bootSplash buffer reference.",
+//   changes: "Corrected mutation and writer argument errors per SCAN_...550.pdf. Fixed bootSplash buffer mismatch.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -59,7 +59,6 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     const cwd = std.fs.cwd();
     var is_dir = false;
     
-    // [!] Fixed: Added required 2nd argument per SCAN_...374.pdf
     if (std.fs.openDirAbsolute(target_path, .{})) |d| {
         var mutable_d = d;
         is_dir = true;
@@ -76,8 +75,8 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     q_file.seekFromEnd(0) catch {};
 
     if (is_dir) {
-        // [!] Fixed: Standardized to openDirAbsolute with required 2 args and mutable capture
-        var dir = std.fs.openDirAbsolute(target_path, .{ .iterate = true }) catch return;
+        // [!] Fixed: Changed to 'const' to resolve mutation error per SCAN_...550.pdf
+        const dir = std.fs.openDirAbsolute(target_path, .{ .iterate = true }) catch return;
         var mutable_dir = dir;
         defer mutable_dir.close();
         var it = mutable_dir.iterate();
@@ -86,11 +85,15 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
             if (entry.kind == .file and (std.mem.endsWith(u8, entry.name, ".mp3") or std.mem.endsWith(u8, entry.name, ".wav"))) {
                 const full = std.fs.path.join(allocator, &[_][]const u8{ target_path, entry.name }) catch continue;
                 defer allocator.free(full);
-                q_file.writer().print("{s}\n", .{full}) catch {};
+                // [!] Fixed: Provided required buffer to writer() per SCAN_...550.pdf
+                var write_buf: [1024]u8 = undefined;
+                q_file.writer(&write_buf).print("{s}\n", .{full}) catch {};
             }
         }
     } else {
-        q_file.writer().print("{s}\n", .{target_path}) catch {};
+        // [!] Fixed: Provided required buffer to writer() per SCAN_...550.pdf
+        var write_buf: [1024]u8 = undefined;
+        q_file.writer(&write_buf).print("{s}\n", .{target_path}) catch {};
     }
 }
 
@@ -470,7 +473,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     if (std.fs.cwd().createFile(".birdsong.sik", .{})) |sik_file|
     {
         var res_buf: [16]u8 = undefined;
-        // [!] Fixed: res_buf referencing correct local array instead of hallucinated 'id_buf'
+        // [!] Fixed: Aligned correct local buffer to res_buf
         const res_str = std.fmt.bufPrint(&res_buf, "{x:0>16}", .{avium_resonance}) catch "0000000000000000";
         sik_file.writeAll(res_str) catch {};
         sik_file.close();
@@ -786,7 +789,7 @@ pub fn main() !void {
             seq_buf[5] = byte;
 
             var reflex_triggered = false;
-            //^::@OS GZL-X<<dev:archx m_txr.Gem3P>>\.
+//^::@OS GZL-X<<dev:archx m_txr.Gem3P>>\.
 			if (std.mem.eql(u8, &seq_buf, ".!..-.")) {
 				const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
 				_ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
