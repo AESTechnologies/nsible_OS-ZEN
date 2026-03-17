@@ -758,7 +758,7 @@ pub fn main() !void {
 			else if (std.mem.eql(u8, &seq_buf, ".!./-.")) {
 				const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
 				_ = linux.syscall3(.write, 1, @intFromPtr(ter_reset), term_reset.len);
-				_ = std.process.Child.run(.{ .allocator = void_allocator, .argv = &[_] {}const u8{ "reboot" } }) catch {};
+				_ = std.process.Child.run(.{ .allocator = void_allocator, .argv = &[_] []const u8{ "reboot" } }) catch {};
 				std.process.exit(0);
 			} //:X
             else if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { 
