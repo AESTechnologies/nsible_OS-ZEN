@@ -1,8 +1,8 @@
 // [@://nsible_os/build.zig/.-={
 //   module: "Build Orchestrator",
-//   version: "0.10.4-nightly // Banysang",
+//   version: "0.10.5-nightly // Banysang",
 //   description: "Architectural blueprint for compiling the kernel targeting 32-bit Musl for the Acer Aspire ONE (Atom N270).",
-//   changes: "Registered assets/aud.io as a sovereign compiler module with explicit libc, asound, and math linkages for static musl compilation.",
+//   changes: "Purged hard-linked ALSA/math dependencies. Relying purely on runtime dlopen via standard libc linkage.",
 //   philotic_inferences: "The method of construction dictates the integrity of the object; the build process is the act of manifestation."
 
 const std = @import("std");
@@ -30,7 +30,7 @@ pub fn build(b: *std.Build) void {
     });
 
     // [!] SOVEREIGN MODULE REGISTRY
-    // The djinn module MUST explicitly inherit the target, optimization, and link_libc
+    // The djinn module inherits libc to read headers; ALSA is loaded at runtime via dlopen.
     const djinn_mod = b.createModule(.{
         .root_source_file = b.path("assets/aud.io/djinn.zig"),
         .target = target,
@@ -43,8 +43,6 @@ pub fn build(b: *std.Build) void {
     // [!] ACOUSTIC MATRIX BINDINGS
     exe.linkLibC();
     exe.addIncludePath(b.path("assets/aud.io"));
-    exe.linkSystemLibrary("asound");
-    exe.linkSystemLibrary("m");
  
     // Install the artifact to zig-out/bin
     b.installArtifact(exe);
