@@ -72,8 +72,9 @@ pub fn invoke(state: anytype) void {
         var v_decoder: c.ma_decoder = undefined;
         var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, engine_sr);
         const has_vis = (c.ma_decoder_init_file(track_c.ptr, &v_config, &v_decoder) == c.MA_SUCCESS);
-        defer if (has_vis) _ = c.ma_decoder_uninit(&v_decoder);
-
+        defer {
+            if (has_vis) _ = c.ma_decoder_uninit(&v_decoder);
+        }
         _ = c.ma_sound_set_volume(&sound, 0.6); // Base volume
         _ = c.ma_sound_start(&sound);
 
