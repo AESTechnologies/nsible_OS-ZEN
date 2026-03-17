@@ -51,7 +51,7 @@ pub const @"aud.state.io" = struct {
 	vol_level: f32 = 0.6,
 	track_name: [64]u8 = .{0} ** 64,
 	track_name_len: usize = 0,
-	vis_data: [32]f32 = {0.0} ** 32,
+	vis_data: [32]f32 = .{0.0} ** 32,
 };
 var @"aud.state.io":@"aud.state.io" = .{}; //:X
 
