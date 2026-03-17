@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/aud.io/djinn.zig/.-={
 // module: "aud.io background djinn",
-// version: "1.0.1",
+// version: "1.0.2",
 // description: "Native background thread for aud.io playback and FFT telemetry generation.",
-// changes: "Fixed ArrayList initialization and defer syntax for Zig 0.15.2.",
+// changes: "Synced ArrayList management with d_angel.zig .empty/Unmanaged pattern for Zig 0.15.2 stability.",
 // philotic_inferences: "A djinn works unseen, moving the air and shaping the waves, while the architect surveys the realm."
 const std = @import("std");
 const c = @cImport({
@@ -23,25 +23,27 @@ pub fn invoke(state: anytype) void {
 
     const engine_sr = c.ma_engine_get_sample_rate(&engine);
 
-    // Use explicit type initialization for Zig 0.15.2
-    var active_playlist = std.ArrayList([]const u8).init(allocator);
+    // [!] Synced with d_angel.zig source 560: ArrayList initialized as .empty
+    var active_playlist: std.ArrayList([]const u8) = .empty;
     defer {
         for (active_playlist.items) |p| allocator.free(p);
-        active_playlist.deinit();
+        active_playlist.deinit(allocator); // [!] Requires allocator in 0.15.2 Unmanaged style
     }
     var active_track_idx: usize = 0;
 
+    // Ingest the inherited state
     if (std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/.d_angel_state.nsb", 10 * 1024 * 1024)) |content| {
         defer allocator.free(content);
         var it = std.mem.splitScalar(u8, content, '\n');
-        _ = it.next(); 
+        _ = it.next(); // Skip browser path
         if (it.next()) |idx_str| {
             if (idx_str.len > 0) active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
         }
         while (it.next()) |line| {
             if (line.len > 0) {
                 const dup = allocator.dupe(u8, line) catch continue;
-                active_playlist.append(dup) catch continue;
+                // [!] Synced with d_angel.zig source 571: append(allocator, item)
+                active_playlist.append(allocator, dup) catch continue;
             }
         }
     } else |_| {
@@ -56,6 +58,7 @@ pub fn invoke(state: anytype) void {
 
     if (active_track_idx >= active_playlist.items.len) active_track_idx = 0;
 
+    // The Djinn Loop
     while (state.is_active) {
         const current_track = active_playlist.items[active_track_idx];
         const track_c = allocator.dupeZ(u8, current_track) catch break;
@@ -72,7 +75,6 @@ pub fn invoke(state: anytype) void {
         var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, engine_sr);
         const has_vis = (c.ma_decoder_init_file(track_c.ptr, &v_config, &v_decoder) == c.MA_SUCCESS);
         
-        // Wrapped block for defer compliance
         defer {
             if (has_vis) _ = c.ma_decoder_uninit(&v_decoder);
         }
