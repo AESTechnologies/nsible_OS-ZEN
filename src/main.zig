@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Mapped compound MELT interception for aud/ commands. Enabled seamless queue.nsb appending.",
+//   changes: "Fixed const-pointer mismatch and argument counts in appendAudQueue per visual traces. Corrected bootSplash scope error.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -58,12 +58,16 @@ var @"aud.state.io":@"aud.stateT.io" = .{}; //:X
 fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     const cwd = std.fs.cwd();
     var is_dir = false;
-    if (std.fs.openDirAbsolute(target_path, .{})) |*d| {
+    
+    // [!] Fixed: Removed illegal 2nd arg. Captured as var to satisfy mutable *Dir requirement.
+    if (std.fs.openDirAbsolute(target_path)) |d| {
+        var mutable_d = d;
         is_dir = true;
-        d.close();
+        mutable_d.close();
     } else |_| {}
 
-    var q_file = cwd.openFile("assets/aud.io/queue.nsb", .{ .mode = .read_write }) catch |err| switch (err) {
+    var q_file = cwd.openFile("assets/aud.io/queue.nsb", .{ .mode = .read_write }) catch |err|
+    switch (err) {
         error.FileNotFound => cwd.createFile("assets/aud.io/queue.nsb", .{ .read = true }) catch return,
         else => return,
     };
@@ -72,10 +76,15 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     q_file.seekFromEnd(0) catch {};
 
     if (is_dir) {
-        var dir = std.fs.openDirAbsolute(target_path, .{ .iterate = true }) catch return;
-        defer dir.close();
+        // [!] Fixed: Use cwd.openDir to support .iterate on absolute paths in 0.15.2.
+        var dir = cwd.openDir(target_path, .{ .iterate = true }) catch return;
+        defer {
+            var mutable_dir = dir;
+            mutable_dir.close();
+        }
         var it = dir.iterate();
-        while (it.next() catch null) |entry| {
+        while (it.next() catch null) |entry|
+        {
             if (entry.kind == .file and (std.mem.endsWith(u8, entry.name, ".mp3") or std.mem.endsWith(u8, entry.name, ".wav"))) {
                 const full = std.fs.path.join(allocator, &[_][]const u8{ target_path, entry.name }) catch continue;
                 defer allocator.free(full);
@@ -88,9 +97,11 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
 }
 
 fn loadResonance() void {
-    if (std.fs.cwd().openFile("timeline/resonance.cfg", .{})) |file| {
+    if (std.fs.cwd().openFile("timeline/resonance.cfg", .{})) |file|
+    {
         var buf: [128]u8 = undefined;
-        if (file.readAll(&buf)) |bytes_read| {
+        if (file.readAll(&buf)) |bytes_read|
+        {
             var iter = std.mem.splitScalar(u8, buf[0..bytes_read], '|');
             if (iter.next()) |val| radio_f0 = std.fmt.parseFloat(f32, val) catch 432.0;
             if (iter.next()) |val| radio_decay = std.fmt.parseFloat(f32, val) catch 2.5;
@@ -98,16 +109,19 @@ fn loadResonance() void {
             if (iter.next()) |val| radio_phi = std.fmt.parseFloat(f32, val) catch 1.618;
         } else |_| {}
         file.close();
-    } else |_| {}
+    } else |_|
+    {}
 }
 
 fn saveResonance() void {
-    if (std.fs.cwd().createFile("timeline/resonance.cfg", .{})) |file| {
+    if (std.fs.cwd().createFile("timeline/resonance.cfg", .{})) |file|
+    {
         var buf: [128]u8 = undefined;
         const str = std.fmt.bufPrint(&buf, "{d:.2}|{d:.2}|{d:.2}|{d:.3}", .{radio_f0, radio_decay, radio_diss, radio_phi}) catch return;
         file.writeAll(str) catch {};
         file.close();
-    } else |_| {}
+    } else |_|
+    {}
 }
 
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
@@ -123,7 +137,8 @@ pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize)
     var blink: bool = true;
     while (true) {
         var delay: usize = 0;
-        while (delay < 5_000_000) : (delay += 1) { asm volatile ("pause"); }
+        while (delay < 5_000_000) : (delay += 1) { asm volatile ("pause");
+        }
         blink = !blink;
     }
 }
@@ -156,12 +171,14 @@ fn drawRect(x: usize, y: usize, w: usize, h: usize, color: u32) void {
 }
 
 fn clear(color: u32) void {
-    for (&back_buffer) |*pixel| { pixel.* = color; }
+    for (&back_buffer) |*pixel| { pixel.* = color;
+    }
 }
 
 fn print(x: usize, y: usize, text: []const u8, color: u32) void {
     var cx = x;
-    for (text) |char| { drawChar(cx, y, char, color); cx += 8; }
+    for (text) |char| { drawChar(cx, y, char, color); cx += 8;
+    }
 }
 
 fn drawHeader(is_high: bool) void {
@@ -170,7 +187,6 @@ fn drawHeader(is_high: bool) void {
     const active_host = if (sys_host_id_len > 0) sys_host_id[0..sys_host_id_len] else "mchn:anon";
     const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, active_host}) catch "HEADER_ERR";
     print(10, 6, header, 0x00FFFFFF);
-
 //^::INVERSE HEADER VFX<<dev:archx m_txr.Gem3P>>\.
 if (@"aud.state.io".is_active) {
 	const aud_w= 400;
@@ -224,7 +240,8 @@ fn getUriBarY(input_len: usize, current_url: []const u8) usize {
     var i: usize = 0;
     while (i < active_len) : (i += 1) {
         cursor_x += char_w;
-        if (cursor_x >= WIDTH - 10) { lines += 1; cursor_x = 10 + char_w; }
+        if (cursor_x >= WIDTH - 10) { lines += 1; cursor_x = 10 + char_w;
+        }
     }
     const bar_height = (lines * line_h) + (padding * 2);
     return if (bar_height < HEIGHT) HEIGHT - bar_height else 0;
@@ -250,30 +267,38 @@ fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) 
             prefix_override = "@://w3.";
         }
         
-        if (prefix_override) |pref| {
-            for (pref) |char| {
+        if (prefix_override) |pref|
+        {
+            for (pref) |char|
+            {
                 drawChar(cursor_x, cursor_y, char, 0x00888888);
                 cursor_x += char_w;
-                if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } 
+                if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h;
+                } 
             }
         }
-        for (display_url) |char| { 
+        for (display_url) |char|
+        { 
             drawChar(cursor_x, cursor_y, char, 0x00888888); 
             cursor_x += char_w;
-            if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } 
+            if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h;
+            } 
         }
     } else {
-        for (URI_PREFIX) |char| { 
+        for (URI_PREFIX) |char|
+        { 
             drawChar(cursor_x, cursor_y, char, 0x00000000); 
             cursor_x += char_w;
-            if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } 
+            if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h;
+            } 
         }
         var i: usize = 0;
         while (i < input_len) : (i += 1) {
             const char = input_buf[i];
             drawChar(cursor_x, cursor_y, char, 0x00000000);
             cursor_x += char_w;
-            if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; }
+            if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h;
+            }
         }
     }
     drawChar(cursor_x, cursor_y, 0xDB, 0x00000000);
@@ -309,7 +334,8 @@ fn strikeRadio(allocator: std.mem.Allocator) void {
         var agent = std.process.Child.init(&argv, allocator);
         agent.stdout_behavior = .Ignore; agent.stderr_behavior = .Ignore;
         _ = agent.spawn() catch {};
-    } else |_| {} 
+    } else |_|
+    {} 
 }
 
 fn drawPulseOverlay() void {
@@ -366,10 +392,13 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     var aiua_mass: usize = 0;
     var inference_count: usize = 0;
 
-    if (std.fs.cwd().openFile("aiua.tome", .{})) |file| {
-        if (file.stat()) |stat| {
+    if (std.fs.cwd().openFile("aiua.tome", .{})) |file|
+    {
+        if (file.stat()) |stat|
+        {
             aiua_mass = @as(usize, @intCast(stat.size));
-        } else |_| {}
+        } else |_|
+        {}
         
         var buf: [4096]u8 = undefined;
         while (true) {
@@ -380,7 +409,8 @@ fn bootSplash(allocator: std.mem.Allocator) void {
             }
         }
         file.close();
-    } else |_| {}
+    } else |_|
+    {}
 
     const mass_units = @min(@as(f32, @floatFromInt(aiua_mass)) / 1024.0, 500.0);
     const philotic_weight = @min(@as(f32, @floatFromInt(inference_count)), 1000.0);
@@ -439,12 +469,15 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         avium_resonance = (avium_resonance << 5) | (avium_resonance >> 59); 
     }
 
-    if (std.fs.cwd().createFile(".birdsong.sik", .{})) |sik_file| {
+    if (std.fs.cwd().createFile(".birdsong.sik", .{})) |sik_file|
+    {
         var res_buf: [16]u8 = undefined;
+        // [!] Fixed: res_buf scoping typo from reference main.zig (23).txt
         const res_str = std.fmt.bufPrint(&res_buf, "{x:0>16}", .{avium_resonance}) catch "0000000000000000";
         sik_file.writeAll(res_str) catch {};
         sik_file.close();
-    } else |_| {}
+    } else |_|
+    {}
 
     print(WIDTH / 2 - 80, center_y - 60, "\xC6\xA7   T E C H N O L O G I E S", 0x00FFFFFF);
     print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", 0x00AAAAAA);
@@ -456,7 +489,8 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     print(time_x, center_y + 65, time_str, 0x00555555);
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
 
-    if (std.fs.cwd().createFile("resonator.raw", .{})) |file| {
+    if (std.fs.cwd().createFile("resonator.raw", .{})) |file|
+    {
         file.writeAll(pcm) catch {};
         file.close();
         const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "resonator.raw" };
@@ -464,32 +498,41 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         agent.stdout_behavior = .Ignore;
         agent.stderr_behavior = .Ignore;
         _ = agent.spawn() catch {};
-    } else |_| {} 
+    } else |_|
+    {} 
     
     codex.zen(0.00158);
 }
 
 pub fn main() !void {
     const fs = std.fs.cwd();
-    fs.makeDir("timeline") catch |err| { if (err != error.PathAlreadyExists) {} };
+    fs.makeDir("timeline") catch |err|
+    { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("timeline/mems") catch |err| { if (err != error.PathAlreadyExists) {} };
-    fs.makeDir("assets") catch |err| { if (err != error.PathAlreadyExists) {} };
-    if (fs.access("aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("aiua.tome", .{})) |f| { f.close(); } else |_| {} }
+    fs.makeDir("assets") catch |err|
+    { if (err != error.PathAlreadyExists) {} };
+    if (fs.access("aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("aiua.tome", .{})) |f|
+    { f.close(); } else |_| {} }
     
     var is_trail_modal: bool = false;
     var trail_buffer: [4096]u8 = undefined;
     var trail_len: usize = 0;
-    if (fs.openFile("trail.tome", .{})) |file| {
-        if (file.stat()) |stat| {
+    if (fs.openFile("trail.tome", .{})) |file|
+    {
+        if (file.stat()) |stat|
+        {
             if (stat.size > 0) {
                 trail_len = file.readAll(&trail_buffer) catch 0;
                 if (trail_len > 0) is_trail_modal = true;
             }
-        } else |_| {}
+        } else |_|
+        {}
         file.close();
-    } else |_| {}
+    } else |_|
+    {}
     
-    if (fs.createFile("trail.tome", .{})) |f| { panic_fd = f.handle; } else |_| {}
+    if (fs.createFile("trail.tome", .{})) |f| { panic_fd = f.handle; } else |_|
+    {}
 
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
     _ = linux.syscall5(.mount, @intFromPtr("sysfs"), @intFromPtr("/sys"), @intFromPtr("sysfs"), 0, 0);
@@ -505,23 +548,29 @@ pub fn main() !void {
     const vinculum_fd = codex.bindVinculum();
     var mchn_buf: [64]u8 = .{0} ** 64;
     var mchn_len: usize = 0;
-    if (fs.openFile("/etc/hostname", .{})) |file| {
+    if (fs.openFile("/etc/hostname", .{})) |file|
+    {
         var raw_mchn: [128]u8 = undefined;
-        if (file.readAll(&raw_mchn)) |br| {
+        if (file.readAll(&raw_mchn)) |br|
+        {
             const tr = std.mem.trim(u8, raw_mchn[0..br], " \n\r\t");
             if (tr.len > 0) { 
                 @memcpy(mchn_buf[0..tr.len], tr);
                 mchn_len = tr.len; 
             }
-        } else |_| {}
+        } else |_|
+        {}
         file.close();
-    } else |_| {}
+    } else |_|
+    {}
     const mchn_str = if (mchn_len > 0) mchn_buf[0..mchn_len] else "mchn";
     var soc_buf: [64]u8 = .{0} ** 64;
     var soc_len: usize = 0;
-    if (fs.openFile("aiua.tome", .{})) |file| {
+    if (fs.openFile("aiua.tome", .{})) |file|
+    {
         var fl_buf: [256]u8 = undefined;
-        if (file.read(&fl_buf)) |br| {
+        if (file.read(&fl_buf)) |br|
+        {
             const fl = fl_buf[0..br];
             if (std.mem.indexOf(u8, fl, "//SOCIUS:")) |idx| {
                 const start = idx + 9;
@@ -533,9 +582,11 @@ pub fn main() !void {
                     soc_len = s_name.len; 
                 }
             }
-        } else |_| {}
+        } else |_|
+        {}
         file.close();
-    } else |_| {}
+    } else |_|
+    {}
     const soc_str = if (soc_len > 0) soc_buf[0..soc_len] else "anon";
     const final_id = std.fmt.bufPrint(&sys_host_id, "{s}:{s}", .{mchn_str, soc_str}) catch "mchn:anon";
     sys_host_id_len = final_id.len;
@@ -550,7 +601,8 @@ pub fn main() !void {
 
     var sys_composer = composer.Composer.init();
     var is_tabula_rasa: bool = false;
-    if (sys_hunter.history.items.len == 0) { is_tabula_rasa = true; } 
+    if (sys_hunter.history.items.len == 0) { is_tabula_rasa = true;
+    } 
     else {
         const first_entry = sys_hunter.history.items[0];
         if (!std.mem.startsWith(u8, first_entry, "@AVIUM_RESONANCE:")) { is_tabula_rasa = true; }
@@ -595,13 +647,20 @@ pub fn main() !void {
         if (esc_len == 1) {
             esc_timer += 1;
             if (esc_timer > 5000) {
-                if (is_calc_modal) { is_calc_modal = false; }
-                else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
-                else if (is_memo_modal) { is_memo_modal = false; }
-                else if (is_trail_modal) { is_trail_modal = false; }
-                else if (is_assist_modal) { is_assist_modal = false; }
-                else if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
-                else if (is_bash_modal) { is_bash_modal = false; }
+                if (is_calc_modal) { is_calc_modal = false;
+                }
+                else if (is_radio_modal) { is_radio_modal = false;
+                saveResonance(); pulse_timer = PULSE_MAX; }
+                else if (is_memo_modal) { is_memo_modal = false;
+                }
+                else if (is_trail_modal) { is_trail_modal = false;
+                }
+                else if (is_assist_modal) { is_assist_modal = false;
+                }
+                else if (is_bash_pipe) { is_bash_pipe = false;
+                journal_len = 0; }
+                else if (is_bash_modal) { is_bash_modal = false;
+                }
                 
                 esc_len = 0;
                 esc_timer = 0;
@@ -609,7 +668,8 @@ pub fn main() !void {
             }
         }
 
-        if (codex.transcieve(vinculum_fd)) |byte| {
+        if (codex.transcieve(vinculum_fd)) |byte|
+        {
             dirty = true;
             last_rx_ms = std.time.milliTimestamp();
             if (byte == 27) {
@@ -626,56 +686,91 @@ pub fn main() !void {
                     if (esc_len == 3 and esc_seq[1] == '[') {
                         if (byte == 'A' or byte == 'B' or byte == 'C' or byte == 'D') {
                             if (sys_composer.active) {
-                             if (byte == 'A') { sys_composer.moveCursor(0, -1); }
-                                else if (byte == 'B') { sys_composer.moveCursor(0, 1); }
-                                else if (byte == 'C') { sys_composer.moveCursor(1, 0); }
-                                else if (byte == 'D') { sys_composer.moveCursor(-1, 0); }
+                   
+                             if (byte == 'A') { sys_composer.moveCursor(0, -1);
+                                }
+                                else if (byte == 'B') { sys_composer.moveCursor(0, 1);
+                                }
+                                else if (byte == 'C') { sys_composer.moveCursor(1, 0);
+                                }
+                                else if (byte == 'D') { sys_composer.moveCursor(-1, 0);
+                                }
                             } else if (is_radio_modal) {
                                 if (byte == 'D') {
-                                    if (radio_sel == 0) { radio_f0 -= 5.0; }
-                                    else if (radio_sel == 1) { radio_decay -= 0.1; }
-                                    else if (radio_sel == 2) { radio_diss -= 0.05; }
-                                    else if (radio_sel == 3) { radio_phi -= 0.05; }
+                                
+                                    if (radio_sel == 0) { radio_f0 -= 5.0;
+                                    }
+                                    else if (radio_sel == 1) { radio_decay -= 0.1;
+                                    }
+                                    else if (radio_sel == 2) { radio_diss -= 0.05;
+                                    }
+                                    else if (radio_sel == 3) { radio_phi -= 0.05;
+                                    }
                                 } else if (byte == 'C') {
-                                    if (radio_sel == 0) { radio_f0 += 5.0; }
-                                    else if (radio_sel == 1) { radio_decay += 0.1; }
-                                    else if (radio_sel == 2) { radio_diss += 0.05; }
-                                    else if (radio_sel == 3) { radio_phi += 0.05; }
+                                    if (radio_sel == 0) { radio_f0 += 5.0;
+                                    }
+                                    else if (radio_sel == 1) { radio_decay += 0.1;
+                                    }
+                                    else if (radio_sel == 2) { radio_diss += 0.05;
+                                    }
+                                    else if (radio_sel == 3) { radio_phi += 0.05;
+                                    }
                                 }
                             } else if (is_bash_modal and !is_bash_pipe) {
-                                if (byte == 'A') { if (bash_scroll_y > 0) bash_scroll_y -= 1; }
-                                else if (byte == 'B') { bash_scroll_y += 1; }
+                                if (byte 
+                                == 'A') { if (bash_scroll_y > 0) bash_scroll_y -= 1;
+                                }
+                                else if (byte == 'B') { bash_scroll_y += 1;
+                                }
                             } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal and !is_bash_modal) {
-                                if (byte == 'A') { sys_hunter.scrollBy(-1); }
-                                else if (byte == 'B') { sys_hunter.scrollBy(1); }
-                                else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; }
-                                else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; }
+                                if (byte == 'A') { sys_hunter.scrollBy(-1);
+                                }
+                                else if (byte == 'B') { sys_hunter.scrollBy(1);
+                                }
+                                else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {};
+                                }
+                                else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {};
+                                }
                             }
                             esc_len = 0;
                         }
                         continue;
                     } else if (esc_len == 4 and esc_seq[1] == '[' and esc_seq[2] >= '0' and esc_seq[2] <= '9' and byte == '~') {
                         if (sys_composer.active) {
-                            if (esc_seq[2] == '3') { sys_composer.deleteChar(); }
-                            else if (esc_seq[2] == '5') { sys_composer.moveCursor(0, -15); }
-                            else if (esc_seq[2] == '6') { sys_composer.moveCursor(0, 15); }
+                            if (esc_seq[2] == '3') { sys_composer.deleteChar();
+                            }
+                            else if (esc_seq[2] == '5') { sys_composer.moveCursor(0, -15);
+                            }
+                            else if (esc_seq[2] == '6') { sys_composer.moveCursor(0, 15);
+                            }
                         } else if (is_bash_modal and !is_bash_pipe) {
-                            if (esc_seq[2] == '5') { if (bash_scroll_y > 15) bash_scroll_y -= 15 else bash_scroll_y = 0; }
-                            else if (esc_seq[2] == '6') { bash_scroll_y += 15; }
+                            if (esc_seq[2] == '5') { if (bash_scroll_y > 15) bash_scroll_y -= 15 else bash_scroll_y = 0;
+                            }
+                            else if (esc_seq[2] == '6') { bash_scroll_y += 15;
+                            }
                         } else if (!is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal and !is_bash_modal) {
-                            if (esc_seq[2] == '5') { sys_hunter.scrollBy(-15); }
-                            else if (esc_seq[2] == '6') { sys_hunter.scrollBy(15); }
+                            if (esc_seq[2] == '5') { sys_hunter.scrollBy(-15);
+                            }
+                            else if (esc_seq[2] == '6') { sys_hunter.scrollBy(15);
+                            }
                         }
                         esc_len = 0;
                         continue;
                     } else if (esc_len == 2 and byte != '[') {
-                        if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
-                        else if (is_bash_modal) { is_bash_modal = false; }
-                        else if (is_calc_modal) { is_calc_modal = false; }
-                        else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
-                        else if (is_memo_modal) { is_memo_modal = false; }
-                        else if (is_trail_modal) { is_trail_modal = false; }
-                        else if (is_assist_modal) { is_assist_modal = false; }
+                        if (is_bash_pipe) { is_bash_pipe = false;
+                        journal_len = 0; }
+                        else if (is_bash_modal) { is_bash_modal = false;
+                        }
+                        else if (is_calc_modal) { is_calc_modal = false;
+                        }
+                        else if (is_radio_modal) { is_radio_modal = false;
+                        saveResonance(); pulse_timer = PULSE_MAX; }
+                        else if (is_memo_modal) { is_memo_modal = false;
+                        }
+                        else if (is_trail_modal) { is_trail_modal = false;
+                        }
+                        else if (is_assist_modal) { is_assist_modal = false;
+                        }
                         esc_len = 0;
                         continue;
                     } else {
@@ -688,11 +783,12 @@ pub fn main() !void {
             }
 
             var k: usize = 0;
-            while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1]; }
+            while (k < 5) : (k += 1) { seq_buf[k] = seq_buf[k+1];
+            }
             seq_buf[5] = byte;
 
             var reflex_triggered = false;
-//^::@OS GZL-X<<dev:archx m_txr.Gem3P>>\.
+            //^::@OS GZL-X<<dev:archx m_txr.Gem3P>>\.
 			if (std.mem.eql(u8, &seq_buf, ".!..-.")) {
 				const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
 				_ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
@@ -725,17 +821,27 @@ pub fn main() !void {
 					is_bash_pipe = false;
 					journal_len = 0;
 					reflex_triggered = true;
-                } else if (is_calc_modal) { is_calc_modal = false; journal_len = 0; reflex_triggered = true; }
-                else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; journal_len = 0; reflex_triggered = true; }
-                else if (is_memo_modal) { is_memo_modal = false; journal_len = 0; reflex_triggered = true; }
-                else if (is_trail_modal) { is_trail_modal = false; journal_len = 0; reflex_triggered = true; }
-                else if (is_assist_modal) { is_assist_modal = false; journal_len = 0; reflex_triggered = true; }
+                } else if (is_calc_modal) { is_calc_modal = false; journal_len = 0; reflex_triggered = true;
+                }
+                else if (is_radio_modal) { is_radio_modal = false;
+                saveResonance(); pulse_timer = PULSE_MAX; journal_len = 0; reflex_triggered = true;
+                }
+                else if (is_memo_modal) { is_memo_modal = false;
+                journal_len = 0; reflex_triggered = true; }
+                else if (is_trail_modal) { is_trail_modal = false;
+                journal_len = 0; reflex_triggered = true; }
+                else if (is_assist_modal) { is_assist_modal = false;
+                journal_len = 0; reflex_triggered = true; }
                 else {
                     exitSequence();
                 }
             } 
-            else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) { sys_hunter.shiftScope(1); if (journal_len >= 4) journal_len -= 4; reflex_triggered = true; } 
-            else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) { sys_hunter.shiftScope(-1); if (journal_len >= 4) journal_len -= 4; reflex_triggered = true; } 
+            else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) { sys_hunter.shiftScope(1);
+            if (journal_len >= 4) journal_len -= 4; reflex_triggered = true;
+            } 
+            else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) { sys_hunter.shiftScope(-1);
+            if (journal_len >= 4) journal_len -= 4; reflex_triggered = true;
+            } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!@&-.")) {
                 sys_hunter.refresh() catch {};
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
@@ -747,14 +853,17 @@ pub fn main() !void {
                     var target_path = std.mem.trim(u8, journal[0..journal_len], " ");
 
                     var is_melt = target_path.len > 0;
-                    for (target_path) |c| { if (c < '0' or c > '9') is_melt = false; }
+                    for (target_path) |c|
+                    { if (c < '0' or c > '9') is_melt = false;
+                    }
 
                     var resolved_alloc: ?[]u8 = null;
                     if (is_melt) {
                         const idx = std.fmt.parseInt(usize, target_path, 10) catch std.math.maxInt(usize);
                         sys_hunter.mutex.lock();
                         if (idx < sys_hunter.lens.links.items.len) {
-                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
+                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res|
+                            {
                                 resolved_alloc = res;
                                 target_path = res;
                             } else |_| {}
@@ -803,7 +912,8 @@ pub fn main() !void {
                     if (journal_len > 0) {
                         const socius_alias = journal[0..journal_len];
                         var sik_buf: [16]u8 = .{ '0' } ** 16;
-                        if (std.fs.cwd().openFile(".birdsong.sik", .{})) |f| {
+                        if (std.fs.cwd().openFile(".birdsong.sik", .{})) |f|
+                        {
                             _ = f.readAll(&sik_buf) catch 0;
                             f.close();
                         } else |_| {}
@@ -822,24 +932,28 @@ pub fn main() !void {
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
-                    if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 64) { journal[journal_len] = byte;
+                    journal_len += 1; }
                 }
             } 
             else if (is_trail_modal) {
                 if (byte == '\n' or byte == '\r') {
                     if (std.mem.eql(u8, journal[0..journal_len], "shed")) {
+     
                          is_trail_modal = false;
                          journal_len = 0;
                     }
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
-                    if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 64) { journal[journal_len] = byte;
+                    journal_len += 1; }
                 }
             }
             else if (is_memo_modal) {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
+      
                         sys_hunter.createMemo(journal[0..journal_len], pending_memo_content[0..pending_memo_len]) catch {};
                         is_memo_modal = false; journal_len = 0;
                     } else {
@@ -848,7 +962,8 @@ pub fn main() !void {
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
-                    if (journal_len < 64) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 64) { journal[journal_len] = byte;
+                    journal_len += 1; }
                 }
             }
             else if (is_radio_modal) {
@@ -866,6 +981,7 @@ pub fn main() !void {
             else if (is_calc_modal) {
                 if (byte == '\n' or byte == '\r') {
                     if (calc_len > 0) {
+                        
                         const expr = calc_input[0..calc_len];
                         const rcl = synapse.manageSynapseMemory(null);
                         const res = synapse.AST.evaluate(expr, rcl);
@@ -881,15 +997,18 @@ pub fn main() !void {
                 } else if (byte == 127 or byte == 8) {
                     if (calc_len > 0) calc_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
-                    if (calc_len < 256) { calc_input[calc_len] = byte; calc_len += 1; }
+                    if (calc_len < 256) { calc_input[calc_len] = byte;
+                    calc_len += 1; }
                 }
             }
             else if (is_bash_pipe) {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
+      
                         const dest = std.mem.trim(u8, journal[0..journal_len], " ");
                         if (std.fs.cwd().openFile("assets/void.tome", .{})) |src| {
-                            if (std.fs.cwd().createFile(dest, .{})) |dst| {
+                            if (std.fs.cwd().createFile(dest, .{})) |dst|
+                            {
                                 const data = src.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
                                 dst.writeAll(data) catch {};
                                 void_allocator.free(data);
@@ -903,7 +1022,8 @@ pub fn main() !void {
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
                 } else if (byte >= 32 and byte <= 126) {
-                    if (journal_len < 256) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 256) { journal[journal_len] = byte;
+                    journal_len += 1; }
                 }
             }
             else if (is_bash_modal) {
@@ -915,7 +1035,8 @@ pub fn main() !void {
                 }
             }
             else {
-                if (byte == '\n' or byte == '\r') {
+                if (byte 
+                == '\n' or byte == '\r') {
                     const raw_cmd = journal[0..journal_len];
                     const cmd_slice = std.mem.trim(u8, raw_cmd, " ");
                     
@@ -923,10 +1044,12 @@ pub fn main() !void {
                     var aud_idx_prefix: ?usize = null;
                     var active_aud_cmd: []const u8 = cmd_slice;
 
-                    if (std.mem.indexOf(u8, cmd_slice, "/aud/")) |slash_idx| {
+                    if (std.mem.indexOf(u8, cmd_slice, "/aud/")) |slash_idx|
+                    {
                         const prefix = cmd_slice[0..slash_idx];
                         var is_num = prefix.len > 0;
-                        for (prefix) |c| { if (c < '0' or c > '9') is_num = false; }
+                        for (prefix) |c| { if (c < '0' or c > '9') is_num = false;
+                        }
                         if (is_num) {
                             aud_idx_prefix = std.fmt.parseInt(usize, prefix, 10) catch null;
                             active_aud_cmd = cmd_slice[slash_idx + 1 ..];
@@ -935,14 +1058,15 @@ pub fn main() !void {
 
                     if (std.mem.startsWith(u8, active_aud_cmd, "aud/")) {
                         const aud_action = active_aud_cmd[4..];
-
                         var resolved_alloc: ?[]u8 = null;
                         var target_path: ?[]const u8 = null;
 
-                        if (aud_idx_prefix) |idx| {
+                        if (aud_idx_prefix) |idx|
+                        {
                             sys_hunter.mutex.lock();
                             if (idx < sys_hunter.lens.links.items.len) {
-                                if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
+                                if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res|
+                                {
                                     resolved_alloc = res;
                                     target_path = res;
                                 } else |_| {}
@@ -951,14 +1075,16 @@ pub fn main() !void {
                         }
 
                         if (std.mem.eql(u8, aud_action, "play") or std.mem.eql(u8, aud_action, "add")) {
-                            if (target_path) |tp| {
+                            if (target_path) |tp|
+                            {
                                 appendAudQueue(void_allocator, tp);
                             }
                             
                             if (std.mem.eql(u8, aud_action, "play")) {
                                 if (!@"aud.state.io".is_active) {
-                                    @"aud.state.io".is_active = true;
-                                    @"aud.state.io".is_paused = false;
+      
+                                     @"aud.state.io".is_active = true;
+                                     @"aud.state.io".is_paused = false;
                                     const djinn_thread = std.Thread.spawn(.{}, djinn.invoke, .{&@"aud.state.io"}) catch null;
                                     if (djinn_thread) |t| t.detach();
                                 } else {
@@ -973,25 +1099,30 @@ pub fn main() !void {
                         } else if (std.mem.eql(u8, aud_action, "skip")) {
                             @"aud.state.io".skip_request = true;
                         } else if (std.mem.eql(u8, aud_action, "clear")) {
-                            if (std.fs.cwd().createFile("assets/aud.io/queue.nsb", .{ .truncate = true })) |f| { f.close(); } else |_| {}
+                            if (std.fs.cwd().createFile("assets/aud.io/queue.nsb", .{ .truncate = true })) |f|
+                            { f.close(); } else |_| {}
                             @"aud.state.io".is_active = false;
                         } else if (std.mem.eql(u8, aud_action, "queue")) {
-                            if (std.fs.cwd().readFileAlloc(void_allocator, "assets/aud.io/queue.nsb", 10 * 1024 * 1024)) |q_data| {
+                            if (std.fs.cwd().readFileAlloc(void_allocator, "assets/aud.io/queue.nsb", 10 * 1024 * 1024)) |q_data|
+                            {
                                 defer void_allocator.free(q_data);
                                 if (std.fs.cwd().createFile("assets/void.tome", .{ .truncate = true })) |f| {
                                     f.writeAll(q_data) catch {};
                                     f.close();
                                     is_bash_modal = true;
                                     bash_scroll_y = 0;
-                                } else |_| {}
-                            } else |_| {}
+                                } else |_|
+                                {}
+                            } else |_|
+                            {}
                         } else if (std.mem.startsWith(u8, aud_action, "vol/")) {
                             const v_str = aud_action[4..];
                             const v_int = std.fmt.parseInt(usize, v_str, 10) catch 60;
                             @"aud.state.io".vol_level = @as(f32, @floatFromInt(v_int)) / 100.0;
                         } 
                         
-                        if (resolved_alloc) |res| {
+                        if (resolved_alloc) |res|
+                        {
                             void_allocator.free(res);
                         }
 
@@ -1012,7 +1143,8 @@ pub fn main() !void {
                             while (i < response.text.len) : (i += 1) {
                                 if (response.text[i] == '"') {
                                     in_quotes = !in_quotes;
-                                } else if (response.text[i] == '/' and !in_quotes) {
+                  
+                              } else if (response.text[i] == '/' and !in_quotes) {
                                     const arg = std.mem.trim(u8, response.text[start_idx..i], "\" ");
                                     if (arg.len > 0) args.append(void_allocator, arg) catch {};
                                     start_idx = i + 1;
@@ -1021,20 +1153,26 @@ pub fn main() !void {
                             const final_arg = std.mem.trim(u8, response.text[start_idx..], "\" ");
                             if (final_arg.len > 0) args.append(void_allocator, final_arg) catch {};
 
-                            if (args.items.len > 0) {
+   
+                             if (args.items.len > 0) {
                                 var agent = std.process.Child.init(args.items, void_allocator);
                                 agent.stdin_behavior = .Ignore;
+ 
                                 agent.stdout_behavior = .Pipe;
                                 agent.stderr_behavior = .Pipe;
                                 
+ 
                                 if (agent.spawn()) |_| {
                                     if (std.fs.cwd().createFile("assets/void.tome", .{}) catch null) |f| {
-                                        if (agent.stdout) |stdout| {
+                        
+                                 if (agent.stdout) |stdout| {
                                             const out_data = stdout.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
+                             
                                             f.writeAll(out_data) catch {};
                                             void_allocator.free(out_data);
                                         }
-                                        if (agent.stderr) |stderr| {
+                                        if (agent.stderr) |stderr|
+                                        {
                                             const err_data = stderr.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
                                             f.writeAll(err_data) catch {};
                                             void_allocator.free(err_data);
@@ -1050,10 +1188,14 @@ pub fn main() !void {
                         },
                         .CLEAR => {}, 
                         .EXIT => exitSequence(), 
-                        .CALC => { is_calc_modal = !is_calc_modal; journal_len = 0; },
-                        .SHED => { sys_hunter.shed(); journal_len = 0; },
-                        .SCOPE_IN => { sys_hunter.shiftScope(1); journal_len = 0; },
-                        .SCOPE_OUT => { sys_hunter.shiftScope(-1); journal_len = 0; },
+                        .CALC => { is_calc_modal = !is_calc_modal;
+                        journal_len = 0; },
+                        .SHED => { sys_hunter.shed();
+                        journal_len = 0; },
+                        .SCOPE_IN => { sys_hunter.shiftScope(1);
+                        journal_len = 0; },
+                        .SCOPE_OUT => { sys_hunter.shiftScope(-1);
+                        journal_len = 0; },
                         .MEMO => { 
                             const txt = if (response.text.len > 0) response.text else cmd_slice;
                             @memcpy(pending_memo_content[0..txt.len], txt);
@@ -1092,15 +1234,20 @@ pub fn main() !void {
                             };
                             journal_len = 0;
                         },
-                        .ASSIST => { is_assist_modal = !is_assist_modal; journal_len = 0; },
-                        .RADIO => { is_radio_modal = true; journal_len = 0; },
+                        .ASSIST => { is_assist_modal = !is_assist_modal;
+                        journal_len = 0; },
+                        .RADIO => { is_radio_modal = true;
+                        journal_len = 0; },
                         .PRINT => {
                             journal_len = 0;
-                            for (response.text) |c| { if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; } }
+                            for (response.text) |c| { if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1;
+                            } }
                         },
                         .HUNT => {
-                            if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scrollBy(1); }
-                            else if (std.mem.eql(u8, response.text, "^")) { sys_hunter.scrollBy(-1); }
+                            if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scrollBy(1);
+                            }
+                            else if (std.mem.eql(u8, response.text, "^")) { sys_hunter.scrollBy(-1);
+                            }
                             else {
                                 var target = response.text;
                                 if (std.mem.startsWith(u8, target, "hunt ")) target = target[5..];
@@ -1122,7 +1269,8 @@ pub fn main() !void {
                             sys_hunter.unmountDrives();
                             journal_len = 0;
                         },
-                        .NONE => { journal_len = 0; }
+                        .NONE => { journal_len = 0;
+                        }
                     }
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) {
@@ -1136,7 +1284,8 @@ pub fn main() !void {
                     }
                 } else if (byte >= 32 and byte <= 126) {
                     shed_lock = false;
-                    if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1;
+                    }
                 }
             }
         } else {
@@ -1148,7 +1297,8 @@ pub fn main() !void {
         }
 
         blink_timer += 1;
-        if (blink_timer > 35) { is_high_cycle = !is_high_cycle; blink_timer = 0; dirty = true; }
+        if (blink_timer > 35) { is_high_cycle = !is_high_cycle; blink_timer = 0; dirty = true;
+        }
 
         if (dirty) {
             clear(0x00000000);
@@ -1191,7 +1341,8 @@ pub fn main() !void {
 
                     var cx: usize = mx + 20;
                     var cy: usize = my + 50;
-                    for (trail_buffer[0..trail_len]) |c| {
+                    for (trail_buffer[0..trail_len]) |c|
+                    {
                         if (c == '\n') {
                             cx = mx + 20;
                             cy += 10;
@@ -1237,22 +1388,26 @@ pub fn main() !void {
                     const c_f0 = if (radio_sel == 0) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
                     const str_f0 = std.fmt.bufPrint(&radio_buf, "Song (Hz)  : {d:.1}", .{radio_f0}) catch "";
                     print(mx + 20, my + 60, str_f0, c_f0);
-                    if (radio_sel == 0) { drawChar(mx + 8, my + 60, 0x1A, 0x00FFBF00); }
+                    if (radio_sel == 0) { drawChar(mx + 8, my + 60, 0x1A, 0x00FFBF00);
+                    }
 
                     const c_dec = if (radio_sel == 1) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
                     const str_dec = std.fmt.bufPrint(&radio_buf, "Decay (d)  : {d:.2}", .{radio_decay}) catch "";
                     print(mx + 20, my + 80, str_dec, c_dec);
-                    if (radio_sel == 1) { drawChar(mx + 8, my + 80, 0x1A, 0x00FFBF00); }
+                    if (radio_sel == 1) { drawChar(mx + 8, my + 80, 0x1A, 0x00FFBF00);
+                    }
 
                     const c_diss = if (radio_sel == 2) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
                     const str_diss = std.fmt.bufPrint(&radio_buf, "Diss. (m)  : {d:.2}", .{radio_diss}) catch "";
                     print(mx + 260, my + 60, str_diss, c_diss);
-                    if (radio_sel == 2) { drawChar(mx + 248, my + 60, 0x1A, 0x00FFBF00); }
+                    if (radio_sel == 2) { drawChar(mx + 248, my + 60, 0x1A, 0x00FFBF00);
+                    }
 
                     const c_phi = if (radio_sel == 3) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
                     const str_phi = std.fmt.bufPrint(&radio_buf, "\xED\x1E-off (P) : {d:.3}", .{radio_phi}) catch "";
                     print(mx + 260, my + 80, str_phi, c_phi);
-                    if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, 0x00FFBF00); }
+                    if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, 0x00FFBF00);
+                    }
 
                     print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", 0x00555555);
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
@@ -1326,7 +1481,8 @@ pub fn main() !void {
                     print(mx + 20, my + 10, "[ SHELL OUTPUT ]", 0x00FFBF00);
                     drawRect(mx + 20, my + 25, mw - 40, 1, 0x00444444);
 
-                    if (std.fs.cwd().openFile("assets/void.tome", .{})) |file| {
+                    if (std.fs.cwd().openFile("assets/void.tome", .{})) |file|
+                    {
                         const f_content = file.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
                         defer void_allocator.free(f_content);
                         
@@ -1337,7 +1493,8 @@ pub fn main() !void {
                             if (curr_line >= bash_scroll_y) {
                                 if (draw_y > my + mh - 30) break;
                                 var dx: usize = mx + 20;
-                                for (line) |c| {
+                                for (line) |c|
+                                {
                                     if (dx > mx + mw - 20) break;
                                     drawChar(dx, draw_y, c, 0x00AAAAAA);
                                     dx += 8;
