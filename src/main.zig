@@ -43,7 +43,7 @@ var pulse_timer: usize = 0;
 const PULSE_MAX: usize = 120;
 
 //^::SEEDED AUD.IO STATE<<dev:archx m_txr.Gem3P>>\.
-const djinn = @import("../assets/aud.io/djinn.zig");
+const djinn = @import("djinn");
 pub const @"aud.stateT.io" = struct {
 	is_active: bool = false,
 	is_paused: bool = false,
