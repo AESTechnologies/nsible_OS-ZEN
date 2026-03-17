@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Fixed const-pointer mismatch and argument counts in appendAudQueue per visual traces. Corrected bootSplash scope error.",
+//   changes: "Restored 2nd argument to openDirAbsolute. Fixed bootSplash buffer reference.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -59,8 +59,8 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     const cwd = std.fs.cwd();
     var is_dir = false;
     
-    // [!] Fixed: Removed illegal 2nd arg. Captured as var to satisfy mutable *Dir requirement.
-    if (std.fs.openDirAbsolute(target_path)) |d| {
+    // [!] Fixed: Added required 2nd argument per SCAN_...374.pdf
+    if (std.fs.openDirAbsolute(target_path, .{})) |d| {
         var mutable_d = d;
         is_dir = true;
         mutable_d.close();
@@ -76,13 +76,11 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     q_file.seekFromEnd(0) catch {};
 
     if (is_dir) {
-        // [!] Fixed: Use cwd.openDir to support .iterate on absolute paths in 0.15.2.
-        var dir = cwd.openDir(target_path, .{ .iterate = true }) catch return;
-        defer {
-            var mutable_dir = dir;
-            mutable_dir.close();
-        }
-        var it = dir.iterate();
+        // [!] Fixed: Standardized to openDirAbsolute with required 2 args and mutable capture
+        var dir = std.fs.openDirAbsolute(target_path, .{ .iterate = true }) catch return;
+        var mutable_dir = dir;
+        defer mutable_dir.close();
+        var it = mutable_dir.iterate();
         while (it.next() catch null) |entry|
         {
             if (entry.kind == .file and (std.mem.endsWith(u8, entry.name, ".mp3") or std.mem.endsWith(u8, entry.name, ".wav"))) {
@@ -472,7 +470,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     if (std.fs.cwd().createFile(".birdsong.sik", .{})) |sik_file|
     {
         var res_buf: [16]u8 = undefined;
-        // [!] Fixed: res_buf scoping typo from reference main.zig (23).txt
+        // [!] Fixed: res_buf referencing correct local array instead of hallucinated 'id_buf'
         const res_str = std.fmt.bufPrint(&res_buf, "{x:0>16}", .{avium_resonance}) catch "0000000000000000";
         sik_file.writeAll(res_str) catch {};
         sik_file.close();
