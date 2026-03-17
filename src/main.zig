@@ -56,15 +56,15 @@ pub const @"aud.stateT.io" = struct {
 var @"aud.state.io":@"aud.stateT.io" = .{}; //:X
 
 fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
-    const fs = std.fs.cwd();
+    const cwd = std.fs.cwd();
     var is_dir = false;
-    if (fs.openDirAbsolute(target_path, .{})) |*d| {
+    if (std.fs.openDirAbsolute(target_path, .{})) |*d| {
         is_dir = true;
         d.close();
     } else |_| {}
 
-    var q_file = fs.openFile("assets/aud.io/queue.nsb", .{ .mode = .read_write }) catch |err| switch (err) {
-        error.FileNotFound => fs.createFile("assets/aud.io/queue.nsb", .{ .read = true }) catch return,
+    var q_file = cwd.openFile("assets/aud.io/queue.nsb", .{ .mode = .read_write }) catch |err| switch (err) {
+        error.FileNotFound => cwd.createFile("assets/aud.io/queue.nsb", .{ .read = true }) catch return,
         else => return,
     };
     defer q_file.close();
@@ -72,7 +72,7 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     q_file.seekFromEnd(0) catch {};
 
     if (is_dir) {
-        var dir = fs.openDirAbsolute(target_path, .{ .iterate = true }) catch return;
+        var dir = std.fs.openDirAbsolute(target_path, .{ .iterate = true }) catch return;
         defer dir.close();
         var it = dir.iterate();
         while (it.next() catch null) |entry| {
