@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Corrected mutation and writer argument errors per SCAN_...550.pdf. Fixed bootSplash buffer mismatch.",
+//   changes: "Fixed File I/O argument mismatch. Restored original bootSplash logic. Cleaned GZL headers.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -74,8 +74,8 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     
     q_file.seekFromEnd(0) catch {};
 
+    var write_buf: [1024]u8 = undefined;
     if (is_dir) {
-        // [!] Fixed: Changed to 'const' to resolve mutation error per SCAN_...550.pdf
         const dir = std.fs.openDirAbsolute(target_path, .{ .iterate = true }) catch return;
         var mutable_dir = dir;
         defer mutable_dir.close();
@@ -85,15 +85,13 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
             if (entry.kind == .file and (std.mem.endsWith(u8, entry.name, ".mp3") or std.mem.endsWith(u8, entry.name, ".wav"))) {
                 const full = std.fs.path.join(allocator, &[_][]const u8{ target_path, entry.name }) catch continue;
                 defer allocator.free(full);
-                // [!] Fixed: Provided required buffer to writer() per SCAN_...550.pdf
-                var write_buf: [1024]u8 = undefined;
-                q_file.writer(&write_buf).print("{s}\n", .{full}) catch {};
+                const line = std.fmt.bufPrint(&write_buf, "{s}\n", .{full}) catch continue;
+                _ = q_file.write(line) catch {};
             }
         }
     } else {
-        // [!] Fixed: Provided required buffer to writer() per SCAN_...550.pdf
-        var write_buf: [1024]u8 = undefined;
-        q_file.writer(&write_buf).print("{s}\n", .{target_path}) catch {};
+        const line = std.fmt.bufPrint(&write_buf, "{s}\n", .{target_path}) catch return;
+        _ = q_file.write(line) catch {};
     }
 }
 
@@ -473,7 +471,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     if (std.fs.cwd().createFile(".birdsong.sik", .{})) |sik_file|
     {
         var res_buf: [16]u8 = undefined;
-        // [!] Fixed: Aligned correct local buffer to res_buf
         const res_str = std.fmt.bufPrint(&res_buf, "{x:0>16}", .{avium_resonance}) catch "0000000000000000";
         sik_file.writeAll(res_str) catch {};
         sik_file.close();
