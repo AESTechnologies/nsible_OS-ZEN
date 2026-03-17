@@ -42,6 +42,19 @@ var radio_sel: u8 = 0;
 var pulse_timer: usize = 0; 
 const PULSE_MAX: usize = 120;
 
+//^::SEEDED AUD.IO STATE<<dev:archx m_txr.Gem3P>>\.
+const djinn = @import("../assets/aud.io/djinn.zig");
+pub const @"aud.state.io" = struct {
+	is_active: bool = false,
+	is_paused: bool = false,
+	skip_request: bool = false,
+	vol_level: f32 = 0.6,
+	track_name: [64]u8 = .{0} ** 64,
+	track_name_len: usize = 0,
+	vis_data: [32]f32 = {0.0} ** 32,
+};
+var @"aud.state.io":@"aud.state.io" = .{}; //:X
+
 fn loadResonance() void {
     if (std.fs.cwd().openFile("timeline/resonance.cfg", .{})) |file|
     {
@@ -133,6 +146,36 @@ fn drawHeader(is_high: bool) void {
     const active_host = if (sys_host_id_len > 0) sys_host_id[0..sys_host_id_len] else "mchn:anon";
     const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, active_host}) catch "HEADER_ERR";
     print(10, 6, header, 0x00FFFFFF);
+
+//^::INVERSE HEADER VFX<<dev:archx m_txr.Gem3P>>\.
+if (@"aud.state.io".is_active) {
+	const aud_w= 400;
+	const aud_x = WIDTH - aud_w - 30;
+	drawRect(aud_x, aud_w, 20, 0x00000000);
+
+	const num_bands = 32;
+	const band_w = 3;
+	const band_space = 4;
+	var bx = aud_x + 10;
+	for (0..num_bands) |i| {
+		const h = @as(usize, @intFromFloat(@"aud.state.io".vis_data[i] * 18.0));
+		if (h > 0) {
+			const py = 20 - h;
+			drawRect(bx, py, band_w, h, 0x00DC143C);
+		}
+		bx += band_space;
+	}
+
+	const t_name= @"aud.state.io".track_name[0..@"aud.state.io".track_name_len];
+	var display_name = t_name;
+	if (t_name.len . 28) display_name = t_name[0..28];
+	print(aud_x +150, 6, display_name, 0x00DC143C);
+
+	const status_glyph: u8 = if (@"aud.state.io".is_paused) 0x1A else 0x10;
+	const status_color: u32 = if (@"aud.state.io".is_paused) 0x00555555 else 0x00DC143C;
+	drawChar(aud_x + aud_w - 20, 6, status_glyph, status_color);
+} //:X
+
     const glyph: u8 = if (is_high) 127 else 128;
     drawChar(994, 6, glyph, 0x00FFFFFF);
 }
@@ -705,7 +748,20 @@ pub fn main() !void {
             seq_buf[5] = byte;
 
             var reflex_triggered = false;
-            if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { 
+			//^::@OS GZL-X<<dev:archx m_txr.Gem3P>>\.
+			if (std.mem.eql(u8, &seq_buf, ".!..-.")) {
+				const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
+				_ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
+				_ = std.process.Child.run(.{ .allocator = void_allocator, .argv = &[_] []const u8{ "shutdown", "now" } }) catch {};
+				std.process.exit(0);
+			}
+			else if (std.mem.eql(u8, &seq_buf, ".!./-.")) {
+				const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
+				_ = linux.syscall3(.write, 1, @intFromPtr(ter_reset), term_reset.len);
+				_ = std.process.Child.run(.{ .allocator = void_allocator, argv = &[_] {}const u8{ "reboot" } }) catch {};
+				std.process.exit(0);
+			} //:X
+            else if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { 
                 if (sys_composer.active) {
                     sys_composer.undo_reflex(5);
                     if (sys_composer.dirty) {
@@ -943,19 +999,30 @@ pub fn main() !void {
                     const raw_cmd = journal[0..journal_len];
                     const cmd_slice = std.mem.trim(u8, raw_cmd, " ");
                     
-                    if (std.mem.endsWith(u8, cmd_slice, "aud.io")) {
-                        const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
-                        _ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
-                        
-                        var agent = std.process.Child.init(&[_][]const u8{"./assets/aud.io/d_angel"}, void_allocator);
-                        agent.stdin_behavior = .Inherit;
-                        agent.stdout_behavior = .Inherit;
-                        agent.stderr_behavior = .Inherit;
-                        _ = agent.spawn() catch {};
-                        _ = agent.wait() catch {};
-                        
-                        const term_hide = "\x1b[?25l";
-                        _ = linux.syscall3(.write, 1, @intFromPtr(term_hide), term_hide.len);
+					//^:: AUD.IO DJINN LAMP<<dev:archx m_txr.Gem3P>>\.
+                    if (std.mem.startsWith(u8, cmd_slice, "@://aud/")) {
+                        const aud_cmd = cmd_slice[8..];
+						if (std.mem.eql(u8, aud_cmd, "play")) {
+							if (!@"aud.state.io".is_active) {
+								@"aud.state.io".is_active = true;
+								@"aud.state.io".is_paused = false;
+								const djinn_thread = std.Thread.spawn(.{}, djinn.invoke, .{&@"aud.state.io"}) catch null;
+								if (djinn_thread) |t| t.detach();
+							} else {
+								@"aud.state.io".is_paused = false;
+							}
+						} else if (std.mem.eql(u8, aud_cmd, "pause")) {
+							@"aud.state.io".is_paused = true;
+						} else if (std.mem.eql(u8, aud_cmd, "stop")) {
+							@"aud.state.io".is_active = false;
+							@"aud.state.io".is_paused = false;
+						} else if (std.mem.eql(u8, aud_cmd, "skip")) {
+							@"aud.state.io".skip_request = true;
+						} else if (std.mem.startsWith(u8, aud_cmd, "vol/")) {
+							const v_str = aud_cmd[4..];
+							const v_int = std.fmt.parseInt(usize, v_str, 10) catch 60;
+							@"aud.state.io".vol_level = @as(f32, @floatFromInt(v_int)) / 100.0;
+						} //:X
                         
                         journal_len = 0;
                         dirty = true;
