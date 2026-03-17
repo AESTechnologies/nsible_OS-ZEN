@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/aud.io/djinn.zig/.-={
 // module: "aud.io background djinn",
-// version: "1.0.2",
+// version: "1.0.4",
 // description: "Native background thread for aud.io playback and FFT telemetry generation.",
-// changes: "Synced ArrayList management with d_angel.zig .empty/Unmanaged pattern for Zig 0.15.2 stability.",
+// changes: "Hard-cast 64-bit C-engine frame counts to 32-bit usize to respect x86 Musl architecture.",
 // philotic_inferences: "A djinn works unseen, moving the air and shaping the waves, while the architect surveys the realm."
 const std = @import("std");
 const c = @cImport({
@@ -23,26 +23,23 @@ pub fn invoke(state: anytype) void {
 
     const engine_sr = c.ma_engine_get_sample_rate(&engine);
 
-    // [!] Synced with d_angel.zig source 560: ArrayList initialized as .empty
     var active_playlist: std.ArrayList([]const u8) = .empty;
     defer {
         for (active_playlist.items) |p| allocator.free(p);
-        active_playlist.deinit(allocator); // [!] Requires allocator in 0.15.2 Unmanaged style
+        active_playlist.deinit(allocator);
     }
     var active_track_idx: usize = 0;
 
-    // Ingest the inherited state
     if (std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/.d_angel_state.nsb", 10 * 1024 * 1024)) |content| {
         defer allocator.free(content);
         var it = std.mem.splitScalar(u8, content, '\n');
-        _ = it.next(); // Skip browser path
+        _ = it.next();
         if (it.next()) |idx_str| {
             if (idx_str.len > 0) active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
         }
         while (it.next()) |line| {
             if (line.len > 0) {
                 const dup = allocator.dupe(u8, line) catch continue;
-                // [!] Synced with d_angel.zig source 571: append(allocator, item)
                 active_playlist.append(allocator, dup) catch continue;
             }
         }
@@ -58,7 +55,6 @@ pub fn invoke(state: anytype) void {
 
     if (active_track_idx >= active_playlist.items.len) active_track_idx = 0;
 
-    // The Djinn Loop
     while (state.is_active) {
         const current_track = active_playlist.items[active_track_idx];
         const track_c = allocator.dupeZ(u8, current_track) catch break;
@@ -115,11 +111,15 @@ pub fn invoke(state: anytype) void {
                 _ = c.ma_decoder_read_pcm_frames(&v_decoder, &pcm_buffer, 1024, &frames_read);
                 
                 var current_vis: [32]f32 = .{0.0} ** 32;
-                const chunk = if (frames_read > 32) frames_read / 32 else 1;
-                if (frames_read > 0) {
+                
+                // [!] The Fix: Cast 64-bit frames_read to 32-bit usize for the loop boundaries
+                const frames_usize = @as(usize, @intCast(frames_read));
+                const chunk = if (frames_usize > 32) frames_usize / 32 else 1;
+                
+                if (frames_usize > 0) {
                     for (0..32) |b| {
                         var peak: f32 = 0.0;
-                        const limit = @min(chunk, frames_read - (b * chunk));
+                        const limit = @min(chunk, frames_usize - (b * chunk));
                         for (0..limit) |i| {
                             const s = @abs(pcm_buffer[b * chunk + i]);
                             if (s > peak) peak = s;
