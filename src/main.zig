@@ -151,7 +151,7 @@ fn drawHeader(is_high: bool) void {
 if (@"aud.state.io".is_active) {
 	const aud_w= 400;
 	const aud_x = WIDTH - aud_w - 30;
-	drawRect(aud_x, aud_w, 20, 0x00000000);
+	drawRect(aud_x, 0, aud_w, 20, 0x00000000);
 
 	const num_bands = 32;
 	const band_w = 3;
