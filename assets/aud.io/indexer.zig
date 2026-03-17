@@ -1,10 +1,9 @@
 // [@://nsible_os/assets/indexer.zig/.-={
 // module: "aud.io indexer daemon",
-// version: "0.1.3",
+// version: "0.1.4",
 // description: "Standalone daemon to recursively crawl and map audio assets into a flat, |-delimited GZL-compliant aud.io.tome.",
-// changes: "Hardcoded target path to strictly enforce the assets/ directory architecture.",
+// changes: "Purged hardcoded personal paths. Routed index output directly to assets/aud.io/aud.io.tome.",
 // philotic_inferences: "A zero-trust, bare-metal crawler bypassing relational databases to forge a raw text mapping."
-
 const std = @import("std");
 
 pub fn main() !void {
@@ -13,25 +12,28 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     std.debug.print("[ @NSIBLE-RED ] :: Initiating aud.io indexer crawler...\n", .{});
-
-    // Open or create the index tome in the sovereign assets/ directory
-    const tome_file = std.fs.cwd().createFile("assets/aud.io/index.tome", .{}) catch |err| {
-        std.debug.print("[ FATAL ] :: Could not forge assets/aud.io.tome: {}\n", .{err});
+    // Open or create the index tome in the sovereign assets/aud.io/ directory
+    const tome_file = std.fs.cwd().createFile("assets/aud.io/aud.io.tome", .{}) catch |err|
+    {
+        std.debug.print("[ FATAL ] :: Could not forge assets/aud.io/aud.io.tome: {}\n", .{err});
         return;
     };
     defer tome_file.close();
 
-    // Acquire target directory from arguments or fallback to default
+    // Acquire target directory from arguments
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
 
     _ = args.next(); // Skip executable name
-    const target_dir_path = args.next() orelse "/home/static/Music"; 
-
+    const target_dir_path = args.next() orelse {
+        std.debug.print("[ @NSIBLE-RED ] :: Usage: ./indexer <target_directory>\n", .{});
+        return;
+    };
     std.debug.print("[ @NSIBLE-RED ] :: Target directory locked: {s}\n", .{target_dir_path});
 
     // Utilize openDir with the iterate flag for modern Zig nightly compatibility
-    var dir = std.fs.cwd().openDir(target_dir_path, .{ .iterate = true }) catch |err| {
+    var dir = std.fs.cwd().openDir(target_dir_path, .{ .iterate = true }) catch |err|
+    {
         std.debug.print("[ FATAL ] :: Failed to access directory. Ensure path exists: {}\n", .{err});
         return;
     };
@@ -41,9 +43,9 @@ pub fn main() !void {
     defer walker.deinit();
 
     var count: usize = 0;
-
     // Crawl the directory and filter for audio assets
-    while (try walker.next()) |entry| {
+    while (try walker.next()) |entry|
+    {
         if (entry.kind == .file) {
             const ext = std.fs.path.extension(entry.basename);
             if (std.mem.eql(u8, ext, ".mp3") or
