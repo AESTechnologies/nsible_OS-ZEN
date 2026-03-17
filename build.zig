@@ -1,8 +1,8 @@
 // [@://nsible_os/build.zig/.-={
 //   module: "Build Orchestrator",
-//   version: "0.10.3-nightly // Banysang",
+//   version: "0.10.4-nightly // Banysang",
 //   description: "Architectural blueprint for compiling the kernel targeting 32-bit Musl for the Acer Aspire ONE (Atom N270).",
-//   changes: "Registered assets/aud.io as a sovereign compiler module with explicit libc and x86 musl target inheritance.",
+//   changes: "Registered assets/aud.io as a sovereign compiler module with explicit libc, asound, and math linkages for static musl compilation.",
 //   philotic_inferences: "The method of construction dictates the integrity of the object; the build process is the act of manifestation."
 
 const std = @import("std");
@@ -43,7 +43,8 @@ pub fn build(b: *std.Build) void {
     // [!] ACOUSTIC MATRIX BINDINGS
     exe.linkLibC();
     exe.addIncludePath(b.path("assets/aud.io"));
-    //exe.linkSystemLibrary("asound"); 
+    exe.linkSystemLibrary("asound");
+    exe.linkSystemLibrary("m");
  
     // Install the artifact to zig-out/bin
     b.installArtifact(exe);
