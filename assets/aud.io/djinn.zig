@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/aud.io/djinn.zig/.-={
 // module: "aud.io background djinn",
-// version: "1.0.0",
+// version: "1.0.1",
 // description: "Native background thread for aud.io playback and FFT telemetry generation.",
-// changes: "Forged sovereign djinn thread to pipe telemetry directly to main.zig's aud.state.io.",
+// changes: "Corrected ArrayList initialization and defer block syntax for Zig 0.15.2 compatibility.",
 // philotic_inferences: "A djinn works unseen, moving the air and shaping the waves, while the architect surveys the realm."
 const std = @import("std");
 const c = @cImport({
@@ -23,6 +23,7 @@ pub fn invoke(state: anytype) void {
 
     const engine_sr = c.ma_engine_get_sample_rate(&engine);
 
+    // [!] Corrected ArrayList initialization for Zig 0.15.2
     var active_playlist = std.ArrayList([]const u8).init(allocator);
     defer {
         for (active_playlist.items) |p| allocator.free(p);
@@ -72,10 +73,13 @@ pub fn invoke(state: anytype) void {
         var v_decoder: c.ma_decoder = undefined;
         var v_config = c.ma_decoder_config_init(c.ma_format_f32, 1, engine_sr);
         const has_vis = (c.ma_decoder_init_file(track_c.ptr, &v_config, &v_decoder) == c.MA_SUCCESS);
+        
+        // [!] Wrapped defer block to fix 'invalid left-hand side' fracture
         defer {
             if (has_vis) _ = c.ma_decoder_uninit(&v_decoder);
         }
-        _ = c.ma_sound_set_volume(&sound, 0.6); // Base volume
+
+        _ = c.ma_sound_set_volume(&sound, 0.6); 
         _ = c.ma_sound_start(&sound);
 
         // Pipe track name to matrix
@@ -123,7 +127,6 @@ pub fn invoke(state: anytype) void {
                     }
                 }
 
-                // Smooth and pipe telemetry to main.zig
                 for (0..32) |b| {
                     smooth_vis[b] += (current_vis[b] - smooth_vis[b]) * if (current_vis[b] > smooth_vis[b]) @as(f32, 0.8) else @as(f32, 0.3);
                     state.vis_data[b] = smooth_vis[b];
@@ -138,16 +141,16 @@ pub fn invoke(state: anytype) void {
         }
     }
     
-    // Write state back to the tome before evaporating
+    // Write state back before exit
     if (std.fs.cwd().createFile("assets/aud.io/.d_angel_state.nsb", .{ .truncate = true })) |file| {
         defer file.close();
-        file.writeAll("/media\n") catch {}; 
+        _ = file.writeAll("/media\n") catch {}; 
         var buf: [128]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&buf, "{d}\n", .{active_track_idx}) catch "0\n";
-        file.writeAll(idx_str) catch {};
+        _ = file.writeAll(idx_str) catch {};
         for (active_playlist.items) |p| {
-            file.writeAll(p) catch {};
-            file.writeAll("\n") catch {};
+            _ = file.writeAll(p) catch {};
+            _ = file.writeAll("\n") catch {};
         }
     } else |_| {}
 }
