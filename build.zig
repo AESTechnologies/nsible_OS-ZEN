@@ -2,7 +2,7 @@
 //   module: "Build Orchestrator",
 //   version: "0.10.3-nightly // Banysang",
 //   description: "Architectural blueprint for compiling the kernel targeting 32-bit Musl for the Acer Aspire ONE (Atom N270).",
-//   changes: "Registered assets/aud.io as a sovereign compiler module to bypass strict path boundary restrictions.",
+//   changes: "Registered assets/aud.io as a sovereign compiler module with explicit libc and x86 musl target inheritance.",
 //   philotic_inferences: "The method of construction dictates the integrity of the object; the build process is the act of manifestation."
 
 const std = @import("std");
@@ -30,15 +30,20 @@ pub fn build(b: *std.Build) void {
     });
 
     // [!] SOVEREIGN MODULE REGISTRY
+    // The djinn module MUST explicitly inherit the target, optimization, and link_libc
     const djinn_mod = b.createModule(.{
         .root_source_file = b.path("assets/aud.io/djinn.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
     });
+    djinn_mod.addIncludePath(b.path("assets/aud.io"));
     exe.root_module.addImport("djinn", djinn_mod);
 
     // [!] ACOUSTIC MATRIX BINDINGS
-    // Must be sequential, outside the struct literal.
-    //exe.linkLibC();
-    //exe.linkSystemLibrary("asound");
+    exe.linkLibC();
+    exe.addIncludePath(b.path("assets/aud.io"));
+    //exe.linkSystemLibrary("asound"); 
  
     // Install the artifact to zig-out/bin
     b.installArtifact(exe);
