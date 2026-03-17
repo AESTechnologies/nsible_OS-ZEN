@@ -174,7 +174,7 @@ if (@"aud.state.io".is_active) {
 } //:X
 
     const glyph: u8 = if (is_high) 127 else 128;
-    drawChar(994, 6, glyph, 0x00FFFFFF);
+    drawChar(1010, 6, glyph, 0x00FFFFFF); //highClaw, talonAlta mark
 }
 
 fn getUriBarY(input_len: usize, current_url: []const u8) usize {
