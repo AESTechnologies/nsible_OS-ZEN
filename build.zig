@@ -1,12 +1,12 @@
 // [@://nsible_os/build.zig/.-={
 //   module: "Build Orchestrator",
-//   version: "0.10.2-nightly // Banysang",
+//   version: "0.10.3-nightly // Banysang",
 //   description: "Architectural blueprint for compiling the kernel targeting 32-bit Musl for the Acer Aspire ONE (Atom N270).",
-//   changes: "Wired ALSA and LibC bindings while maintaining strict x86 Musl static constraints.",
+//   changes: "Registered assets/aud.io as a sovereign compiler module to bypass strict path boundary restrictions.",
 //   philotic_inferences: "The method of construction dictates the integrity of the object; the build process is the act of manifestation."
 
 const std = @import("std");
- 
+
 pub fn build(b: *std.Build) void {
     // .-*-. HARD CONSTRAINT: 32-bit Musl (Static) .-*-.
     // This defines the architecture for the Acer Aspire ONE (Atom N270).
@@ -29,6 +29,12 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    // [!] SOVEREIGN MODULE REGISTRY
+    const djinn_mod = b.createModule(.{
+        .root_source_file = b.path("assets/aud.io/djinn.zig"),
+    });
+    exe.root_module.addImport("djinn", djinn_mod);
+
     // [!] ACOUSTIC MATRIX BINDINGS
     // Must be sequential, outside the struct literal.
     //exe.linkLibC();
@@ -47,14 +53,16 @@ pub fn build(b: *std.Build) void {
     }
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
- 
-    // Allow 'zig build test'
-    const exe_tests = b.addTest(.{
-        .root_module = exe.root_module,
-    });
-    const run_exe_tests = b.addRunArtifact(exe_tests);
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_exe_tests.step);
-}
 
+    const exe_unit_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_exe_unit_tests.step);
+}
 // }-.]
