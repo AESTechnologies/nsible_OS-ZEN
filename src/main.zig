@@ -44,7 +44,7 @@ const PULSE_MAX: usize = 120;
 
 //^::SEEDED AUD.IO STATE<<dev:archx m_txr.Gem3P>>\.
 const djinn = @import("../assets/aud.io/djinn.zig");
-pub const @"aud.state.io" = struct {
+pub const @"aud.stateT.io" = struct {
 	is_active: bool = false,
 	is_paused: bool = false,
 	skip_request: bool = false,
@@ -53,7 +53,7 @@ pub const @"aud.state.io" = struct {
 	track_name_len: usize = 0,
 	vis_data: [32]f32 = .{0.0} ** 32,
 };
-var @"aud.state.io":@"aud.state.io" = .{}; //:X
+var @"aud.state.io":@"aud.stateT.io" = .{}; //:X
 
 fn loadResonance() void {
     if (std.fs.cwd().openFile("timeline/resonance.cfg", .{})) |file|
