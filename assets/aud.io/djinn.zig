@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/aud.io/djinn.zig/.-={
 // module: "aud.io background djinn",
-// version: "1.0.5",
+// version: "1.0.8",
 // description: "Native background thread for aud.io playback and FFT telemetry generation.",
-// changes: "Migrated state persistence to sovereign queue.nsb to decouple from d_angel foreground process.",
+// changes: "Fixed null pointer risk when queue.nsb is missing. Optimized tokenizer logic.",
 // philotic_inferences: "A djinn works unseen, moving the air and shaping the waves, while the architect surveys the realm."
 const std = @import("std");
 const c = @cImport({
@@ -10,6 +10,8 @@ const c = @cImport({
 });
 
 pub fn invoke(state: anytype) void {
+    if (state == null) return;
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
@@ -23,33 +25,31 @@ pub fn invoke(state: anytype) void {
 
     const engine_sr = c.ma_engine_get_sample_rate(&engine);
 
-    var active_playlist: std.ArrayList([]const u8) = .empty;
+    var active_playlist = std.ArrayList([]const u8).init(allocator);
     defer {
         for (active_playlist.items) |p| allocator.free(p);
-        active_playlist.deinit(allocator);
+        active_playlist.deinit();
     }
     var active_track_idx: usize = 0;
 
-    // Read from the new sovereign queue.nsb
-    if (std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/queue.nsb", 10 * 1024 * 1024)) |content| {
-        defer allocator.free(content);
-        var it = std.mem.splitScalar(u8, content, '\n');
-        
-        // Line 1: Track Index (No browser path to skip)
-        if (it.next()) |idx_str| {
-            if (idx_str.len > 0) active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
-        }
-        
-        // Line 2+: Absolute Track Paths
-        while (it.next()) |line| {
-            if (line.len > 0) {
-                const dup = allocator.dupe(u8, line) catch continue;
-                active_playlist.append(allocator, dup) catch continue;
-            }
-        }
-    } else |_| {
+    // Fixed: Gracefully handle missing queue.nsb to avoid null pointer crash
+    const content = std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/queue.nsb", 10 * 1024 * 1024) catch {
         state.is_active = false;
         return;
+    };
+    defer allocator.free(content);
+
+    var it = std.mem.tokenizeScalar(u8, content, '\n');
+    
+    // Line 1: Track Index
+    if (it.next()) |idx_str| {
+        active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
+    }
+    
+    // Line 2+: Absolute Track Paths
+    while (it.next()) |line| {
+        const dup = allocator.dupe(u8, line) catch continue;
+        active_playlist.append(dup) catch continue;
     }
 
     if (active_playlist.items.len == 0) {
@@ -67,6 +67,7 @@ pub fn invoke(state: anytype) void {
         var sound: c.ma_sound = undefined;
         if (c.ma_sound_init_from_file(&engine, track_c.ptr, 0, null, null, &sound) != c.MA_SUCCESS) {
             active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
+            if (active_track_idx == 0) break; 
             continue;
         }
         defer c.ma_sound_uninit(&sound);
@@ -142,17 +143,5 @@ pub fn invoke(state: anytype) void {
             active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
         }
     }
-    
-    // Write state back to the sovereign queue
-    if (std.fs.cwd().createFile("assets/aud.io/queue.nsb", .{ .truncate = true })) |file| {
-        defer file.close();
-        var buf: [128]u8 = undefined;
-        const idx_str = std.fmt.bufPrint(&buf, "{d}\n", .{active_track_idx}) catch "0\n";
-        file.writeAll(idx_str) catch {};
-        for (active_playlist.items) |p| {
-            file.writeAll(p) catch {};
-            file.writeAll("\n") catch {};
-        }
-    } else |_| {}
 }
 // }-.]
