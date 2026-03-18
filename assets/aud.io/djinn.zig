@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/aud.io/djinn.zig/.-={
 // module: "aud.io background djinn",
-// version: "1.0.8",
+// version: "1.0.9",
 // description: "Native background thread for aud.io playback and FFT telemetry generation.",
-// changes: "Implemented queue shuffle PRNG and track repeat logic.",
+// changes: "Fixed fatal ArrayListUnmanaged syntax and migrated to std.Random namespace.",
 // philotic_inferences: "A djinn works unseen, moving the air and shaping the waves, while the architect surveys the realm."
 const std = @import("std");
 const c = @cImport({
@@ -23,15 +23,15 @@ pub fn invoke(state: anytype) void {
 
     const engine_sr = c.ma_engine_get_sample_rate(&engine);
 
-    var active_playlist: std.ArrayList([]const u8) = .empty;
+    var active_playlist: std.ArrayListUnmanaged([]const u8) = .empty;
     defer {
         for (active_playlist.items) |p| allocator.free(p);
         active_playlist.deinit(allocator);
     }
     var active_track_idx: usize = 0;
 
-    // Initialize PRNG for Shuffle logic
-    var prng = std.rand.DefaultPrng.init(@as(u64, @intCast(std.time.milliTimestamp())));
+    // Initialize PRNG for Shuffle logic using safe bitCast for timestamp
+    var prng = std.Random.DefaultPrng.init(@as(u64, @bitCast(std.time.milliTimestamp())));
     const random = prng.random();
 
     // Load active index
