@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.26-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Resolved MELT pipe through to add/play directory or file links via .queue.nsb.",
+//   changes: "Fixed const pointer captures in appendAudQueue to satisfy .close() and .iterate().",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -60,9 +60,10 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     var is_dir = false;
     
     // cwd.openDir handles both absolute and relative paths reliably in 0.15.2
-    if (cwd.openDir(target_path, .{})) |*d| {
+    if (cwd.openDir(target_path, .{})) |d| {
+        var mutable_d = d;
         is_dir = true;
-        d.close();
+        mutable_d.close();
     } else |_| {}
 
     var q_file = cwd.openFile("assets/aud.io/.queue.nsb", .{ .mode = .read_write }) catch return;
@@ -71,9 +72,10 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     q_file.seekFromEnd(0) catch {};
 
     if (is_dir) {
-        if (cwd.openDir(target_path, .{ .iterate = true })) |*dir| {
-            defer dir.close();
-            var it = dir.iterate();
+        if (cwd.openDir(target_path, .{ .iterate = true })) |dir| {
+            var mutable_dir = dir;
+            defer mutable_dir.close();
+            var it = mutable_dir.iterate();
             while (it.next() catch null) |entry| {
                 if (entry.kind == .file and (std.mem.endsWith(u8, entry.name, ".mp3") or std.mem.endsWith(u8, entry.name, ".wav"))) {
                     const full = std.fs.path.join(allocator, &[_][]const u8{ target_path, entry.name }) catch continue;
