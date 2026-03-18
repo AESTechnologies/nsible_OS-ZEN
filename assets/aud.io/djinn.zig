@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/aud.io/djinn.zig/.-={
 // module: "aud.io background djinn",
-// version: "1.0.5",
+// version: "1.0.6",
 // description: "Native background thread for aud.io playback and FFT telemetry generation.",
-// changes: "Migrated state target to queue.nsb to ensure headless execution apart from d_angel UI.",
+// changes: "Migrated state target to hidden .queue.nsb.",
 // philotic_inferences: "A djinn works unseen, moving the air and shaping the waves, while the architect surveys the realm."
 const std = @import("std");
 const c = @cImport({
@@ -10,6 +10,8 @@ const c = @cImport({
 });
 
 pub fn invoke(state: anytype) void {
+    if (state == null) return;
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
@@ -30,23 +32,23 @@ pub fn invoke(state: anytype) void {
     }
     var active_track_idx: usize = 0;
 
-    if (std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/queue.nsb", 10 * 1024 * 1024)) |content| {
-        defer allocator.free(content);
-        var it = std.mem.splitScalar(u8, content, '\n');
-        
-        if (it.next()) |idx_str| {
-            if (idx_str.len > 0) active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
-        }
-        
-        while (it.next()) |line| {
-            if (line.len > 0) {
-                const dup = allocator.dupe(u8, line) catch continue;
-                active_playlist.append(allocator, dup) catch continue;
-            }
-        }
-    } else |_| {
+    const content = std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/.queue.nsb", 10 * 1024 * 1024) catch {
         state.is_active = false;
         return;
+    };
+    defer allocator.free(content);
+
+    var it = std.mem.splitScalar(u8, content, '\n');
+    
+    if (it.next()) |idx_str| {
+        if (idx_str.len > 0) active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
+    }
+    
+    while (it.next()) |line| {
+        if (line.len > 0) {
+            const dup = allocator.dupe(u8, line) catch continue;
+            active_playlist.append(allocator, dup) catch continue;
+        }
     }
 
     if (active_playlist.items.len == 0) {
@@ -64,6 +66,7 @@ pub fn invoke(state: anytype) void {
         var sound: c.ma_sound = undefined;
         if (c.ma_sound_init_from_file(&engine, track_c.ptr, 0, null, null, &sound) != c.MA_SUCCESS) {
             active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
+            if (active_track_idx == 0) break;
             continue;
         }
         defer c.ma_sound_uninit(&sound);
@@ -113,7 +116,6 @@ pub fn invoke(state: anytype) void {
                 
                 var current_vis: [32]f32 = .{0.0} ** 32;
                 
-                // [!] The Fix: Cast 64-bit frames_read to 32-bit usize for the loop boundaries
                 const frames_usize = @as(usize, @intCast(frames_read));
                 const chunk = if (frames_usize > 32) frames_usize / 32 else 1;
                 
@@ -142,7 +144,7 @@ pub fn invoke(state: anytype) void {
         }
     }
     
-    if (std.fs.cwd().createFile("assets/aud.io/queue.nsb", .{ .truncate = true })) |file| {
+    if (std.fs.cwd().createFile("assets/aud.io/.queue.nsb", .{ .truncate = true })) |file| {
         defer file.close();
         var buf: [128]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&buf, "{d}\n", .{active_track_idx}) catch "0\n";
