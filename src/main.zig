@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.26-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Fixed const pointer captures in appendAudQueue to satisfy .close() and .iterate(). Restored HighClaw mark to 1010px.",
+//   changes: "Added missing djinn state flags, new queue commands, and swapped aud.io UI layout.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -48,6 +48,10 @@ pub const @"aud.stateT.io" = struct {
 	is_active: bool = false,
 	is_paused: bool = false,
 	skip_request: bool = false,
+	reload_request: bool = false,
+	clr_request: bool = false,
+	rmv_request: bool = false,
+	back_request: bool = false,
 	vol_level: f32 = 0.6,
 	track_name: [64]u8 = .{0} ** 64,
 	track_name_len: usize = 0,
@@ -188,10 +192,15 @@ if (@"aud.state.io".is_active) {
 	const aud_x = WIDTH - aud_w - 30;
 	drawRect(aud_x, 0, aud_w, 20, 0x00000000);
 
+	const t_name= @"aud.state.io".track_name[0..@"aud.state.io".track_name_len];
+	var display_name = t_name;
+	if (t_name.len > 28) display_name = t_name[0..28];
+	print(aud_x + 10, 6, display_name, 0x00DC143C);
+
 	const num_bands = 32;
 	const band_w = 3;
 	const band_space = 4;
-	var bx = aud_x + 10;
+	var bx = aud_x + 150;
 	for (0..num_bands) |i| {
 		const h = @as(usize, @intFromFloat(@"aud.state.io".vis_data[i] * 18.0));
 		if (h > 0) {
@@ -201,10 +210,6 @@ if (@"aud.state.io".is_active) {
 		bx += band_space;
 	}
 
-	const t_name= @"aud.state.io".track_name[0..@"aud.state.io".track_name_len];
-	var display_name = t_name;
-	if (t_name.len > 28) display_name = t_name[0..28];
-	print(aud_x + 150, 6, display_name, 0x00DC143C);
 	const status_glyph: u8 = if (@"aud.state.io".is_paused) 0x1A else 0x10;
 	const status_color: u32 = if (@"aud.state.io".is_paused) 0x00555555 else 0x00DC143C;
 	drawChar(aud_x + aud_w - 20, 6, status_glyph, status_color);
@@ -1058,7 +1063,6 @@ pub fn main() !void {
 
                         if (aud_idx_prefix) |idx| {
                             sys_hunter.mutex.lock();
-                            // Strict bounds check to explicitly prevent panic on boot/empty-state
                             if (sys_hunter.history.items.len > 0 and idx < sys_hunter.lens.links.items.len) {
                                 if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
                                     resolved_alloc = res;
@@ -1070,7 +1074,6 @@ pub fn main() !void {
 
                         if (std.mem.eql(u8, aud_action, "play") or std.mem.eql(u8, aud_action, "add")) {
                             if (target_path) |tp| {
-                                // Strip the nsible protocol prefix for C compatibility
                                 var clean_path = tp;
                                 if (std.mem.startsWith(u8, clean_path, "@://mchn")) {
                                     clean_path = clean_path[8..];
@@ -1078,6 +1081,7 @@ pub fn main() !void {
                                     clean_path = clean_path[4..];
                                 }
                                 appendAudQueue(void_allocator, clean_path);
+                                @"aud.state.io".reload_request = true;
                             }
                             
                             if (std.mem.eql(u8, aud_action, "play")) {
@@ -1097,9 +1101,16 @@ pub fn main() !void {
                             @"aud.state.io".is_paused = false;
                         } else if (std.mem.eql(u8, aud_action, "skip")) {
                             @"aud.state.io".skip_request = true;
-                        } else if (std.mem.eql(u8, aud_action, "clear")) {
-                            if (std.fs.cwd().createFile("assets/aud.io/.queue.nsb", .{ .truncate = true })) |f| { f.close(); } else |_| {}
-                            @"aud.state.io".is_active = false;
+                        } else if (std.mem.eql(u8, aud_action, "back")) {
+                            @"aud.state.io".back_request = true;
+                        } else if (std.mem.eql(u8, aud_action, "rmv/current") or std.mem.eql(u8, aud_action, "rmv")) {
+                            @"aud.state.io".rmv_request = true;
+                        } else if (std.mem.eql(u8, aud_action, "clear") or std.mem.eql(u8, aud_action, "queue/clr")) {
+                            @"aud.state.io".clr_request = true;
+                            if (!@"aud.state.io".is_active) {
+                                if (std.fs.cwd().createFile("assets/aud.io/.queue.nsb", .{ .truncate = true })) |f| { f.close(); } else |_| {}
+                                if (std.fs.cwd().createFile("assets/aud.io/.queue_idx.nsb", .{ .truncate = true })) |f| { f.close(); } else |_| {}
+                            }
                         } else if (std.mem.eql(u8, aud_action, "queue")) {
                             if (std.fs.cwd().readFileAlloc(void_allocator, "assets/aud.io/.queue.nsb", 10 * 1024 * 1024)) |q_data| {
                                 defer void_allocator.free(q_data);
