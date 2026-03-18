@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/aud.io/djinn.zig/.-={
 // module: "aud.io background djinn",
-// version: "1.0.6",
+// version: "1.0.7",
 // description: "Native background thread for aud.io playback and FFT telemetry generation.",
-// changes: "Migrated state target to hidden .queue.nsb. Purged illegal null comparison.",
+// changes: "Decoupled queue.nsb from queue_idx.nsb to prevent memory overwrite bugs. Enabled live hot-reloading.",
 // philotic_inferences: "A djinn works unseen, moving the air and shaping the waves, while the architect surveys the realm."
 const std = @import("std");
 const c = @cImport({
@@ -30,23 +30,25 @@ pub fn invoke(state: anytype) void {
     }
     var active_track_idx: usize = 0;
 
-    const content = std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/.queue.nsb", 10 * 1024 * 1024) catch {
+    // Load active index
+    if (std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/.queue_idx.nsb", 1024)) |idx_content| {
+        active_track_idx = std.fmt.parseInt(usize, std.mem.trim(u8, idx_content, " \n\r"), 10) catch 0;
+        allocator.free(idx_content);
+    } else |_| {}
+
+    // Load playlist
+    if (std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/.queue.nsb", 10 * 1024 * 1024)) |content| {
+        defer allocator.free(content);
+        var it = std.mem.splitScalar(u8, content, '\n');
+        while (it.next()) |line| {
+            if (line.len > 0) {
+                const dup = allocator.dupe(u8, line) catch continue;
+                active_playlist.append(allocator, dup) catch continue;
+            }
+        }
+    } else |_| {
         state.is_active = false;
         return;
-    };
-    defer allocator.free(content);
-
-    var it = std.mem.splitScalar(u8, content, '\n');
-    
-    if (it.next()) |idx_str| {
-        if (idx_str.len > 0) active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
-    }
-    
-    while (it.next()) |line| {
-        if (line.len > 0) {
-            const dup = allocator.dupe(u8, line) catch continue;
-            active_playlist.append(allocator, dup) catch continue;
-        }
     }
 
     if (active_playlist.items.len == 0) {
@@ -57,6 +59,19 @@ pub fn invoke(state: anytype) void {
     if (active_track_idx >= active_playlist.items.len) active_track_idx = 0;
 
     while (state.is_active) {
+        if (active_playlist.items.len == 0) {
+            state.is_active = false;
+            break;
+        }
+
+        // Save active index at start of new track
+        if (std.fs.cwd().createFile("assets/aud.io/.queue_idx.nsb", .{ .truncate = true })) |file| {
+            var buf: [32]u8 = undefined;
+            const idx_str = std.fmt.bufPrint(&buf, "{d}\n", .{active_track_idx}) catch "0\n";
+            file.writeAll(idx_str) catch {};
+            file.close();
+        } else |_| {}
+
         const current_track = active_playlist.items[active_track_idx];
         const track_c = allocator.dupeZ(u8, current_track) catch break;
         defer allocator.free(track_c);
@@ -86,20 +101,86 @@ pub fn invoke(state: anytype) void {
         state.track_name_len = name_len;
 
         var smooth_vis: [32]f32 = .{0.0} ** 32;
+        var track_completed_naturally = true;
 
         while (c.ma_sound_at_end(&sound) == c.MA_FALSE and state.is_active) {
-            if (state.is_paused) {
-                _ = c.ma_sound_stop(&sound);
-                for (&smooth_vis) |*v| v.* = 0.0;
-                @memcpy(&state.vis_data, &smooth_vis);
-                while (state.is_paused and state.is_active) { std.Thread.sleep(100 * std.time.ns_per_ms); }
-                if (!state.is_active) break;
-                _ = c.ma_sound_start(&sound);
+            // Check Live Flags
+            if (state.reload_request) {
+                state.reload_request = false;
+                if (std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/.queue.nsb", 10 * 1024 * 1024)) |content| {
+                    for (active_playlist.items) |p| allocator.free(p);
+                    active_playlist.clearRetainingCapacity();
+                    var it = std.mem.splitScalar(u8, content, '\n');
+                    while (it.next()) |line| {
+                        if (line.len > 0) {
+                            if (allocator.dupe(u8, line)) |dup| {
+                                active_playlist.append(allocator, dup) catch {};
+                            } else |_| {}
+                        }
+                    }
+                    allocator.free(content);
+                } else |_| {}
+            }
+
+            if (state.clr_request) {
+                state.clr_request = false;
+                state.is_active = false;
+                if (std.fs.cwd().createFile("assets/aud.io/.queue.nsb", .{ .truncate = true })) |f| { f.close(); } else |_| {}
+                if (std.fs.cwd().createFile("assets/aud.io/.queue_idx.nsb", .{ .truncate = true })) |f| { f.close(); } else |_| {}
+                track_completed_naturally = false;
+                break;
+            }
+
+            if (state.rmv_request) {
+                state.rmv_request = false;
+                if (active_playlist.items.len > 0) {
+                    const removed = active_playlist.orderedRemove(active_track_idx);
+                    allocator.free(removed);
+                    if (std.fs.cwd().createFile("assets/aud.io/.queue.nsb", .{ .truncate = true })) |file| {
+                        for (active_playlist.items) |p| {
+                            file.writeAll(p) catch {};
+                            file.writeAll("\n") catch {};
+                        }
+                        file.close();
+                    } else |_| {}
+                }
+                
+                if (active_playlist.items.len == 0) {
+                    state.is_active = false;
+                } else if (active_track_idx >= active_playlist.items.len) {
+                    active_track_idx = 0;
+                }
+                track_completed_naturally = false;
+                break;
+            }
+
+            if (state.back_request) {
+                state.back_request = false;
+                if (active_track_idx > 0) {
+                    active_track_idx -= 1;
+                } else if (active_playlist.items.len > 0) {
+                    active_track_idx = active_playlist.items.len - 1;
+                }
+                track_completed_naturally = false;
+                break;
             }
 
             if (state.skip_request) {
                 state.skip_request = false;
+                active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
+                track_completed_naturally = false;
                 break;
+            }
+
+            if (state.is_paused) {
+                _ = c.ma_sound_stop(&sound);
+                for (&smooth_vis) |*v| v.* = 0.0;
+                @memcpy(&state.vis_data, &smooth_vis);
+                while (state.is_paused and state.is_active and !state.skip_request and !state.rmv_request and !state.back_request and !state.clr_request) { 
+                    std.Thread.sleep(100 * std.time.ns_per_ms); 
+                }
+                if (!state.is_active or state.skip_request or state.rmv_request or state.back_request or state.clr_request) continue;
+                _ = c.ma_sound_start(&sound);
             }
 
             _ = c.ma_sound_set_volume(&sound, state.vol_level);
@@ -137,20 +218,9 @@ pub fn invoke(state: anytype) void {
             std.Thread.sleep(30 * std.time.ns_per_ms);
         }
 
-        if (state.is_active) {
+        if (state.is_active and track_completed_naturally) {
             active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
         }
     }
-    
-    if (std.fs.cwd().createFile("assets/aud.io/.queue.nsb", .{ .truncate = true })) |file| {
-        defer file.close();
-        var buf: [128]u8 = undefined;
-        const idx_str = std.fmt.bufPrint(&buf, "{d}\n", .{active_track_idx}) catch "0\n";
-        file.writeAll(idx_str) catch {};
-        for (active_playlist.items) |p| {
-            file.writeAll(p) catch {};
-            file.writeAll("\n") catch {};
-        }
-    } else |_| {}
 }
 // }-.]
