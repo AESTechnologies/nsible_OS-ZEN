@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.26-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Fixed const pointer captures in appendAudQueue to satisfy .close() and .iterate().",
+//   changes: "Stripped matrix protocol prefixes for C engine compatibility. Restored HighClaw mark to 1010px.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -59,7 +59,6 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     const cwd = std.fs.cwd();
     var is_dir = false;
     
-    // cwd.openDir handles both absolute and relative paths reliably in 0.15.2
     if (cwd.openDir(target_path, .{})) |d| {
         var mutable_d = d;
         is_dir = true;
@@ -211,7 +210,8 @@ if (@"aud.state.io".is_active) {
 } //:X
 
     const glyph: u8 = if (is_high) 127 else 128;
-    drawChar(994, 6, glyph, 0x00FFFFFF);
+    // Fixed: HighClaw mark position restored to 1010
+    drawChar(1010, 6, glyph, 0x00FFFFFF);
 }
 
 fn getUriBarY(input_len: usize, current_url: []const u8) usize {
@@ -505,12 +505,8 @@ pub fn main() !void {
     fs.makeDir("timeline/mems") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("assets") catch |err|
     { if (err != error.PathAlreadyExists) {} };
-    
-    // Guarantee directory and hidden queue file exist before daemon or user invokes them
-    fs.makeDir("assets/aud.io") catch |err| { if (err != error.PathAlreadyExists) {} };
-    if (fs.access("assets/aud.io/.queue.nsb", .{})) |_| {} else |_| {
-        if (fs.createFile("assets/aud.io/.queue.nsb", .{})) |f| { f.close(); } else |_| {}
-    }
+    fs.makeDir("assets/aud.io") catch |err|
+    { if (err != error.PathAlreadyExists) {} };
 
     if (fs.access("aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("aiua.tome", .{})) |f|
     { f.close(); } else |_| {} }
@@ -1062,7 +1058,6 @@ pub fn main() !void {
 
                         if (aud_idx_prefix) |idx| {
                             sys_hunter.mutex.lock();
-                            // Strict bounds check to explicitly prevent panic on boot/empty-state
                             if (sys_hunter.history.items.len > 0 and idx < sys_hunter.lens.links.items.len) {
                                 if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
                                     resolved_alloc = res;
@@ -1074,7 +1069,14 @@ pub fn main() !void {
 
                         if (std.mem.eql(u8, aud_action, "play") or std.mem.eql(u8, aud_action, "add")) {
                             if (target_path) |tp| {
-                                appendAudQueue(void_allocator, tp);
+                                // Strip the nsible protocol prefix for C compatibility
+                                var clean_path = tp;
+                                if (std.mem.startsWith(u8, clean_path, "@://mchn")) {
+                                    clean_path = clean_path[8..];
+                                } else if (std.mem.startsWith(u8, clean_path, "@://")) {
+                                    clean_path = clean_path[4..];
+                                }
+                                appendAudQueue(void_allocator, clean_path);
                             }
                             
                             if (std.mem.eql(u8, aud_action, "play")) {
