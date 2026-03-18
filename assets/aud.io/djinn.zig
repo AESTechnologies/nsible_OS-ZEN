@@ -2,7 +2,7 @@
 // module: "aud.io background djinn",
 // version: "1.0.6",
 // description: "Native background thread for aud.io playback and FFT telemetry generation.",
-// changes: "Migrated state target to hidden .queue.nsb.",
+// changes: "Migrated state target to hidden .queue.nsb. Purged illegal null comparison.",
 // philotic_inferences: "A djinn works unseen, moving the air and shaping the waves, while the architect surveys the realm."
 const std = @import("std");
 const c = @cImport({
@@ -10,8 +10,6 @@ const c = @cImport({
 });
 
 pub fn invoke(state: anytype) void {
-    if (state == null) return;
-
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
