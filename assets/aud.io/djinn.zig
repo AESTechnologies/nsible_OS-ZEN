@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/aud.io/djinn.zig/.-={
 // module: "aud.io background djinn",
-// version: "1.0.4",
+// version: "1.0.5",
 // description: "Native background thread for aud.io playback and FFT telemetry generation.",
-// changes: "Hard-cast 64-bit C-engine frame counts to 32-bit usize to respect x86 Musl architecture.",
+// changes: "Migrated state target to queue.nsb to ensure headless execution apart from d_angel UI.",
 // philotic_inferences: "A djinn works unseen, moving the air and shaping the waves, while the architect surveys the realm."
 const std = @import("std");
 const c = @cImport({
@@ -30,13 +30,14 @@ pub fn invoke(state: anytype) void {
     }
     var active_track_idx: usize = 0;
 
-    if (std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/.d_angel_state.nsb", 10 * 1024 * 1024)) |content| {
+    if (std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/queue.nsb", 10 * 1024 * 1024)) |content| {
         defer allocator.free(content);
         var it = std.mem.splitScalar(u8, content, '\n');
-        _ = it.next();
+        
         if (it.next()) |idx_str| {
             if (idx_str.len > 0) active_track_idx = std.fmt.parseInt(usize, idx_str, 10) catch 0;
         }
+        
         while (it.next()) |line| {
             if (line.len > 0) {
                 const dup = allocator.dupe(u8, line) catch continue;
@@ -140,5 +141,16 @@ pub fn invoke(state: anytype) void {
             active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
         }
     }
+    
+    if (std.fs.cwd().createFile("assets/aud.io/queue.nsb", .{ .truncate = true })) |file| {
+        defer file.close();
+        var buf: [128]u8 = undefined;
+        const idx_str = std.fmt.bufPrint(&buf, "{d}\n", .{active_track_idx}) catch "0\n";
+        file.writeAll(idx_str) catch {};
+        for (active_playlist.items) |p| {
+            file.writeAll(p) catch {};
+            file.writeAll("\n") catch {};
+        }
+    } else |_| {}
 }
 // }-.]
