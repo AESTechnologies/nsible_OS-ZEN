@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.10.27-nightly // Banysang",
+//   version: "v0.11.0-CNQRR // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Fixed invisible repeat glyph, right-justified visualizer, added horizontal volume stack.",
+//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, and optimized glyph spacing.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -189,19 +189,19 @@ fn drawHeader(is_high: bool) void {
     print(10, 6, header, 0x00FFFFFF);
 //^::INVERSE HEADER VFX<<dev:archx m_txr.Gem3P>>\.
 if (@"aud.state.io".is_active) {
-	const aud_w= 400;
+	const aud_w = 480;
 	const aud_x = WIDTH - aud_w - 30;
 	drawRect(aud_x, 0, aud_w, 20, 0x00000000);
 
-	const t_name= @"aud.state.io".track_name[0..@"aud.state.io".track_name_len];
+	const t_name = @"aud.state.io".track_name[0..@"aud.state.io".track_name_len];
 	var display_name = t_name;
-	if (t_name.len > 14) display_name = t_name[0..14];
+	if (t_name.len > 28) display_name = t_name[0..28];
 	print(aud_x + 10, 6, display_name, 0x00DC143C);
 
 	const num_bands = 32;
 	const band_w = 3;
 	const band_space = 2; 
-	var bx = aud_x + 130;
+	var bx = aud_x + 245;
 	for (0..num_bands) |i| {
 		const h = @as(usize, @intFromFloat(@"aud.state.io".vis_data[i] * 18.0));
 		if (h > 0) {
@@ -216,9 +216,9 @@ if (@"aud.state.io".is_active) {
 	const status_glyph: u8 = if (@"aud.state.io".is_paused) 0x1A else 0x10;
 	const status_color: u32 = if (@"aud.state.io".is_paused) 0x00555555 else 0x00DC143C;
 	
-    drawChar(aud_x + 310, 6, 0x18, shf_color);
-    drawChar(aud_x + 330, 6, 0x1D, rpt_color); // Fixed: 0x1D is visible Left-Right arrow
-    drawChar(aud_x + 350, 6, status_glyph, status_color);
+    drawChar(aud_x + aud_w - 65, 6, 0x18, shf_color);
+    drawChar(aud_x + aud_w - 50, 6, 0x1D, rpt_color); 
+    drawChar(aud_x + aud_w - 35, 6, status_glyph, status_color);
     
     // Stacked Horizontal Volume Bands
     const vol_p = @"aud.state.io".vol_level * 100.0;
