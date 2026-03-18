@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.26-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Integrated MELT compound command interception for aud.io queue bridging.",
+//   changes: "Resolved MELT pipe through to add/play directory or file links via .queue.nsb.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -59,25 +59,21 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     const cwd = std.fs.cwd();
     var is_dir = false;
     
-    if (std.fs.openDirAbsolute(target_path, .{})) |d| {
-        var mutable_d = d;
+    // cwd.openDir handles both absolute and relative paths reliably in 0.15.2
+    if (cwd.openDir(target_path, .{})) |*d| {
         is_dir = true;
-        mutable_d.close();
+        d.close();
     } else |_| {}
 
-    var q_file = cwd.openFile("assets/aud.io/.queue.nsb", .{ .mode = .read_write }) catch |err| switch (err) {
-        error.FileNotFound => cwd.createFile("assets/aud.io/.queue.nsb", .{ .read = true }) catch return,
-        else => return,
-    };
+    var q_file = cwd.openFile("assets/aud.io/.queue.nsb", .{ .mode = .read_write }) catch return;
     defer q_file.close();
     
     q_file.seekFromEnd(0) catch {};
 
     if (is_dir) {
-        if (std.fs.openDirAbsolute(target_path, .{ .iterate = true })) |dir| {
-            var mutable_dir = dir;
-            defer mutable_dir.close();
-            var it = mutable_dir.iterate();
+        if (cwd.openDir(target_path, .{ .iterate = true })) |*dir| {
+            defer dir.close();
+            var it = dir.iterate();
             while (it.next() catch null) |entry| {
                 if (entry.kind == .file and (std.mem.endsWith(u8, entry.name, ".mp3") or std.mem.endsWith(u8, entry.name, ".wav"))) {
                     const full = std.fs.path.join(allocator, &[_][]const u8{ target_path, entry.name }) catch continue;
@@ -507,8 +503,12 @@ pub fn main() !void {
     fs.makeDir("timeline/mems") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("assets") catch |err|
     { if (err != error.PathAlreadyExists) {} };
-    fs.makeDir("assets/aud.io") catch |err|
-    { if (err != error.PathAlreadyExists) {} };
+    
+    // Guarantee directory and hidden queue file exist before daemon or user invokes them
+    fs.makeDir("assets/aud.io") catch |err| { if (err != error.PathAlreadyExists) {} };
+    if (fs.access("assets/aud.io/.queue.nsb", .{})) |_| {} else |_| {
+        if (fs.createFile("assets/aud.io/.queue.nsb", .{})) |f| { f.close(); } else |_| {}
+    }
 
     if (fs.access("aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("aiua.tome", .{})) |f|
     { f.close(); } else |_| {} }
@@ -1039,7 +1039,7 @@ pub fn main() !void {
                     const raw_cmd = journal[0..journal_len];
                     const cmd_slice = std.mem.trim(u8, raw_cmd, " ");
                     
-					//^:: AUD.IO DJINN LAMP & COMPOUND MELT INTERCEPTION<<dev:archx m_txr.Gem3P>>\.
+//^:: AUD.IO DJINN LAMP & COMPOUND MELT INTERCEPTION<<dev:archx m_txr.Gem3P>>\.
                     var aud_idx_prefix: ?usize = null;
                     var active_aud_cmd: []const u8 = cmd_slice;
 
@@ -1060,7 +1060,8 @@ pub fn main() !void {
 
                         if (aud_idx_prefix) |idx| {
                             sys_hunter.mutex.lock();
-                            if (idx < sys_hunter.lens.links.items.len) {
+                            // Strict bounds check to explicitly prevent panic on boot/empty-state
+                            if (sys_hunter.history.items.len > 0 and idx < sys_hunter.lens.links.items.len) {
                                 if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
                                     resolved_alloc = res;
                                     target_path = res;
@@ -1092,10 +1093,10 @@ pub fn main() !void {
                         } else if (std.mem.eql(u8, aud_action, "skip")) {
                             @"aud.state.io".skip_request = true;
                         } else if (std.mem.eql(u8, aud_action, "clear")) {
-                            if (std.fs.cwd().createFile("assets/aud.io/queue.nsb", .{ .truncate = true })) |f| { f.close(); } else |_| {}
+                            if (std.fs.cwd().createFile("assets/aud.io/.queue.nsb", .{ .truncate = true })) |f| { f.close(); } else |_| {}
                             @"aud.state.io".is_active = false;
                         } else if (std.mem.eql(u8, aud_action, "queue")) {
-                            if (std.fs.cwd().readFileAlloc(void_allocator, "assets/aud.io/queue.nsb", 10 * 1024 * 1024)) |q_data| {
+                            if (std.fs.cwd().readFileAlloc(void_allocator, "assets/aud.io/.queue.nsb", 10 * 1024 * 1024)) |q_data| {
                                 defer void_allocator.free(q_data);
                                 if (std.fs.cwd().createFile("assets/void.tome", .{ .truncate = true })) |f| {
                                     f.writeAll(q_data) catch {};
@@ -1111,7 +1112,7 @@ pub fn main() !void {
                         } 
                         
                         if (resolved_alloc) |res| {
-                            void_allocator.free(res);
+                            sys_hunter.allocator.free(res);
                         }
 
                         journal_len = 0;
