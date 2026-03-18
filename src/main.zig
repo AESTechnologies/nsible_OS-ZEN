@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Purged duplication at L61. Restored original bootSplash. Fixed openDirAbsolute/writer signatures.",
+//   changes: "Removed hardcoded UI prefix from aud/ invocation block.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -41,7 +41,6 @@ var radio_phi: f32 = 1.618;
 var radio_sel: u8 = 0; 
 var pulse_timer: usize = 0; 
 const PULSE_MAX: usize = 120;
-
 //^::SEEDED AUD.IO STATE<<dev:archx m_txr.Gem3P>>\.
 const djinn = @import("djinn");
 pub const @"aud.stateT.io" = struct {
@@ -54,48 +53,6 @@ pub const @"aud.stateT.io" = struct {
 	vis_data: [32]f32 = .{0.0} ** 32,
 };
 var @"aud.state.io":@"aud.stateT.io" = .{}; //:X
-
-fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
-    const cwd = std.fs.cwd();
-    var is_dir = false;
-    
-    // Fixed: Passing required 2nd arg per SCAN_...374.pdf
-    if (std.fs.openDirAbsolute(target_path, .{})) |d| {
-        var mutable_d = d;
-        is_dir = true;
-        mutable_d.close();
-    } else |_| {}
-
-    var q_file = cwd.openFile("assets/aud.io/queue.nsb", .{ .mode = .read_write }) catch |err|
-    switch (err) {
-        error.FileNotFound => cwd.createFile("assets/aud.io/queue.nsb", .{ .read = true }) catch return,
-        else => return,
-    };
-    defer q_file.close();
-    
-    q_file.seekFromEnd(0) catch {};
-
-    if (is_dir) {
-        // Fixed: Passing required 2nd arg per SCAN_...374.pdf
-        const dir = std.fs.openDirAbsolute(target_path, .{ .iterate = true }) catch return;
-        var mutable_dir = dir;
-        defer mutable_dir.close();
-        var it = mutable_dir.iterate();
-        while (it.next() catch null) |entry|
-        {
-            if (entry.kind == .file and (std.mem.endsWith(u8, entry.name, ".mp3") or std.mem.endsWith(u8, entry.name, ".wav"))) {
-                const full = std.fs.path.join(allocator, &[_][]const u8{ target_path, entry.name }) catch continue;
-                defer allocator.free(full);
-                // Bypassed problematic writer() API with version-agnostic writeAll
-                q_file.writeAll(full) catch {};
-                q_file.writeAll("\n") catch {};
-            }
-        }
-    } else {
-        q_file.writeAll(target_path) catch {};
-        q_file.writeAll("\n") catch {};
-    }
-}
 
 fn loadResonance() void {
     if (std.fs.cwd().openFile("timeline/resonance.cfg", .{})) |file|
@@ -217,7 +174,7 @@ if (@"aud.state.io".is_active) {
 } //:X
 
     const glyph: u8 = if (is_high) 127 else 128;
-    drawChar(994, 6, glyph, 0x00FFFFFF);
+    drawChar(1010, 6, glyph, 0x00FFFFFF); //highClaw, talonAlta mark
 }
 
 fn getUriBarY(input_len: usize, current_url: []const u8) usize {
@@ -473,7 +430,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     if (std.fs.cwd().createFile(".birdsong.sik", .{})) |sik_file|
     {
         var res_buf: [16]u8 = undefined;
-        // Corrected: Aligned to stable reference baseline.
         const res_str = std.fmt.bufPrint(&res_buf, "{x:0>16}", .{avium_resonance}) catch "0000000000000000";
         sik_file.writeAll(res_str) catch {};
         sik_file.close();
@@ -688,6 +644,7 @@ pub fn main() !void {
                         if (byte == 'A' or byte == 'B' or byte == 'C' or byte == 'D') {
                             if (sys_composer.active) {
                    
+ 
                              if (byte == 'A') { sys_composer.moveCursor(0, -1);
                                 }
                                 else if (byte == 'B') { sys_composer.moveCursor(0, 1);
@@ -699,6 +656,7 @@ pub fn main() !void {
                             } else if (is_radio_modal) {
                                 if (byte == 'D') {
                                 
+ 
                                     if (radio_sel == 0) { radio_f0 -= 5.0;
                                     }
                                     else if (radio_sel == 1) { radio_decay -= 0.1;
@@ -719,12 +677,15 @@ pub fn main() !void {
                                 }
                             } else if (is_bash_modal and !is_bash_pipe) {
                                 if (byte 
+ 
                                 == 'A') { if (bash_scroll_y > 0) bash_scroll_y -= 1;
                                 }
                                 else if (byte == 'B') { bash_scroll_y += 1;
                                 }
                             } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal and !is_bash_modal) {
-                                if (byte == 'A') { sys_hunter.scrollBy(-1);
+                         
+                                if 
+                                (byte == 'A') { sys_hunter.scrollBy(-1);
                                 }
                                 else if (byte == 'B') { sys_hunter.scrollBy(1);
                                 }
@@ -789,7 +750,7 @@ pub fn main() !void {
             seq_buf[5] = byte;
 
             var reflex_triggered = false;
-            //^::@OS GZL-X<<dev:archx m_txr.Gem3P>>\.
+//^::@OS GZL-X<<dev:archx m_txr.Gem3P>>\.
 			if (std.mem.eql(u8, &seq_buf, ".!..-.")) {
 				const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
 				_ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
@@ -822,7 +783,8 @@ pub fn main() !void {
 					is_bash_pipe = false;
 					journal_len = 0;
 					reflex_triggered = true;
-                } else if (is_calc_modal) { is_calc_modal = false; journal_len = 0; reflex_triggered = true;
+                } else if (is_calc_modal) { is_calc_modal = false; journal_len = 0;
+                reflex_triggered = true;
                 }
                 else if (is_radio_modal) { is_radio_modal = false;
                 saveResonance(); pulse_timer = PULSE_MAX; journal_len = 0; reflex_triggered = true;
@@ -941,6 +903,7 @@ pub fn main() !void {
                 if (byte == '\n' or byte == '\r') {
                     if (std.mem.eql(u8, journal[0..journal_len], "shed")) {
      
+ 
                          is_trail_modal = false;
                          journal_len = 0;
                     }
@@ -955,6 +918,7 @@ pub fn main() !void {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
       
+ 
                         sys_hunter.createMemo(journal[0..journal_len], pending_memo_content[0..pending_memo_len]) catch {};
                         is_memo_modal = false; journal_len = 0;
                     } else {
@@ -983,6 +947,7 @@ pub fn main() !void {
                 if (byte == '\n' or byte == '\r') {
                     if (calc_len > 0) {
                         
+ 
                         const expr = calc_input[0..calc_len];
                         const rcl = synapse.manageSynapseMemory(null);
                         const res = synapse.AST.evaluate(expr, rcl);
@@ -1006,6 +971,7 @@ pub fn main() !void {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
       
+ 
                         const dest = std.mem.trim(u8, journal[0..journal_len], " ");
                         if (std.fs.cwd().openFile("assets/void.tome", .{})) |src| {
                             if (std.fs.cwd().createFile(dest, .{})) |dst|
@@ -1041,97 +1007,35 @@ pub fn main() !void {
                     const raw_cmd = journal[0..journal_len];
                     const cmd_slice = std.mem.trim(u8, raw_cmd, " ");
                     
-					//^:: AUD.IO DJINN LAMP & COMPOUND MELT INTERCEPTION<<dev:archx m_txr.Gem3P>>\.
-                    var aud_idx_prefix: ?usize = null;
-                    var active_aud_cmd: []const u8 = cmd_slice;
-
-                    if (std.mem.indexOf(u8, cmd_slice, "/aud/")) |slash_idx|
-                    {
-                        const prefix = cmd_slice[0..slash_idx];
-                        var is_num = prefix.len > 0;
-                        for (prefix) |c| { if (c < '0' or c > '9') is_num = false;
-                        }
-                        if (is_num) {
-                            aud_idx_prefix = std.fmt.parseInt(usize, prefix, 10) catch null;
-                            active_aud_cmd = cmd_slice[slash_idx + 1 ..];
-                        }
-                    }
-
-                    if (std.mem.startsWith(u8, active_aud_cmd, "aud/")) {
-                        const aud_action = active_aud_cmd[4..];
-                        var resolved_alloc: ?[]u8 = null;
-                        var target_path: ?[]const u8 = null;
-
-                        if (aud_idx_prefix) |idx|
-                        {
-                            sys_hunter.mutex.lock();
-                            if (idx < sys_hunter.lens.links.items.len) {
-                                if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res|
-                                {
-                                    resolved_alloc = res;
-                                    target_path = res;
-                                } else |_| {}
-                            }
-                            sys_hunter.mutex.unlock();
-                        }
-
-                        if (std.mem.eql(u8, aud_action, "play") or std.mem.eql(u8, aud_action, "add")) {
-                            if (target_path) |tp|
-                            {
-                                appendAudQueue(void_allocator, tp);
-                            }
-                            
-                            if (std.mem.eql(u8, aud_action, "play")) {
-                                if (!@"aud.state.io".is_active) {
-      
-                                     @"aud.state.io".is_active = true;
-                                     @"aud.state.io".is_paused = false;
-                                    const djinn_thread = std.Thread.spawn(.{}, djinn.invoke, .{&@"aud.state.io"}) catch null;
-                                    if (djinn_thread) |t| t.detach();
-                                } else {
-                                    @"aud.state.io".is_paused = false;
-                                }
-                            }
-                        } else if (std.mem.eql(u8, aud_action, "pause")) {
-                            @"aud.state.io".is_paused = true;
-                        } else if (std.mem.eql(u8, aud_action, "stop")) {
-                            @"aud.state.io".is_active = false;
-                            @"aud.state.io".is_paused = false;
-                        } else if (std.mem.eql(u8, aud_action, "skip")) {
-                            @"aud.state.io".skip_request = true;
-                        } else if (std.mem.eql(u8, aud_action, "clear")) {
-                            if (std.fs.cwd().createFile("assets/aud.io/queue.nsb", .{ .truncate = true })) |f|
-                            { f.close(); } else |_| {}
-                            @"aud.state.io".is_active = false;
-                        } else if (std.mem.eql(u8, aud_action, "queue")) {
-                            if (std.fs.cwd().readFileAlloc(void_allocator, "assets/aud.io/queue.nsb", 10 * 1024 * 1024)) |q_data|
-                            {
-                                defer void_allocator.free(q_data);
-                                if (std.fs.cwd().createFile("assets/void.tome", .{ .truncate = true })) |f| {
-                                    f.writeAll(q_data) catch {};
-                                    f.close();
-                                    is_bash_modal = true;
-                                    bash_scroll_y = 0;
-                                } else |_|
-                                {}
-                            } else |_|
-                            {}
-                        } else if (std.mem.startsWith(u8, aud_action, "vol/")) {
-                            const v_str = aud_action[4..];
+					//^:: AUD.IO DJINN LAMP<<dev:archx m_txr.Gem3P>>\.
+                    if (std.mem.startsWith(u8, cmd_slice, "aud/")) {
+                        const aud_cmd = cmd_slice[4..];
+                        if (std.mem.eql(u8, aud_cmd, "play")) {
+							if (!@"aud.state.io".is_active) {
+								@"aud.state.io".is_active = true;
+								@"aud.state.io".is_paused = false;
+								const djinn_thread = std.Thread.spawn(.{}, djinn.invoke, .{&@"aud.state.io"}) catch null;
+                                if (djinn_thread) |t| t.detach();
+							} else {
+								@"aud.state.io".is_paused = false;
+							}
+						} else if (std.mem.eql(u8, aud_cmd, "pause")) {
+							@"aud.state.io".is_paused = true;
+                        } else if (std.mem.eql(u8, aud_cmd, "stop")) {
+							@"aud.state.io".is_active = false;
+							@"aud.state.io".is_paused = false;
+                        } else if (std.mem.eql(u8, aud_cmd, "skip")) {
+							@"aud.state.io".skip_request = true;
+						} else if (std.mem.startsWith(u8, aud_cmd, "vol/")) {
+							const v_str = aud_cmd[4..];
                             const v_int = std.fmt.parseInt(usize, v_str, 10) catch 60;
-                            @"aud.state.io".vol_level = @as(f32, @floatFromInt(v_int)) / 100.0;
-                        } 
+							@"aud.state.io".vol_level = @as(f32, @floatFromInt(v_int)) / 100.0;
+                        } //:X
                         
-                        if (resolved_alloc) |res|
-                        {
-                            void_allocator.free(res);
-                        }
-
                         journal_len = 0;
                         dirty = true;
                         continue;
-                    } //:X
-
+                    }
                     const response = cortex.dispatch(cmd_slice);
                     switch (response.action) {
                         .BASH_EXEC => {
@@ -1155,7 +1059,7 @@ pub fn main() !void {
                             if (final_arg.len > 0) args.append(void_allocator, final_arg) catch {};
 
    
-                             if (args.items.len > 0) {
+                         if (args.items.len > 0) {
                                 var agent = std.process.Child.init(args.items, void_allocator);
                                 agent.stdin_behavior = .Ignore;
  
@@ -1163,12 +1067,15 @@ pub fn main() !void {
                                 agent.stderr_behavior = .Pipe;
                                 
  
-                                if (agent.spawn()) |_| {
-                                    if (std.fs.cwd().createFile("assets/void.tome", .{}) catch null) |f| {
-                        
-                                 if (agent.stdout) |stdout| {
+                                if (agent.spawn()) |_|
+                                {
+                                   
+  if (std.fs.cwd().createFile("assets/void.tome", .{}) catch null) |f|
+                                    {
+                                        if (agent.stdout) |stdout|
+                
+                                        {
                                             const out_data = stdout.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
-                             
                                             f.writeAll(out_data) catch {};
                                             void_allocator.free(out_data);
                                         }
