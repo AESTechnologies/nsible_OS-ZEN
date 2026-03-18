@@ -1,8 +1,8 @@
 // [@://nsible_os/assets/aud.io/djinn.zig/.-={
 // module: "aud.io background djinn",
-// version: "1.0.7",
+// version: "1.0.8",
 // description: "Native background thread for aud.io playback and FFT telemetry generation.",
-// changes: "Decoupled queue.nsb from queue_idx.nsb to prevent memory overwrite bugs. Enabled live hot-reloading.",
+// changes: "Implemented queue shuffle PRNG and track repeat logic.",
 // philotic_inferences: "A djinn works unseen, moving the air and shaping the waves, while the architect surveys the realm."
 const std = @import("std");
 const c = @cImport({
@@ -29,6 +29,10 @@ pub fn invoke(state: anytype) void {
         active_playlist.deinit(allocator);
     }
     var active_track_idx: usize = 0;
+
+    // Initialize PRNG for Shuffle logic
+    var prng = std.rand.DefaultPrng.init(@as(u64, @intCast(std.time.milliTimestamp())));
+    const random = prng.random();
 
     // Load active index
     if (std.fs.cwd().readFileAlloc(allocator, "assets/aud.io/.queue_idx.nsb", 1024)) |idx_content| {
@@ -78,8 +82,15 @@ pub fn invoke(state: anytype) void {
 
         var sound: c.ma_sound = undefined;
         if (c.ma_sound_init_from_file(&engine, track_c.ptr, 0, null, null, &sound) != c.MA_SUCCESS) {
-            active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
-            if (active_track_idx == 0) break;
+            if (active_playlist.items.len > 1) {
+                if (state.is_shuffled) {
+                    var next_idx = random.intRangeLessThan(usize, 0, active_playlist.items.len);
+                    if (next_idx == active_track_idx) next_idx = (next_idx + 1) % active_playlist.items.len;
+                    active_track_idx = next_idx;
+                } else {
+                    active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
+                }
+            }
             continue;
         }
         defer c.ma_sound_uninit(&sound);
@@ -167,7 +178,15 @@ pub fn invoke(state: anytype) void {
 
             if (state.skip_request) {
                 state.skip_request = false;
-                active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
+                if (active_playlist.items.len > 1) {
+                    if (state.is_shuffled) {
+                        var next_idx = random.intRangeLessThan(usize, 0, active_playlist.items.len);
+                        if (next_idx == active_track_idx) next_idx = (next_idx + 1) % active_playlist.items.len;
+                        active_track_idx = next_idx;
+                    } else {
+                        active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
+                    }
+                }
                 track_completed_naturally = false;
                 break;
             }
@@ -219,7 +238,18 @@ pub fn invoke(state: anytype) void {
         }
 
         if (state.is_active and track_completed_naturally) {
-            active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
+            if (!state.is_repeat) {
+                if (active_playlist.items.len > 1) {
+                    if (state.is_shuffled) {
+                        var next_idx = random.intRangeLessThan(usize, 0, active_playlist.items.len);
+                        if (next_idx == active_track_idx) next_idx = (next_idx + 1) % active_playlist.items.len;
+                        active_track_idx = next_idx;
+                    } else {
+                        active_track_idx = (active_track_idx + 1) % active_playlist.items.len;
+                    }
+                }
+            }
+            // If repeat is true, active_track_idx remains untouched and the track loops.
         }
     }
 }
