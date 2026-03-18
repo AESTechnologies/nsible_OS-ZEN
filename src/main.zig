@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.26-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Added missing djinn state flags, new queue commands, and swapped aud.io UI layout.",
+//   changes: "Right-justified visualizer, anchored track title, and integrated aud/shf and aud/rpt state bindings.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -52,6 +52,8 @@ pub const @"aud.stateT.io" = struct {
 	clr_request: bool = false,
 	rmv_request: bool = false,
 	back_request: bool = false,
+	is_shuffled: bool = false,
+	is_repeat: bool = false,
 	vol_level: f32 = 0.6,
 	track_name: [64]u8 = .{0} ** 64,
 	track_name_len: usize = 0,
@@ -63,7 +65,6 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     const cwd = std.fs.cwd();
     var is_dir = false;
     
-    // cwd.openDir handles both absolute and relative paths reliably in 0.15.2
     if (cwd.openDir(target_path, .{})) |d| {
         var mutable_d = d;
         is_dir = true;
@@ -194,13 +195,13 @@ if (@"aud.state.io".is_active) {
 
 	const t_name= @"aud.state.io".track_name[0..@"aud.state.io".track_name_len];
 	var display_name = t_name;
-	if (t_name.len > 28) display_name = t_name[0..28];
+	if (t_name.len > 23) display_name = t_name[0..23];
 	print(aud_x + 10, 6, display_name, 0x00DC143C);
 
 	const num_bands = 32;
 	const band_w = 3;
 	const band_space = 4;
-	var bx = aud_x + 150;
+	var bx = aud_x + aud_w - 195;
 	for (0..num_bands) |i| {
 		const h = @as(usize, @intFromFloat(@"aud.state.io".vis_data[i] * 18.0));
 		if (h > 0) {
@@ -210,9 +211,14 @@ if (@"aud.state.io".is_active) {
 		bx += band_space;
 	}
 
+    const shf_color: u32 = if (@"aud.state.io".is_shuffled) 0x00DC143C else 0x00555555;
+    const rpt_color: u32 = if (@"aud.state.io".is_repeat) 0x00DC143C else 0x00555555;
 	const status_glyph: u8 = if (@"aud.state.io".is_paused) 0x1A else 0x10;
 	const status_color: u32 = if (@"aud.state.io".is_paused) 0x00555555 else 0x00DC143C;
-	drawChar(aud_x + aud_w - 20, 6, status_glyph, status_color);
+	
+    drawChar(aud_x + aud_w - 60, 6, 0x18, shf_color);
+    drawChar(aud_x + aud_w - 40, 6, 0x09, rpt_color);
+    drawChar(aud_x + aud_w - 20, 6, status_glyph, status_color);
 } //:X
 
     const glyph: u8 = if (is_high) 127 else 128;
@@ -1105,6 +1111,10 @@ pub fn main() !void {
                             @"aud.state.io".back_request = true;
                         } else if (std.mem.eql(u8, aud_action, "rmv/current") or std.mem.eql(u8, aud_action, "rmv")) {
                             @"aud.state.io".rmv_request = true;
+                        } else if (std.mem.eql(u8, aud_action, "shf") or std.mem.eql(u8, aud_action, "shuffle")) {
+                            @"aud.state.io".is_shuffled = !@"aud.state.io".is_shuffled;
+                        } else if (std.mem.eql(u8, aud_action, "rpt") or std.mem.eql(u8, aud_action, "repeat")) {
+                            @"aud.state.io".is_repeat = !@"aud.state.io".is_repeat;
                         } else if (std.mem.eql(u8, aud_action, "clear") or std.mem.eql(u8, aud_action, "queue/clr")) {
                             @"aud.state.io".clr_request = true;
                             if (!@"aud.state.io".is_active) {
