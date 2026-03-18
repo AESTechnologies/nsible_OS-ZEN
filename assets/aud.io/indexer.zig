@@ -1,9 +1,9 @@
 // [@://nsible_os/assets/indexer.zig/.-={
-// module: "aud.io indexer daemon",
+// module: "aud.io indexer angel",
 // version: "0.1.4",
-// description: "Standalone daemon to recursively crawl and map audio assets into a flat, |-delimited GZL-compliant aud.io.tome.",
-// changes: "Purged hardcoded personal paths. Routed index output directly to assets/aud.io/aud.io.tome.",
-// philotic_inferences: "A zero-trust, bare-metal crawler bypassing relational databases to forge a raw text mapping."
+// description: "Standalone angel to recursively seek and map audio assets into a flat, |-delimited GZL-compliant aud.io.tome.",
+// changes: "Angels over daemons. Purged hardcoded personal paths. Routed index output directly to assets/aud.io/aud.io.tome.",
+// philotic_inferences: "A zero-trust, bare-metal indexer bypassing relational databases to forge a raw text mapping."
 const std = @import("std");
 
 pub fn main() !void {
@@ -11,7 +11,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    std.debug.print("[ @NSIBLE-RED ] :: Initiating aud.io indexer crawler...\n", .{});
+    std.debug.print("[ @NSIBLE-RED ] :: Initiating aud.io indexing angel...\n", .{});
     // Open or create the index tome in the sovereign assets/aud.io/ directory
     const tome_file = std.fs.cwd().createFile("assets/aud.io/aud.io.tome", .{}) catch |err|
     {
@@ -67,6 +67,6 @@ pub fn main() !void {
         }
     }
 
-    std.debug.print("[ @NSIBLE-RED ] :: Crawl complete. Total valid assets mapped: {}\n", .{count});
+    std.debug.print("[ @NSIBLE-RED ] :: Indexing complete. Total valid assets mapped: {}\n", .{count});
 }
 // }-.]
