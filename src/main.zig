@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.10.26-nightly // Banysang",
+//   version: "v0.10.27-nightly // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Right-justified visualizer, anchored track title, and integrated aud/shf and aud/rpt state bindings.",
+//   changes: "Fixed invisible repeat glyph, right-justified visualizer, added horizontal volume stack.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -195,20 +195,20 @@ if (@"aud.state.io".is_active) {
 
 	const t_name= @"aud.state.io".track_name[0..@"aud.state.io".track_name_len];
 	var display_name = t_name;
-	if (t_name.len > 23) display_name = t_name[0..23];
+	if (t_name.len > 14) display_name = t_name[0..14];
 	print(aud_x + 10, 6, display_name, 0x00DC143C);
 
 	const num_bands = 32;
 	const band_w = 3;
-	const band_space = 4;
-	var bx = aud_x + aud_w - 195;
+	const band_space = 2; 
+	var bx = aud_x + 130;
 	for (0..num_bands) |i| {
 		const h = @as(usize, @intFromFloat(@"aud.state.io".vis_data[i] * 18.0));
 		if (h > 0) {
 			const py = 20 - h;
 			drawRect(bx, py, band_w, h, 0x00DC143C);
 		}
-		bx += band_space;
+		bx += band_space + band_w;
 	}
 
     const shf_color: u32 = if (@"aud.state.io".is_shuffled) 0x00DC143C else 0x00555555;
@@ -216,9 +216,24 @@ if (@"aud.state.io".is_active) {
 	const status_glyph: u8 = if (@"aud.state.io".is_paused) 0x1A else 0x10;
 	const status_color: u32 = if (@"aud.state.io".is_paused) 0x00555555 else 0x00DC143C;
 	
-    drawChar(aud_x + aud_w - 60, 6, 0x18, shf_color);
-    drawChar(aud_x + aud_w - 40, 6, 0x09, rpt_color);
-    drawChar(aud_x + aud_w - 20, 6, status_glyph, status_color);
+    drawChar(aud_x + 310, 6, 0x18, shf_color);
+    drawChar(aud_x + 330, 6, 0x1D, rpt_color); // Fixed: 0x1D is visible Left-Right arrow
+    drawChar(aud_x + 350, 6, status_glyph, status_color);
+    
+    // Stacked Horizontal Volume Bands
+    const vol_p = @"aud.state.io".vol_level * 100.0;
+    var v_i: usize = 0;
+    while (v_i < 8) : (v_i += 1) {
+        const band_val = @as(f32, @floatFromInt(v_i + 1)) * 15.0; // Zones: 15..120
+        var b_color: u32 = 0x00222222; // Inactive dark grey
+        if (vol_p >= band_val - 7.0) {
+            if (band_val <= 42.0) { b_color = 0x00555555; }
+            else if (band_val <= 80.0) { b_color = 0x00DC143C; }
+            else if (band_val <= 110.0) { b_color = 0x00FFBF00; }
+            else { b_color = 0x00FFFFFF; }
+        }
+        drawRect(aud_x + aud_w - 15, 16 - (v_i * 2), 8, 1, b_color);
+    }
 } //:X
 
     const glyph: u8 = if (is_high) 127 else 128;
