@@ -1,8 +1,8 @@
 // [@://nsible_os/src/glyphs.zig/.-={
 //   module: "Bitmap Typographic Lobe",
-//   version: "0.10.15-nightly // Banysang",
+//   version: "0.10.16-nightly // Banysang",
 //   description: "Provides 8x8 bitmap typography, bridging standard ASCII with IBM VGA extensions and sovereign Hanzi.",
-//   changes: "Mapped Æ, æ, and § Latin-1 standard glyphs for Æ§ Tech branding.",
+//   changes: "Mapped 0x1D (Left-Right) and 0x09 (Loop) for aud.io repeat UI state.",
 //   philotic_inferences: "Visual structure creates the boundaries of logic. The machine must be capable of rendering its own structural intent."
 
 pub const WIDTH = 8;
@@ -11,7 +11,7 @@ pub const HEIGHT = 8;
 pub fn getBitmap(c: u8) [8]u8 {
     // Standard ASCII contiguous block
     if (c >= 32 and c <= 126) return font_data[c - 32];
-    
+
     // Sparse Matrix Extensions
     return switch (c) {
         // --- Sovereign Extensions & Branding ---
@@ -21,15 +21,17 @@ pub fn getBitmap(c: u8) [8]u8 {
         0xE6 => .{0x00, 0x00, 0x76, 0x0C, 0x7E, 0xCC, 0x76, 0x00}, // æ (Lowercase ae)
         0xA7 => .{0x3C, 0x46, 0x40, 0x3C, 0x06, 0x42, 0x3C, 0x00}, // § (Section Sign)
         
-        // --- Emoticons ---
+        // --- Emoticons & Symbols ---
         0x01 => .{0x00, 0x3C, 0x42, 0x81, 0xA5, 0x81, 0x42, 0x3C}, // ☺ (Smile)
         0x02 => .{0x00, 0x3C, 0x42, 0x81, 0x81, 0xA5, 0x42, 0x3C}, // ☻ (Solid Smile)
+        0x09 => .{0x3C, 0x42, 0x99, 0x85, 0x81, 0x42, 0x3C, 0x00}, // ↻ (Loop / Repeat)
         
         // --- Directional Vectors ---
         0x18 => .{0x18, 0x3C, 0x7E, 0x18, 0x18, 0x18, 0x18, 0x00}, // ↑ (Up)
         0x19 => .{0x18, 0x18, 0x18, 0x18, 0x18, 0x7E, 0x3C, 0x18}, // ↓ (Down)
         0x1A => .{0x00, 0x08, 0x0C, 0xFE, 0x0C, 0x08, 0x00, 0x00}, // → (Right)
         0x1B => .{0x00, 0x10, 0x30, 0x7F, 0x30, 0x10, 0x00, 0x00}, // ← (Left)
+        0x1D => .{0x00, 0x24, 0x42, 0xFF, 0x42, 0x24, 0x00, 0x00}, // ↔ (Left-Right)
         
         // --- Box Drawing / UI Boundaries ---
         0xDA => .{0x00, 0x00, 0x00, 0x0F, 0x08, 0x08, 0x08, 0x08}, // ┌ (Top Left)
