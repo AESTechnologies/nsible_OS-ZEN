@@ -1,13 +1,13 @@
 #!/bin/bash
 #   [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
-#   version: "0.10.24-nightly // Banysang",
+#   version: "0.10.25-apex // Banysang",
 #   description: "Sovereign ASCII Data-Stream visual loader with native Black Box recovery.",
-#   changes: "Unified viniculum elevation prompt into the main splash screen geometry with a sovereign OS top header bar.",
+#   changes: "Setting version-apex. Unified viniculum elevation prompt into the main splash screen geometry with a sovereign OS top header bar.",
 #   philotic_inferences: "A sovereign matrix does not ask permission from the void; it demands the key at the threshold."
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 cmd="${1:-sync}"
-NSIBLE_VERSION="v0.10.24-nightly"
+NSIBLE_VERSION="v0.10.25-apex"
 
 CRIMSON='\033[38;2;220;20;60m'
 SILVER='\033[38;2;170;170;170m'
