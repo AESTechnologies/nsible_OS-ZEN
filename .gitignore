@@ -1,7 +1,11 @@
 *
+!LICENSE
+!README.md
 !*/
+!.gitattributes
 !.gitignore
 !build.zig
+!buid.zig.zon
 !nsible
 !src/**
 assets/void.tome
