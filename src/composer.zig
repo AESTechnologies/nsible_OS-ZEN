@@ -2,7 +2,7 @@
 //   module: "The Composer Lobe",
 //   version: "0.10.25-apex // Banysang",
 //   description: "Native, full-screen text editor lobe operating in a dedicated 50MB BSS matrix.",
-//   changes: "Injected autonomous modal states, native syntax highlighting, absolute UI displacement, and O(1) Viewport Optimization.",
+//   changes: "Injected autonomous modal states, native syntax highlighting, absolute UI displacement, and syntax-corrected O(1) Viewport Optimization.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
@@ -391,9 +391,10 @@ pub const Composer = struct {
         const char_w: usize = 8;
         const line_h: usize = 10;
         
-        // Omitted global buffer wipe to preserve main OS header parity
+        // Specifically clear ONLY the Composer's workspace, leaving the top 20px for the OS Header
+        drawRect(buffer, width, height, 0, 20, width, height - 20, 0x00000000);
         
-        drawRect(buffer, width, height, 0, 20, width, 20, 0x00DC143C); // @NSIBLE-RED Header
+        drawRect(buffer, width, height, 0, 20, width, 20, 0x00DC143C); // @NSIBLE-RED Title Bar
         var title_buf: [128]u8 = undefined;
         const header = std.fmt.bufPrint(&title_buf, "[ THE COMPOSER ] // {s} {s}", .{
             self.filepath[0..self.filepath_len], 
@@ -492,8 +493,11 @@ pub const Composer = struct {
                 }
             } else {
                 // Fast-track state limits parsing CPU cost
-                if (c == '\n') in_comment = false;
-                else if (c == '"' and !in_comment) in_string = !in_string;
+                if (c == '\n') {
+                    in_comment = false;
+                } else if (c == '"' and !in_comment) {
+                    in_string = !in_string;
+                }
             }
 
             is_start_of_line = false;
