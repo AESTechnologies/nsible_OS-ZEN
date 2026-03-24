@@ -2,7 +2,7 @@
 //   module: "The Composer Lobe",
 //   version: "0.10.25-apex // Banysang",
 //   description: "Native, full-screen text editor lobe operating in a dedicated 50MB BSS matrix.",
-//   changes: "Injected autonomous modal states (Seek, Switch, Save-To, Execute), native syntax highlighting, and displaced UI for aud.io parity.",
+//   changes: "Injected autonomous modal states, native syntax highlighting, absolute UI displacement, and O(1) Viewport Optimization.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
@@ -387,11 +387,11 @@ pub const Composer = struct {
 
     pub fn render(self: *Composer, buffer: []u32, width: usize, height: usize) void {
         const start_x: usize = 56;
-        const start_y: usize = 46; // Shifted down 6px from 20px header to allow OS aud.io bar
+        const start_y: usize = 46; 
         const char_w: usize = 8;
         const line_h: usize = 10;
         
-        for (buffer) |*p| p.* = 0x00000000;
+        // Omitted global buffer wipe to preserve main OS header parity
         
         drawRect(buffer, width, height, 0, 20, width, 20, 0x00DC143C); // @NSIBLE-RED Header
         var title_buf: [128]u8 = undefined;
@@ -431,55 +431,72 @@ pub const Composer = struct {
         var keyword_countdown: usize = 0;
         var current_color: u32 = 0x00AAAAAA;
 
+        const visible_top = start_y + pixel_scroll_y;
+        const visible_bottom = visible_top + height;
+
         var i: usize = 0;
         while (i <= self.len) : (i += 1) {
             if (i == self.cursor_idx) {
                 cursor_px = cx; cursor_py = cy; cursor_line = line_no;
             }
             
-            if (cy >= start_y + pixel_scroll_y and cy < start_y + pixel_scroll_y + (height - 60)) {
+            // O(1) VIEWPORT OPTIMIZATION: Terminate execution if we drop below the screen
+            if (cy > visible_bottom + 50) {
+                if (i > self.cursor_idx) break; 
+            }
+            
+            const is_visible = (cy + line_h >= visible_top) and (cy <= visible_bottom);
+
+            if (is_visible) {
                 if (is_start_of_line) {
                     var num_buf: [8]u8 = undefined;
                     const num_str = std.fmt.bufPrint(&num_buf, "{d: >4}", .{line_no}) catch "   0";
                     var nx: usize = 8;
                     for (num_str) |nc| { drawCharToBuf(buffer, width, height, nx, cy - pixel_scroll_y, nc, 0x00555555); nx += char_w; }
                     drawCharToBuf(buffer, width, height, nx + 4, cy - pixel_scroll_y, 0xB3, 0x00444444);
-                    is_start_of_line = false;
                 }
             }
 
             if (i == self.len) break;
             const c = self.buffer[i];
             
-            // Syntax Lookahead Matrix
-            if (in_comment) {
-                current_color = 0x00FFBF00; // Amber for GZL Tags
-                if (c == '\n') in_comment = false;
-            } else if (in_string) {
-                current_color = 0x00FFFFFF; // Silver Strings
-                if (c == '"') in_string = false;
-            } else {
-                if (c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') {
-                    in_comment = true;
-                    current_color = 0x00FFBF00;
-                } else if (c == '"') {
-                    in_string = true;
-                    current_color = 0x00FFFFFF;
-                } else if (keyword_countdown > 0) {
-                    current_color = 0x00DC143C; // Red Keywords
-                    keyword_countdown -= 1;
+            if (is_visible) {
+                // Syntax Lookahead Matrix
+                if (in_comment) {
+                    current_color = 0x00FFBF00; // Amber for GZL Tags
+                    if (c == '\n') in_comment = false;
+                } else if (in_string) {
+                    current_color = 0x00FFFFFF; // Silver Strings
+                    if (c == '"') in_string = false;
                 } else {
-                    current_color = 0x00AAAAAA; // Grey Default
-                    if (isAlphanumeric(c) and (i == 0 or !isAlphanumeric(self.buffer[i-1]))) {
-                        var w_len: usize = 0;
-                        while (i + w_len < self.len and isAlphanumeric(self.buffer[i + w_len])) { w_len += 1; }
-                        if (w_len > 0 and isKeyword(self.buffer[i .. i+w_len])) {
-                            current_color = 0x00DC143C;
-                            keyword_countdown = w_len - 1;
+                    if (c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') {
+                        in_comment = true;
+                        current_color = 0x00FFBF00;
+                    } else if (c == '"') {
+                        in_string = true;
+                        current_color = 0x00FFFFFF;
+                    } else if (keyword_countdown > 0) {
+                        current_color = 0x00DC143C; // Red Keywords
+                        keyword_countdown -= 1;
+                    } else {
+                        current_color = 0x00AAAAAA; // Grey Default
+                        if (isAlphanumeric(c) and (i == 0 or !isAlphanumeric(self.buffer[i-1]))) {
+                            var w_len: usize = 0;
+                            while (i + w_len < self.len and isAlphanumeric(self.buffer[i + w_len])) { w_len += 1; }
+                            if (w_len > 0 and isKeyword(self.buffer[i .. i+w_len])) {
+                                current_color = 0x00DC143C;
+                                keyword_countdown = w_len - 1;
+                            }
                         }
                     }
                 }
+            } else {
+                // Fast-track state limits parsing CPU cost
+                if (c == '\n') in_comment = false;
+                else if (c == '"' and !in_comment) in_string = !in_string;
             }
+
+            is_start_of_line = false;
 
             if (c == '\n') {
                 cx = start_x; cy += line_h; line_no += 1; is_start_of_line = true;
@@ -487,7 +504,7 @@ pub const Composer = struct {
                 cx += char_w * 4;
                 if (cx >= width - 20) { cx = start_x; cy += line_h; }
             } else {
-                if (cy >= start_y + pixel_scroll_y and cy < start_y + pixel_scroll_y + (height - 60)) {
+                if (is_visible) {
                     drawCharToBuf(buffer, width, height, cx, cy - pixel_scroll_y, c, current_color);
                 }
                 cx += char_w;
