@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, and optimized glyph spacing. Injected Void reflex with Verity Lock UI.",
+//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, and optimized glyph spacing. Injected Void reflex with Verity Lock UI and absolute URI pointer.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -1133,7 +1133,7 @@ pub fn main() !void {
                     if (void_target_idx) |idx| {
                         if (idx < sys_hunter.lens.links.items.len) {
                             const fba_alloc = sys_hunter.sap_fba.allocator();
-                            if (fba_alloc.dupe(u8, "assets/.gzl/.void")) |duped| {
+                            if (fba_alloc.dupe(u8, "/assets/.gzl/.void")) |duped| {
                                 sys_hunter.lens.links.items[idx] = duped;
                             } else |_| {}
                         }
