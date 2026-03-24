@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.11.0-CNQRR // Banysang",
+//   version: "v0.10.25-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, and optimized glyph spacing.",
+//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, and optimized glyph spacing. Injected Void reflex.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -41,7 +41,6 @@ var radio_phi: f32 = 1.618;
 var radio_sel: u8 = 0; 
 var pulse_timer: usize = 0; 
 const PULSE_MAX: usize = 120;
-
 //^::SEEDED AUD.IO STATE<<dev:archx m_txr.Gem3P>>\.
 const djinn = @import("djinn");
 pub const @"aud.stateT.io" = struct {
@@ -77,7 +76,8 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     q_file.seekFromEnd(0) catch {};
 
     if (is_dir) {
-        if (cwd.openDir(target_path, .{ .iterate = true })) |dir| {
+        if (cwd.openDir(target_path, .{ .iterate = true })) |dir|
+        {
             var mutable_dir = dir;
             defer mutable_dir.close();
             var it = mutable_dir.iterate();
@@ -89,7 +89,8 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
                     q_file.writeAll("\n") catch {};
                 }
             }
-        } else |_| {}
+        } else |_|
+        {}
     } else {
         q_file.writeAll(target_path) catch {};
         q_file.writeAll("\n") catch {};
@@ -191,53 +192,58 @@ fn drawHeader(is_high: bool) void {
 if (@"aud.state.io".is_active) {
 	const aud_w = 480;
 	const aud_x = WIDTH - aud_w - 30;
-	drawRect(aud_x, 0, aud_w, 20, 0x00000000);
+    drawRect(aud_x, 0, aud_w, 20, 0x00000000);
 
 	const t_name = @"aud.state.io".track_name[0..@"aud.state.io".track_name_len];
 	var display_name = t_name;
 	if (t_name.len > 28) display_name = t_name[0..28];
-	print(aud_x + 10, 6, display_name, 0x00DC143C);
+    print(aud_x + 10, 6, display_name, 0x00DC143C);
 
 	const num_bands = 32;
 	const band_w = 3;
-	const band_space = 2; 
-	var bx = aud_x + 245;
+	const band_space = 2;
+    var bx = aud_x + 245;
 	for (0..num_bands) |i| {
 		const h = @as(usize, @intFromFloat(@"aud.state.io".vis_data[i] * 18.0));
-		if (h > 0) {
+        if (h > 0) {
 			const py = 20 - h;
 			drawRect(bx, py, band_w, h, 0x00DC143C);
 		}
 		bx += band_space + band_w;
-	}
+    }
 
     const shf_color: u32 = if (@"aud.state.io".is_shuffled) 0x00DC143C else 0x00555555;
     const rpt_color: u32 = if (@"aud.state.io".is_repeat) 0x00DC143C else 0x00555555;
 	const status_glyph: u8 = if (@"aud.state.io".is_paused) 0x1A else 0x10;
-	const status_color: u32 = if (@"aud.state.io".is_paused) 0x00555555 else 0x00DC143C;
+    const status_color: u32 = if (@"aud.state.io".is_paused) 0x00555555 else 0x00DC143C;
 	
     drawChar(aud_x + aud_w - 65, 6, 0x18, shf_color);
     drawChar(aud_x + aud_w - 50, 6, 0x1D, rpt_color); 
     drawChar(aud_x + aud_w - 35, 6, status_glyph, status_color);
-    
-    // Stacked Horizontal Volume Bands
+// Stacked Horizontal Volume Bands
     const vol_p = @"aud.state.io".vol_level * 100.0;
     var v_i: usize = 0;
     while (v_i < 8) : (v_i += 1) {
-        const band_val = @as(f32, @floatFromInt(v_i + 1)) * 15.0; // Zones: 15..120
-        var b_color: u32 = 0x00222222; // Inactive dark grey
+        const band_val = @as(f32, @floatFromInt(v_i + 1)) * 15.0;
+// Zones: 15..120
+        var b_color: u32 = 0x00222222;
+// Inactive dark grey
         if (vol_p >= band_val - 7.0) {
-            if (band_val <= 42.0) { b_color = 0x00555555; }
-            else if (band_val <= 80.0) { b_color = 0x00DC143C; }
-            else if (band_val <= 110.0) { b_color = 0x00FFBF00; }
-            else { b_color = 0x00FFFFFF; }
+            if (band_val <= 42.0) { b_color = 0x00555555;
+            }
+            else if (band_val <= 80.0) { b_color = 0x00DC143C;
+            }
+            else if (band_val <= 110.0) { b_color = 0x00FFBF00;
+            }
+            else { b_color = 0x00FFFFFF;
+            }
         }
         drawRect(aud_x + aud_w - 15, 16 - (v_i * 2), 8, 1, b_color);
     }
 } //:X
 
     const glyph: u8 = if (is_high) 127 else 128;
-    drawChar(1010, 6, glyph, 0x00FFFFFF);
+    drawChar(1001, 6, glyph, 0x00FFFFFF);
 }
 
 fn getUriBarY(input_len: usize, current_url: []const u8) usize {
@@ -533,9 +539,9 @@ pub fn main() !void {
     { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("assets/aud.io") catch |err|
     { if (err != error.PathAlreadyExists) {} };
-
     if (fs.access("aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("aiua.tome", .{})) |f|
-    { f.close(); } else |_| {} }
+    { f.close(); } else |_|
+    {} }
     
     var is_trail_modal: bool = false;
     var trail_buffer: [4096]u8 = undefined;
@@ -756,9 +762,9 @@ pub fn main() !void {
                                 }
                             }
                             esc_len = 0;
-                        }
+                            }
                         continue;
-                    } else if (esc_len == 4 and esc_seq[1] == '[' and esc_seq[2] >= '0' and esc_seq[2] <= '9' and byte == '~') {
+                        } else if (esc_len == 4 and esc_seq[1] == '[' and esc_seq[2] >= '0' and esc_seq[2] <= '9' and byte == '~') {
                         if (sys_composer.active) {
                             if (esc_seq[2] == '3') { sys_composer.deleteChar();
                             }
@@ -815,15 +821,15 @@ pub fn main() !void {
 			if (std.mem.eql(u8, &seq_buf, ".!..-.")) {
 				const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
 				_ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
-				_ = std.process.Child.run(.{ .allocator = void_allocator, .argv = &[_] []const u8{ "shutdown", "now" } }) catch {};
+                _ = std.process.Child.run(.{ .allocator = void_allocator, .argv = &[_] []const u8{ "shutdown", "now" } }) catch {};
 				std.process.exit(0);
-			}
+            }
 			else if (std.mem.eql(u8, &seq_buf, ".!./-.")) {
 				const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
 				_ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
-				_ = std.process.Child.run(.{ .allocator = void_allocator, .argv = &[_] []const u8{ "reboot" } }) catch {};
+                _ = std.process.Child.run(.{ .allocator = void_allocator, .argv = &[_] []const u8{ "reboot" } }) catch {};
 				std.process.exit(0);
-			} //:X
+            } //:X
             else if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { 
                 if (sys_composer.active) {
                     sys_composer.undo_reflex(5);
@@ -869,6 +875,40 @@ pub fn main() !void {
                 sys_hunter.refresh() catch {};
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
                 reflex_triggered = true;
+            }
+            else if (std.mem.endsWith(u8, &seq_buf, ".!VD-.")) {
+                if (!sys_composer.active) {
+                    if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                    var target_path = std.mem.trim(u8, journal[0..journal_len], " ");
+
+                    var is_melt = target_path.len > 0;
+                    for (target_path) |c| { if (c < '0' or c > '9') is_melt = false; }
+
+                    var resolved_alloc: ?[]u8 = null;
+                    if (is_melt) {
+                        const idx = std.fmt.parseInt(usize, target_path, 10) catch std.math.maxInt(usize);
+                        sys_hunter.mutex.lock();
+                        if (idx < sys_hunter.lens.links.items.len) {
+                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
+                                resolved_alloc = res;
+                                target_path = res;
+                            } else |_| {}
+                        }
+                        sys_hunter.mutex.unlock();
+                    }
+
+                    if (target_path.len > 0) {
+                        sys_hunter.banishToVoid(target_path) catch {};
+                        sys_hunter.refresh() catch {}; 
+                    }
+
+                    if (resolved_alloc) |res| {
+                        sys_hunter.allocator.free(res);
+                    }
+                    
+                    journal_len = 0;
+                    reflex_triggered = true;
+                }
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!ED-.")) {
                 if (!sys_composer.active) {
@@ -964,7 +1004,7 @@ pub fn main() !void {
                     if (std.mem.eql(u8, journal[0..journal_len], "shed")) {
      
                          is_trail_modal = false;
-                         journal_len = 0;
+                        journal_len = 0;
                     }
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) journal_len -= 1;
@@ -1067,10 +1107,12 @@ pub fn main() !void {
                     var aud_idx_prefix: ?usize = null;
                     var active_aud_cmd: []const u8 = cmd_slice;
 
-                    if (std.mem.indexOf(u8, cmd_slice, "/aud/")) |slash_idx| {
+                    if (std.mem.indexOf(u8, cmd_slice, "/aud/")) |slash_idx|
+                    {
                         const prefix = cmd_slice[0..slash_idx];
                         var is_num = prefix.len > 0;
-                        for (prefix) |c| { if (c < '0' or c > '9') is_num = false; }
+                        for (prefix) |c| { if (c < '0' or c > '9') is_num = false;
+                        }
                         if (is_num) {
                             aud_idx_prefix = std.fmt.parseInt(usize, prefix, 10) catch null;
                             active_aud_cmd = cmd_slice[slash_idx + 1 ..];
@@ -1082,10 +1124,12 @@ pub fn main() !void {
                         var resolved_alloc: ?[]u8 = null;
                         var target_path: ?[]const u8 = null;
 
-                        if (aud_idx_prefix) |idx| {
+                        if (aud_idx_prefix) |idx|
+                        {
                             sys_hunter.mutex.lock();
                             if (sys_hunter.history.items.len > 0 and idx < sys_hunter.lens.links.items.len) {
-                                if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
+                                if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res|
+                                {
                                     resolved_alloc = res;
                                     target_path = res;
                                 } else |_| {}
@@ -1094,7 +1138,8 @@ pub fn main() !void {
                         }
 
                         if (std.mem.eql(u8, aud_action, "play") or std.mem.eql(u8, aud_action, "add")) {
-                            if (target_path) |tp| {
+                            if (target_path) |tp|
+                            {
                                 var clean_path = tp;
                                 if (std.mem.startsWith(u8, clean_path, "@://mchn")) {
                                     clean_path = clean_path[8..];
@@ -1107,8 +1152,9 @@ pub fn main() !void {
                             
                             if (std.mem.eql(u8, aud_action, "play")) {
                                 if (!@"aud.state.io".is_active) {
-                                     @"aud.state.io".is_active = true;
-                                     @"aud.state.io".is_paused = false;
+   
+                                    @"aud.state.io".is_active = true;
+                                    @"aud.state.io".is_paused = false;
                                     const djinn_thread = std.Thread.spawn(.{}, djinn.invoke, .{&@"aud.state.io"}) catch null;
                                     if (djinn_thread) |t| t.detach();
                                 } else {
@@ -1133,26 +1179,32 @@ pub fn main() !void {
                         } else if (std.mem.eql(u8, aud_action, "clear") or std.mem.eql(u8, aud_action, "queue/clr")) {
                             @"aud.state.io".clr_request = true;
                             if (!@"aud.state.io".is_active) {
-                                if (std.fs.cwd().createFile("assets/aud.io/.queue.nsb", .{ .truncate = true })) |f| { f.close(); } else |_| {}
-                                if (std.fs.cwd().createFile("assets/aud.io/.queue_idx.nsb", .{ .truncate = true })) |f| { f.close(); } else |_| {}
+                                if (std.fs.cwd().createFile("assets/aud.io/.queue.nsb", .{ .truncate = true })) |f|
+                                { f.close(); } else |_| {}
+                                if (std.fs.cwd().createFile("assets/aud.io/.queue_idx.nsb", .{ .truncate = true })) |f|
+                                { f.close(); } else |_| {}
                             }
                         } else if (std.mem.eql(u8, aud_action, "queue")) {
-                            if (std.fs.cwd().readFileAlloc(void_allocator, "assets/aud.io/.queue.nsb", 10 * 1024 * 1024)) |q_data| {
+                            if (std.fs.cwd().readFileAlloc(void_allocator, "assets/aud.io/.queue.nsb", 10 * 1024 * 1024)) |q_data|
+                            {
                                 defer void_allocator.free(q_data);
                                 if (std.fs.cwd().createFile("assets/void.tome", .{ .truncate = true })) |f| {
                                     f.writeAll(q_data) catch {};
                                     f.close();
                                     is_bash_modal = true;
                                     bash_scroll_y = 0;
-                                } else |_| {}
-                            } else |_| {}
+                                } else |_|
+                                {}
+                            } else |_|
+                            {}
                         } else if (std.mem.startsWith(u8, aud_action, "vol/")) {
                             const v_str = aud_action[4..];
                             const v_int = std.fmt.parseInt(usize, v_str, 10) catch 60;
                             @"aud.state.io".vol_level = @as(f32, @floatFromInt(v_int)) / 100.0;
                         } 
                         
-                        if (resolved_alloc) |res| {
+                        if (resolved_alloc) |res|
+                        {
                             sys_hunter.allocator.free(res);
                         }
 
@@ -1186,18 +1238,18 @@ pub fn main() !void {
    
                              if (args.items.len > 0) {
                                 var agent = std.process.Child.init(args.items, void_allocator);
-                                agent.stdin_behavior = .Ignore;
+                               
+                                 agent.stdin_behavior = .Ignore;
  
                                 agent.stdout_behavior = .Pipe;
                                 agent.stderr_behavior = .Pipe;
-                                
- 
+                            
                                 if (agent.spawn()) |_| {
                                     if (std.fs.cwd().createFile("assets/void.tome", .{}) catch null) |f| {
-                        
-                                 if (agent.stdout) |stdout| {
+                  
+                                         if (agent.stdout) |stdout| {
                                             const out_data = stdout.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
-                             
+      
                                             f.writeAll(out_data) catch {};
                                             void_allocator.free(out_data);
                                         }
@@ -1386,7 +1438,7 @@ pub fn main() !void {
                                 cx = mx + 20;
                                 cy += 10;
                                 if (cy > my + mh - 40) break;
-                            }
+                                }
                         }
                     }
 
