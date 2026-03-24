@@ -882,14 +882,17 @@ pub fn main() !void {
                     var target_path = std.mem.trim(u8, journal[0..journal_len], " ");
 
                     var is_melt = target_path.len > 0;
-                    for (target_path) |c| { if (c < '0' or c > '9') is_melt = false; }
+                    for (target_path) |c|
+                    { if (c < '0' or c > '9') is_melt = false;
+                    }
 
                     var resolved_alloc: ?[]u8 = null;
                     if (is_melt) {
                         const idx = std.fmt.parseInt(usize, target_path, 10) catch std.math.maxInt(usize);
                         sys_hunter.mutex.lock();
                         if (idx < sys_hunter.lens.links.items.len) {
-                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
+                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res|
+                            {
                                 resolved_alloc = res;
                                 target_path = res;
                             } else |_| {}
@@ -898,11 +901,26 @@ pub fn main() !void {
                     }
 
                     if (target_path.len > 0) {
-                        sys_hunter.banishToVoid(target_path) catch {};
+                        var clean_path = target_path;
+                        if (std.mem.startsWith(u8, clean_path, "@://mchn/")) {
+                            clean_path = clean_path[9..];
+                        } else if (std.mem.startsWith(u8, clean_path, "@://mchn")) {
+                            clean_path = clean_path[8..];
+                        } else if (std.mem.startsWith(u8, clean_path, "@://")) {
+                            clean_path = clean_path[4..];
+                        }
+                        if (std.mem.startsWith(u8, clean_path, "/")) {
+                            clean_path = clean_path[1..];
+                        }
+
+                        sys_hunter.banishToVoid(clean_path) catch {};
+                        const preserved_status = sys_hunter.status;
                         sys_hunter.refresh() catch {}; 
+                        sys_hunter.status = preserved_status;
                     }
 
-                    if (resolved_alloc) |res| {
+                    if (resolved_alloc) |res|
+                    {
                         sys_hunter.allocator.free(res);
                     }
                     
