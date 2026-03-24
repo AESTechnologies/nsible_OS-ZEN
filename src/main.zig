@@ -241,7 +241,7 @@ if (@"aud.state.io".is_active) {
         drawRect(aud_x + aud_w - 15, 16 - (v_i * 2), 8, 1, b_color);
     }
 } //:X
-
+    // highClaw Mark
     const glyph: u8 = if (is_high) 127 else 128;
     drawChar(1001, 6, glyph, 0x00FFFFFF);
 }
