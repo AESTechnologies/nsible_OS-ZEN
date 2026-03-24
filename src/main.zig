@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, optimized glyph spacing. Injected Void reflex with Verity Lock UI, absolute URI pointer, and Composer OS command fall-through.",
+//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, optimized glyph spacing. Injected Void reflex with Verity Lock UI, absolute URI pointer, and seamless Composer OS command fall-through.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -1000,7 +1000,7 @@ pub fn main() !void {
                     sys_composer.has_pending_cmd = false;
                     @memcpy(journal[0..sys_composer.pending_cmd_len], sys_composer.pending_cmd[0..sys_composer.pending_cmd_len]);
                     journal_len = sys_composer.pending_cmd_len;
-                    // FALL THROUGH to global OS execution!
+                    // Intentionally fall through to global OS execution below. Matrix stays open.
                 } else {
                     continue;
                 }
