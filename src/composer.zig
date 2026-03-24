@@ -2,7 +2,7 @@
 //   module: "The Composer Lobe",
 //   version: "0.10.25-apex // Banysang",
 //   description: "Native, full-screen text editor lobe operating in a dedicated 50MB BSS matrix.",
-//   changes: "Injected autonomous modal states, native syntax highlighting, absolute UI displacement, and syntax-corrected O(1) Viewport Optimization.",
+//   changes: "Injected autonomous modal states, native syntax highlighting, absolute UI displacement, O(1) Viewport Optimization, and bidirectional Seek/Switch wrap-around.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
@@ -190,6 +190,9 @@ pub const Composer = struct {
                     if (std.mem.indexOf(u8, self.buffer[self.cursor_idx..self.len], query)) |idx| {
                         self.cursor_idx += idx;
                         self.setStatus("TARGET ACQUIRED");
+                    } else if (std.mem.indexOf(u8, self.buffer[0..self.cursor_idx], query)) |idx| {
+                        self.cursor_idx = idx;
+                        self.setStatus("TARGET ACQUIRED (WRAPPED)");
                     } else {
                         self.setStatus("TARGET NOT FOUND");
                     }
@@ -207,6 +210,8 @@ pub const Composer = struct {
                 if (query.len > 0) {
                     var occurrences: usize = 0;
                     var search_start = self.cursor_idx;
+                    
+                    // Pass 1: Cursor to End
                     while (std.mem.indexOf(u8, self.buffer[search_start..self.len], query)) |idx| {
                         const abs_idx = search_start + idx;
                         const shift: isize = @as(isize, @intCast(repl.len)) - @as(isize, @intCast(query.len));
@@ -233,6 +238,44 @@ pub const Composer = struct {
                         self.edits_since_save += 1;
                         self.dirty = true;
                     }
+                    
+                    // Pass 2: Wrap around to top if no occurrences below cursor
+                    if (occurrences == 0 and self.cursor_idx > 0) {
+                        search_start = 0;
+                        var search_end = self.cursor_idx;
+                        while (std.mem.indexOf(u8, self.buffer[search_start..search_end], query)) |idx| {
+                            const abs_idx = search_start + idx;
+                            const shift: isize = @as(isize, @intCast(repl.len)) - @as(isize, @intCast(query.len));
+                            if (@as(isize, @intCast(self.len)) + shift > @as(isize, @intCast(self.buffer.len))) break; 
+                            
+                            if (shift > 0) {
+                                const ushift = @as(usize, @intCast(shift));
+                                var i: usize = self.len;
+                                while (i > abs_idx + query.len) : (i -= 1) {
+                                    self.buffer[i + ushift - 1] = self.buffer[i - 1];
+                                }
+                            } else if (shift < 0) {
+                                const ushift = @as(usize, @intCast(-shift));
+                                var i: usize = abs_idx + query.len;
+                                while (i < self.len) : (i += 1) {
+                                    self.buffer[i - ushift] = self.buffer[i];
+                                }
+                            }
+                            
+                            @memcpy(self.buffer[abs_idx..abs_idx + repl.len], repl);
+                            self.len = @as(usize, @intCast(@as(isize, @intCast(self.len)) + shift));
+                            search_start = abs_idx + repl.len;
+                            
+                            // Adjust bounds to avoid double-processing shifted bytes
+                            search_end = @as(usize, @intCast(@as(isize, @intCast(search_end)) + shift));
+                            self.cursor_idx = @as(usize, @intCast(@as(isize, @intCast(self.cursor_idx)) + shift));
+                            
+                            occurrences += 1;
+                            self.edits_since_save += 1;
+                            self.dirty = true;
+                        }
+                    }
+                    
                     var stat_buf: [64]u8 = undefined;
                     const stat = std.fmt.bufPrint(&stat_buf, "SWITCHED {d} OCCURRENCES", .{occurrences}) catch "SWITCHED";
                     self.setStatus(stat);
