@@ -2,7 +2,7 @@
 //   module: "The Composer Lobe",
 //   version: "0.10.25-apex // Banysang",
 //   description: "Native, full-screen text editor lobe operating in a dedicated 50MB BSS matrix.",
-//   changes: "Rebuilt render loop with True Viewport Culling to eliminate massive O(N) lag on multi-megabyte void artifacts.",
+//   changes: "Injected autonomous modal states, native syntax highlighting, absolute UI displacement, and syntax-corrected O(1) Viewport Optimization.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
@@ -104,18 +104,19 @@ pub const Composer = struct {
         } else if (std.mem.startsWith(u8, clean_path, "mchn/")) {
             clean_path = clean_path[5..];
         } else if (std.mem.startsWith(u8, clean_path, "@://")) {
-            if (std.mem.indexOfScalar(u8, clean_path[4..], '/')) |idx|
-            {
+            if (std.mem.indexOfScalar(u8, clean_path[4..], '/')) |idx| {
                 clean_path = clean_path[4 + idx + 1..];
             }
         }
 
-        if (clean_path.len == 0) clean_path = "untitled.txt";
+        if (clean_path.len == 0) {
+            clean_path = "untitled.txt";
+        }
+        
         const is_abs = std.mem.startsWith(u8, clean_path, "/");
         const file_opt = if (is_abs) std.fs.openFileAbsolute(clean_path, .{}) else std.fs.cwd().openFile(clean_path, .{});
 
-        if (file_opt) |file|
-        {
+        if (file_opt) |file| {
             self.len = file.readAll(self.buffer) catch 0;
             file.close();
             self.setStatus("FILE LOADED");
@@ -131,18 +132,19 @@ pub const Composer = struct {
         } else if (std.mem.startsWith(u8, clean_path, "mchn/")) {
             clean_path = clean_path[5..];
         } else if (std.mem.startsWith(u8, clean_path, "@://")) {
-            if (std.mem.indexOfScalar(u8, clean_path[4..], '/')) |idx|
-            {
+            if (std.mem.indexOfScalar(u8, clean_path[4..], '/')) |idx| {
                 clean_path = clean_path[4 + idx + 1..];
             }
         }
 
-        if (clean_path.len == 0) clean_path = "untitled.txt";
+        if (clean_path.len == 0) {
+            clean_path = "untitled.txt";
+        }
+        
         const is_abs = std.mem.startsWith(u8, clean_path, "/");
         const file_opt = if (is_abs) std.fs.createFileAbsolute(clean_path, .{}) else std.fs.cwd().createFile(clean_path, .{});
 
-        if (file_opt) |file|
-        {
+        if (file_opt) |file| {
             file.writeAll(self.buffer[0..self.len]) catch {
                 self.setStatus("SAVE FAILED");
                 return;
@@ -151,8 +153,7 @@ pub const Composer = struct {
             self.dirty = false;
             self.edits_since_save = 0;
             self.setStatus("FILE SAVED");
-        } else |_|
-        {
+        } else |_| {
             self.setStatus("SAVE FAILED: IO ERR");
         }
     }
@@ -214,7 +215,7 @@ pub const Composer = struct {
                     while (std.mem.indexOf(u8, self.buffer[search_start..self.len], query)) |idx| {
                         const abs_idx = search_start + idx;
                         const shift: isize = @as(isize, @intCast(repl.len)) - @as(isize, @intCast(query.len));
-                        if (@as(isize, @intCast(self.len)) + shift > @as(isize, @intCast(self.buffer.len))) break; 
+                        if (@as(isize, @intCast(self.len)) + shift > @as(isize, @intCast(self.buffer.len))) { break; }
                         
                         if (shift > 0) {
                             const ushift = @as(usize, @intCast(shift));
@@ -244,7 +245,7 @@ pub const Composer = struct {
                         while (std.mem.indexOf(u8, self.buffer[search_start..search_end], query)) |idx| {
                             const abs_idx = search_start + idx;
                             const shift: isize = @as(isize, @intCast(repl.len)) - @as(isize, @intCast(query.len));
-                            if (@as(isize, @intCast(self.len)) + shift > @as(isize, @intCast(self.buffer.len))) break; 
+                            if (@as(isize, @intCast(self.len)) + shift > @as(isize, @intCast(self.buffer.len))) { break; }
                             
                             if (shift > 0) {
                                 const ushift = @as(usize, @intCast(shift));
@@ -298,7 +299,9 @@ pub const Composer = struct {
                 }
                 self.mode = .EDIT;
             },
-            else => { self.mode = .EDIT; }
+            else => {
+                self.mode = .EDIT; 
+            }
         }
     }
 
@@ -313,8 +316,8 @@ pub const Composer = struct {
             return;
         }
 
-        if (self.len >= self.buffer.len) return;
-        if (c < 32 and c != '\n' and c != '\t') return; 
+        if (self.len >= self.buffer.len) { return; }
+        if (c < 32 and c != '\n' and c != '\t') { return; }
         
         var i: usize = self.len;
         while (i > self.cursor_idx) : (i -= 1) {
@@ -327,7 +330,9 @@ pub const Composer = struct {
         self.dirty = true;
 
         var k: usize = 0;
-        while (k < 5) : (k += 1) { self.seq_buf[k] = self.seq_buf[k+1]; }
+        while (k < 5) : (k += 1) {
+            self.seq_buf[k] = self.seq_buf[k+1];
+        }
         self.seq_buf[5] = c;
 
         if (std.mem.endsWith(u8, &self.seq_buf, ".!SK-.")) {
@@ -354,10 +359,10 @@ pub const Composer = struct {
 
     pub fn backspace(self: *Composer) void {
         if (self.mode != .EDIT) {
-            if (self.input_len > 0) self.input_len -= 1;
+            if (self.input_len > 0) { self.input_len -= 1; }
             return;
         }
-        if (self.cursor_idx == 0) return;
+        if (self.cursor_idx == 0) { return; }
         var i: usize = self.cursor_idx;
         while (i < self.len) : (i += 1) {
             self.buffer[i - 1] = self.buffer[i];
@@ -369,8 +374,8 @@ pub const Composer = struct {
     }
     
     pub fn deleteChar(self: *Composer) void {
-        if (self.mode != .EDIT) return;
-        if (self.cursor_idx >= self.len) return;
+        if (self.mode != .EDIT) { return; }
+        if (self.cursor_idx >= self.len) { return; }
         var i: usize = self.cursor_idx + 1;
         while (i < self.len) : (i += 1) {
             self.buffer[i - 1] = self.buffer[i];
@@ -381,9 +386,9 @@ pub const Composer = struct {
     }
 
     pub fn moveCursor(self: *Composer, dx: isize, dy: isize) void {
-        if (self.mode != .EDIT) return;
-        if (dx < 0 and self.cursor_idx > 0) self.cursor_idx -= 1;
-        if (dx > 0 and self.cursor_idx < self.len) self.cursor_idx += 1;
+        if (self.mode != .EDIT) { return; }
+        if (dx < 0 and self.cursor_idx > 0) { self.cursor_idx -= 1; }
+        if (dx > 0 and self.cursor_idx < self.len) { self.cursor_idx += 1; }
         if (dy < 0) {
             const lines_to_jump = @as(usize, @intCast(-dy));
             var lines_jumped: usize = 0;
@@ -406,7 +411,7 @@ pub const Composer = struct {
             
             while (lines_jumped < lines_to_jump and i < self.len) {
                 while (i < self.len and self.buffer[i] != '\n') : (i += 1) {}
-                if (i < self.len) i += 1;
+                if (i < self.len) { i += 1; }
                 lines_jumped += 1;
             }
             self.cursor_idx = i;
@@ -420,7 +425,7 @@ pub const Composer = struct {
     fn isKeyword(word: []const u8) bool {
         const keywords = [_][]const u8{ "pub", "fn", "const", "var", "if", "else", "return", "struct", "enum", "while", "for", "switch", "catch", "try", "true", "false", "undefined", "and", "or", "void", "null" };
         for (keywords) |kw| {
-            if (std.mem.eql(u8, word, kw)) return true;
+            if (std.mem.eql(u8, word, kw)) { return true; }
         }
         return false;
     }
@@ -441,7 +446,10 @@ pub const Composer = struct {
             if (self.dirty) "*" else ""
         }) catch "COMPOSER";
         var head_cx: usize = 10;
-        for (header) |c| { drawCharToBuf(buffer, width, height, head_cx, 26, c, 0x00000000); head_cx += char_w; }
+        for (header) |c| { 
+            drawCharToBuf(buffer, width, height, head_cx, 26, c, 0x00000000); 
+            head_cx += char_w; 
+        }
 
         // 1. O(N) PURE MATH SCAN: Establish Cursor Coordinates
         var cx: usize = start_x;
@@ -501,8 +509,11 @@ pub const Composer = struct {
                 cx += char_w * 4;
                 if (cx >= width - 20) { cx = start_x; cy += line_h; }
             } else {
-                if (c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') in_comment = true;
-                else if (c == '"' and !in_comment) in_string = !in_string;
+                if (c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') {
+                    in_comment = true;
+                } else if (c == '"' and !in_comment) {
+                    in_string = !in_string;
+                }
                 
                 cx += char_w;
                 if (cx >= width - 20) { cx = start_x; cy += line_h; }
@@ -516,25 +527,28 @@ pub const Composer = struct {
 
         i = draw_start_idx;
         while (i <= self.len) : (i += 1) {
-            if (cy > visible_bottom) break; 
+            if (cy > visible_bottom) { break; } 
             
             if (is_start_of_line) {
                 var num_buf: [8]u8 = undefined;
                 const num_str = std.fmt.bufPrint(&num_buf, "{d: >4}", .{line_no}) catch "   0";
                 var nx: usize = 8;
-                for (num_str) |nc| { drawCharToBuf(buffer, width, height, nx, cy - pixel_scroll_y, nc, 0x00555555); nx += char_w; }
+                for (num_str) |nc| { 
+                    drawCharToBuf(buffer, width, height, nx, cy - pixel_scroll_y, nc, 0x00555555); 
+                    nx += char_w; 
+                }
                 drawCharToBuf(buffer, width, height, nx + 4, cy - pixel_scroll_y, 0xB3, 0x00444444);
             }
 
-            if (i == self.len) break;
+            if (i == self.len) { break; }
             const c = self.buffer[i];
 
             if (in_comment) {
                 current_color = 0x00FFBF00; // Amber
-                if (c == '\n') in_comment = false;
+                if (c == '\n') { in_comment = false; }
             } else if (in_string) {
                 current_color = 0x00FFFFFF; // Silver
-                if (c == '"') in_string = false;
+                if (c == '"') { in_string = false; }
             } else {
                 if (c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') {
                     in_comment = true;
@@ -591,8 +605,14 @@ pub const Composer = struct {
                 else => "> ",
             };
             var mx: usize = 10;
-            for (prefix) |c| { drawCharToBuf(buffer, width, height, mx, height - 34, c, 0x00000000); mx += 8; }
-            for (self.input_buf[0..self.input_len]) |c| { drawCharToBuf(buffer, width, height, mx, height - 34, c, 0x00FFFFFF); mx += 8; }
+            for (prefix) |c| { 
+                drawCharToBuf(buffer, width, height, mx, height - 34, c, 0x00000000); 
+                mx += 8; 
+            }
+            for (self.input_buf[0..self.input_len]) |c| { 
+                drawCharToBuf(buffer, width, height, mx, height - 34, c, 0x00FFFFFF); 
+                mx += 8; 
+            }
             drawCharToBuf(buffer, width, height, mx, height - 34, 0xDB, 0x00FFBF00);
         }
 
@@ -609,11 +629,17 @@ pub const Composer = struct {
         b_cx += 24;
         var byte_buf: [64]u8 = undefined;
         const byte_str = std.fmt.bufPrint(&byte_buf, "L:{d} | B:{d}/{d}", .{cursor_line, self.cursor_idx, self.len}) catch "";
-        for (byte_str) |c| { drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00FFBF00); b_cx += 8; }
+        for (byte_str) |c| { 
+            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00FFBF00); 
+            b_cx += 8; 
+        }
         
         const help_str = ".!XX-. Discard   .!SV-. Save to Disk";
         b_cx = width - (help_str.len * 8) - 10;
-        for (help_str) |c| { drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00555555); b_cx += 8; }
+        for (help_str) |c| { 
+            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00555555); 
+            b_cx += 8; 
+        }
     }
 };
 
@@ -626,7 +652,7 @@ fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8,
             if ((bitmap[y] & (@as(u8, 1) << @intCast(7 - x))) != 0) {
                 const screen_x = px + x;
                 const screen_y = py + y;
-                if (screen_x < w and screen_y < h) buf[screen_y * w + screen_x] = color;
+                if (screen_x < w and screen_y < h) { buf[screen_y * w + screen_x] = color; }
             }
         }
     }
@@ -639,7 +665,7 @@ fn drawRect(buf: []u32, bw: usize, bh: usize, x: usize, y: usize, w: usize, h: u
         while (dx < w) : (dx += 1) {
             const sx = x + dx;
             const sy = y + dy;
-            if (sx < bw and sy < bh) buf[sy * bw + sx] = color;
+            if (sx < bw and sy < bh) { buf[sy * bw + sx] = color; }
         }
     }
 }
