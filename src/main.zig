@@ -1000,7 +1000,7 @@ pub fn main() !void {
                     sys_composer.has_pending_cmd = false;
                     @memcpy(journal[0..sys_composer.pending_cmd_len], sys_composer.pending_cmd[0..sys_composer.pending_cmd_len]);
                     journal_len = sys_composer.pending_cmd_len;
-                    sys_composer.active = false;
+                    // FALL THROUGH to global OS execution!
                 } else {
                     continue;
                 }
@@ -1448,7 +1448,7 @@ pub fn main() !void {
         if (dirty) {
             clear(0x00000000);
             if (sys_composer.active) {
-                drawHeader(is_high_cycle);
+                drawHeader(is_high_cycle); // Global OS header parity overlay
                 sys_composer.render(&back_buffer, WIDTH, HEIGHT);
                 drawPulseOverlay();
             } else {
