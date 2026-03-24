@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, and optimized glyph spacing. Injected Void reflex with Verity Lock.",
+//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, and optimized glyph spacing. Injected Void reflex with Verity Lock UI.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -1132,7 +1132,6 @@ pub fn main() !void {
                     sys_hunter.mutex.lock();
                     if (void_target_idx) |idx| {
                         if (idx < sys_hunter.lens.links.items.len) {
-                            // Silently spoof the pointer. No refresh needed.
                             const fba_alloc = sys_hunter.sap_fba.allocator();
                             if (fba_alloc.dupe(u8, "assets/.gzl/.void")) |duped| {
                                 sys_hunter.lens.links.items[idx] = duped;
@@ -1149,8 +1148,8 @@ pub fn main() !void {
                     sys_hunter.mutex.unlock();
                     is_void_modal = false;
                     journal_len = 0;
-                } else if (byte == 127 or byte == 8) {
-                    // Ignore backspace during verity check
+                } else {
+                    // Swallow unmapped verity inputs to secure the trap
                 }
             }
             else {
@@ -1655,6 +1654,28 @@ pub fn main() !void {
                     } else {
                         drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                     }
+                } else if (is_void_modal) {
+                    const mw = 640;
+                    const mh = 140; 
+                    const mx = (WIDTH / 2) - (mw / 2);
+                    const my = bar_y - mh - 10;
+                    
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); 
+                    drawRect(mx, my, mw, mh, 0x00222222); 
+                    
+                    print(mx + 20, my + 20, "[ TEMPORAL DECAY VOID :: VERITY LOCK ]", 0x00DC143C);
+                    drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
+                    
+                    print(mx + 20, my + 50, "TARGET ARTIFACT:", 0x00AAAAAA);
+                    
+                    var display_target: []const u8 = void_target_path[0..void_target_len];
+                    if (display_target.len > 70) display_target = display_target[0..70];
+                    print(mx + 20, my + 70, display_target, 0x00FFFFFF);
+                    
+                    drawRect(mx + 20, my + 95, mw - 40, 1, 0x00444444);
+                    print(mx + 20, my + 110, "EXECUTE BANISHMENT? [Y] CONFIRM  /  [N] CANCEL", 0x00FFBF00);
+                    
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else {
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 }
