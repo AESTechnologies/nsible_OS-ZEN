@@ -1133,7 +1133,10 @@ pub fn main() !void {
                     if (void_target_idx) |idx| {
                         if (idx < sys_hunter.lens.links.items.len) {
                             // Silently spoof the pointer. No refresh needed.
-                            sys_hunter.lens.links.items[idx] = "assets/.gzl/.void";
+                            const fba_alloc = sys_hunter.sap_fba.allocator();
+                            if (fba_alloc.dupe(u8, "assets/.gzl/.void")) |duped| {
+                                sys_hunter.lens.links.items[idx] = duped;
+                            } else |_| {}
                         }
                     }
                     sys_hunter.mutex.unlock();
