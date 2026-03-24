@@ -533,7 +533,8 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 pub fn main() !void {
     //^:: BLAST DOORS - THE SIGINT/SIGTSTP KERNEL TRAP<<dev:archx m_txr.Gem3P>>\.
     var sa = std.mem.zeroes(linux.Sigaction);
-    sa.handler = .{ .handler = @as(usize, 1) }; // SIG_IGN is absolute constant 1
+    // Properly cast the absolute constant 1 (SIG_IGN) to the expected C function pointer type
+    sa.handler = .{ .handler = @as(?*const fn (i32) callconv(.C) void, @ptrFromInt(1)) }; 
     _ = linux.sigaction(2, &sa, null);  // Lock SIGINT  (^C)
     _ = linux.sigaction(3, &sa, null);  // Lock SIGQUIT (^\)
     _ = linux.sigaction(20, &sa, null); // Lock SIGTSTP (^Z)
