@@ -240,9 +240,9 @@ if [ "$cmd" = "sync" ]; then
                 ;;
         esac
     else
-        run_with_loader "UMBILICAL SYNC (REBASE)..." git pull --rebase origin zen
+        run_with_loader "PHIOLOTIC SYNC (ZEN)..." git pull --rebase origin zen
         if [ $? -ne 0 ]; then
-            tput cnorm; tput sgr0; clear; echo -e "${CRIMSON}[ ! ] PULL FAILED.${RESET}"; cat .nsible_job.log; exit 1
+            tput cnorm; tput sgr0; clear; echo -e "${CRIMSON}[ ! ] DISCORDANT STATE.${RESET}"; cat .nsible_job.log; exit 1
         fi
     fi
 
@@ -250,7 +250,7 @@ if [ "$cmd" = "sync" ]; then
     NSIBLE_POST_HASH=$(md5sum nsible 2>/dev/null | awk '{print $1}')
     if [ "$NSIBLE_PRE_HASH" != "$NSIBLE_POST_HASH" ]; then
         tput cnorm; tput sgr0; clear
-        echo -e "${BRASS}[ @NSIBLE ] :: Bootloader updated from Zen. Restarting matrix sequence...${RESET}"
+        echo -e "${BRASS}[ @://ziGGit.zen.boot/m_host^\.->> INFRALOGICALLY RESONANT...${RESET}"
         sleep 1
         exec ./nsible sync
     fi
