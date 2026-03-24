@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, and optimized glyph spacing. Injected Void reflex with Verity Lock UI and absolute URI pointer.",
+//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, optimized glyph spacing. Injected Void reflex with Verity Lock UI, absolute URI pointer, and Composer OS command fall-through.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -995,7 +995,15 @@ pub fn main() !void {
                     const insert_byte = if (byte == '\r') '\n' else byte;
                     sys_composer.insert(insert_byte);
                 }
-                continue;
+                
+                if (sys_composer.has_pending_cmd) {
+                    sys_composer.has_pending_cmd = false;
+                    @memcpy(journal[0..sys_composer.pending_cmd_len], sys_composer.pending_cmd[0..sys_composer.pending_cmd_len]);
+                    journal_len = sys_composer.pending_cmd_len;
+                    sys_composer.active = false;
+                } else {
+                    continue;
+                }
             }
 
             if (is_tabula_rasa) {
@@ -1440,6 +1448,7 @@ pub fn main() !void {
         if (dirty) {
             clear(0x00000000);
             if (sys_composer.active) {
+                drawHeader(is_high_cycle);
                 sys_composer.render(&back_buffer, WIDTH, HEIGHT);
                 drawPulseOverlay();
             } else {
