@@ -240,7 +240,7 @@ if [ "$cmd" = "sync" ]; then
                 ;;
         esac
     else
-        run_with_loader "PHIOLOTIC SYNC (ZEN)..." git pull --rebase origin zen
+        run_with_loader "PHILOTIC SYNC (ZEN)..." git pull --rebase origin zen
         if [ $? -ne 0 ]; then
             tput cnorm; tput sgr0; clear; echo -e "${CRIMSON}[ ! ] DISCORDANT STATE.${RESET}"; cat .nsible_job.log; exit 1
         fi
