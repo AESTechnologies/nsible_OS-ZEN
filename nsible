@@ -3,7 +3,7 @@
 #   module: "ziGGit Bootloader",
 #   version: "0.10.25-apex // Banysang",
 #   description: "Sovereign ASCII Data-Stream visual loader with native Black Box recovery.",
-#   changes: "Setting version-apex. Removed depreciated indexer check. Instantiated local void.",
+#   changes: "Injected autonomous --rebase logic, precise Git failure trapping, and a live-script restart reflex.",
 #   philotic_inferences: "A sovereign matrix does not ask permission from the void; it demands the key at the threshold."
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 cmd="${1:-sync}"
@@ -18,7 +18,6 @@ RESET='\033[0m'
 CRIMSON_BG='\033[48;2;220;20;60m'
 WHITE_FG='\033[38;2;255;255;255m'
 
-# Trap interrupts to ensure terminal restores cursor and color (CLEAR REMOVED)
 trap 'tput cnorm; tput sgr0; rm -f .nsible_job.log' SIGINT SIGTERM EXIT
 
 draw_splash() {
@@ -27,7 +26,7 @@ draw_splash() {
     tput cup $(( (lines / 2) - 8 )) $(( (cols - 60) / 2 ))
     echo -e "${CRIMSON}  ▄▄▄▄▄    _   __   _____   ____   ____    __       ______${RESET}"
     tput cup $(( (lines / 2) - 7 )) $(( (cols - 60) / 2 ))
-    echo -e "${CRIMSON} / __  \  / | / /  / ___/  /  _/  / __ )  / /      / ____/${RESET}"
+    echo -e "${CRIMSON} / __ \  / | / /  / ___/  /  _/  / __ )  / /      / ____/${RESET}"
     tput cup $(( (lines / 2) - 6 )) $(( (cols - 60) / 2 ))
     echo -e "${CRIMSON}/ /_/ _/ /  |/ /   \__ \   / /   / __  | / /      / __/   ${RESET}"
     tput cup $(( (lines / 2) - 5 )) $(( (cols - 60) / 2 ))
@@ -42,8 +41,6 @@ draw_splash() {
     echo -e "${BRASS}────────────────────────────────────────────────────────────${RESET}"
 }
 
-# [ PRE-ELEVATION SEQUENCE ]
-# Elevate directly inside the unified OS aesthetic header
 if [ "$cmd" = "sync" ] || [ "$cmd" = "orbit" ]; then
     tput clear
     cols=$(tput cols)
@@ -89,7 +86,6 @@ run_with_loader() {
     local vec_pos=0
     local start_time=$(date +%s)
     
-    # Check if this is the kernel build to apply the 0.0032 cycle hold (8 seconds)
     local min_duration=0
     if [ "$job_name" = "COMPILING SOVEREIGN KERNEL..." ]; then
         min_duration=8
@@ -100,11 +96,9 @@ run_with_loader() {
     local cols=$(tput cols)
     local lines=$(tput lines)
     
-    # [!] INITIALIZE STATIC GEOMETRY (Eliminates screen flicker)
     tput clear
     draw_splash "$cols" "$lines"
     
-    # Red OS Header Bar (Drops down job status)
     tput cup 0 0
     local header_text=" 高爪 @NSIBLE OS // ziGGit :: ${job_name} "
     printf "${CRIMSON_BG}${WHITE_FG}%-*s${RESET}" "$cols" "${header_text:0:$cols}"
@@ -128,21 +122,19 @@ run_with_loader() {
             break
         fi
         
-        # Tail the active background log, erasing remainder of line to prevent ghosting
         tput cup $(( (lines / 2) + 4 )) $(( (cols - 60) / 2 ))
         local log_line=$(tail -n 1 .nsible_job.log 2>/dev/null | cut -c 1-60)
         
         if [ $job_done -eq 1 ]; then
             if [ $exit_code -eq 0 ]; then
-                log_line="[ MATRIX COMPILED. HOLDING FOR 0.008φ CYCLE SYNC... ]"
+                log_line="[ COMPLETED SUCCESSFULLY ]"
             else
-                log_line="[ ! ] COMPILATION FRACTURE DETECTED. ABORTING CYCLE."
-                min_duration=0 # Dump out immediately on failure
+                log_line="[ ! ] FRACTURE DETECTED. CHECKING LOGS."
+                min_duration=0 
             fi
         fi
         printf "${DIM}> %-58s${RESET}$(tput el)" "$log_line"
         
-        # [!] RED VECTORS FROM RIGHT EDGE (Surgical line erasure to prevent flicker)
         if [ $min_duration -gt 0 ]; then
             local v1_width=$(( (vec_pos % (cols / 2)) + 10 ))
             tput cup $(( (lines / 2) + 6 )) 0; tput el
@@ -160,7 +152,6 @@ run_with_loader() {
             echo -ne "${CRIMSON}◄${max_vec:0:$v3_width}${RESET}"
         fi
 
-        # Draw the Red Data Stream Marquee
         tput cup $((lines - 2)) 0
         local stream="${data:$pos:$cols}"
         if [ ${#stream} -lt $cols ]; then
@@ -175,9 +166,12 @@ run_with_loader() {
     return $exit_code
 }
 
-tput civis # Hide terminal cursor for visual immersion
+tput civis
 
 if [ "$cmd" = "sync" ]; then
+    # 1. Take a hash of nsible BEFORE any pulls to see if it changes
+    NSIBLE_PRE_HASH=$(md5sum nsible 2>/dev/null | awk '{print $1}')
+
     if [ -n "$(git status --porcelain)" ]; then
         cols=$(tput cols)
         lines=$(tput lines)
@@ -211,7 +205,10 @@ if [ "$cmd" = "sync" ]; then
         case "$choice" in 
             i|I)
                 run_with_loader "STASHING LOCAL MODS..." git stash
-                run_with_loader "PULLING FROM VOID..." git pull --no-edit origin zen
+                run_with_loader "PULLING FROM VOID (REBASE)..." git pull --rebase origin zen
+                if [ $? -ne 0 ]; then
+                    tput cnorm; tput sgr0; clear; echo -e "${CRIMSON}[ ! ] REBASE FAILED. CONFLICT DETECTED.${RESET}"; cat .nsible_job.log; git rebase --abort; exit 1
+                fi
                 run_with_loader "RE-APPLYING LOCAL MODS..." git stash pop
                 ;;
             s|S)
@@ -222,7 +219,17 @@ if [ "$cmd" = "sync" ]; then
                 tput civis
                 run_with_loader "COMMITTING LOCAL STATE..." git add .
                 run_with_loader "SECURING COMMIT..." git commit -m "vessel(acer): $msg"
+                
+                # REBASE BEFORE PUSHING TO PREVENT REJECTS
+                run_with_loader "ALIGNING WITH ZEN (REBASE)..." git pull --rebase origin zen
+                if [ $? -ne 0 ]; then
+                    tput cnorm; tput sgr0; clear; echo -e "${CRIMSON}[ ! ] REBASE FAILED. CANNOT PUSH.${RESET}"; cat .nsible_job.log; git rebase --abort; exit 1
+                fi
+
                 run_with_loader "PUSHING TO ZEN..." git push origin zen
+                if [ $? -ne 0 ]; then
+                    tput cnorm; tput sgr0; clear; echo -e "${CRIMSON}[ ! ] PUSH FAILED.${RESET}"; cat .nsible_job.log; exit 1
+                fi
                 ;;
             o|O)
                 run_with_loader "FLUSHING LOCAL STATE..." git fetch origin zen
@@ -233,12 +240,23 @@ if [ "$cmd" = "sync" ]; then
                 ;;
         esac
     else
-        run_with_loader "UMBILICAL SYNC..." git pull --no-edit origin zen
+        run_with_loader "UMBILICAL SYNC (REBASE)..." git pull --rebase origin zen
+        if [ $? -ne 0 ]; then
+            tput cnorm; tput sgr0; clear; echo -e "${CRIMSON}[ ! ] PULL FAILED.${RESET}"; cat .nsible_job.log; exit 1
+        fi
+    fi
+
+    # 2. Check if nsible was updated during the pull. If so, physically restart the script.
+    NSIBLE_POST_HASH=$(md5sum nsible 2>/dev/null | awk '{print $1}')
+    if [ "$NSIBLE_PRE_HASH" != "$NSIBLE_POST_HASH" ]; then
+        tput cnorm; tput sgr0; clear
+        echo -e "${BRASS}[ @NSIBLE ] :: Bootloader updated from Zen. Restarting matrix sequence...${RESET}"
+        sleep 1
+        exec ./nsible sync
     fi
     
     run_with_loader "GENERATING CORE.AIUA SNAPSHOT..." generate_core_snapshot
 
-    # [VERSIONING] :: AUTO GZL
     echo "// [@://nsible_os/src/version.zig/.-={" > src/version.zig
     echo "//    module: \"ziGGit Auto-Versioning Provisioner\"," >> src/version.zig
     echo "//    version: \"0.2.0\"," >> src/version.zig
@@ -248,10 +266,7 @@ if [ "$cmd" = "sync" ]; then
     echo "pub const VERSION = \"$NSIBLE_VERSION\";" >> src/version.zig 
     echo "// }-.]" >> src/version.zig
 
-    # THE MCHN VOID
-    if [ ! -d "assets/.gzl" ]; then
-        mkdir -p "assets/.gzl"
-    fi
+    if [ ! -d "assets/.gzl" ]; then mkdir -p "assets/.gzl"; fi
 
     if [ ! -f "assets/.gzl/.void" ]; then
         run_with_loader "FORGING TEMPORAL DECAY VOID..."
@@ -267,7 +282,7 @@ if [ "$cmd" = "sync" ]; then
     
     if [ $? -eq 0 ]; then
         tput cnorm; tput sgr0; clear; rm -f .nsible_job.log
-        trap - EXIT SIGINT SIGTERM # Detach exit trap before launch
+        trap - EXIT SIGINT SIGTERM 
         exec sudo ./zig-out/bin/nsible_os
     else
         tput cnorm; tput sgr0
