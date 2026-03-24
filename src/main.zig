@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, and optimized glyph spacing. Injected Void reflex.",
+//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, and optimized glyph spacing. Injected Void reflex with Verity Lock.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -653,6 +653,11 @@ pub fn main() !void {
     var pending_memo_content: [4096]u8 = undefined;
     var pending_memo_len: usize = 0;
 
+    var is_void_modal: bool = false;
+    var void_target_path: [1024]u8 = undefined;
+    var void_target_len: usize = 0;
+    var void_target_idx: ?usize = null;
+
     var journal: [4096]u8 = undefined;
     var journal_len: usize = 0;
     var last_rx_ms: i64 = 0;      
@@ -690,6 +695,7 @@ pub fn main() !void {
                 journal_len = 0; }
                 else if (is_bash_modal) { is_bash_modal = false;
                 }
+                else if (is_void_modal) { is_void_modal = false; }
                 
                 esc_len = 0;
                 esc_timer = 0;
@@ -800,6 +806,11 @@ pub fn main() !void {
                         }
                         else if (is_assist_modal) { is_assist_modal = false;
                         }
+                        else if (is_void_modal) { 
+                            is_void_modal = false; 
+                            sys_hunter.status = "[ VOID CANCELLED ]"; 
+                            journal_len = 0; 
+                        }
                         esc_len = 0;
                         continue;
                     } else {
@@ -882,19 +893,18 @@ pub fn main() !void {
                     var target_path = std.mem.trim(u8, journal[0..journal_len], " ");
 
                     var is_melt = target_path.len > 0;
-                    for (target_path) |c|
-                    { if (c < '0' or c > '9') is_melt = false;
-                    }
+                    for (target_path) |c| { if (c < '0' or c > '9') is_melt = false; }
 
                     var resolved_alloc: ?[]u8 = null;
+                    void_target_idx = null; 
                     if (is_melt) {
                         const idx = std.fmt.parseInt(usize, target_path, 10) catch std.math.maxInt(usize);
                         sys_hunter.mutex.lock();
                         if (idx < sys_hunter.lens.links.items.len) {
-                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res|
-                            {
+                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
                                 resolved_alloc = res;
                                 target_path = res;
+                                void_target_idx = idx; 
                             } else |_| {}
                         }
                         sys_hunter.mutex.unlock();
@@ -913,17 +923,17 @@ pub fn main() !void {
                             clean_path = clean_path[1..];
                         }
 
-                        sys_hunter.banishToVoid(clean_path) catch {};
-                        const preserved_status = sys_hunter.status;
-                        sys_hunter.refresh() catch {}; 
-                        sys_hunter.status = preserved_status;
+                        const safe_len = @min(clean_path.len, 1024);
+                        @memcpy(void_target_path[0..safe_len], clean_path[0..safe_len]);
+                        void_target_len = safe_len;
+
+                        sys_hunter.mutex.lock();
+                        sys_hunter.status = "[ AWAITING VERITY : PRESS 'Y' TO VOID ]";
+                        sys_hunter.mutex.unlock();
+                        is_void_modal = true;
                     }
 
-                    if (resolved_alloc) |res|
-                    {
-                        sys_hunter.allocator.free(res);
-                    }
-                    
+                    if (resolved_alloc) |res| { sys_hunter.allocator.free(res); }
                     journal_len = 0;
                     reflex_triggered = true;
                 }
@@ -1113,6 +1123,31 @@ pub fn main() !void {
                     journal_len = 0;
                 } else if (byte == '\n' or byte == '\r') {
                     // Do nothing if enter hit while not piping
+                }
+            }
+            else if (is_void_modal) {
+                if (byte == 'y' or byte == 'Y') {
+                    sys_hunter.banishToVoid(void_target_path[0..void_target_len]) catch {};
+                    
+                    sys_hunter.mutex.lock();
+                    if (void_target_idx) |idx| {
+                        if (idx < sys_hunter.lens.links.items.len) {
+                            // Silently spoof the pointer. No refresh needed.
+                            sys_hunter.lens.links.items[idx] = "assets/.gzl/.void";
+                        }
+                    }
+                    sys_hunter.mutex.unlock();
+                    
+                    is_void_modal = false;
+                    journal_len = 0;
+                } else if (byte == 'n' or byte == 'N') {
+                    sys_hunter.mutex.lock();
+                    sys_hunter.status = "[ VOID CANCELLED ]";
+                    sys_hunter.mutex.unlock();
+                    is_void_modal = false;
+                    journal_len = 0;
+                } else if (byte == 127 or byte == 8) {
+                    // Ignore backspace during verity check
                 }
             }
             else {
