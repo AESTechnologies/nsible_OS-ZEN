@@ -2,7 +2,7 @@
 //   module: "Hunter Traversal Lobe",
 //   version: "0.10.25-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Stabilized buf/buffer scope mismatch, enforced Zig 0.15.2 syntax compliance, injected Void Banishment.",
+//   changes: "Stabilized buf/buffer scope mismatch, enforced Zig 0.15.2 syntax compliance, injected Void Banishment with corrected GZL encapsulation.",
 //   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -393,8 +393,7 @@ pub const Hunter = struct {
             "//   origin: \"{s}\",\n" ++
             "//   φdate: \"{d}\",\n" ++
             "//   weight_bytes: \"{d}\",\n" ++
-            "//   status: \"deprecated\"\n" ++
-            "// }}-.]\n\n",
+            "//   status: \"deprecated\"\n\n",
             .{target_path, ts, f_size}
         ) catch "\n// [VOID_HEADER_ERR]\n\n";
 
