@@ -9,7 +9,7 @@
 
 # ◬ @NSIBLE OS // v0.10.25-apex // Banysang
 > **by Æ§ Tech MMXXVI**
-> *A Sovereign, High-Talon Semantic Logic Operating System for 32-bit Xs.*
+> *A Sovereign, Talon Alta Semantic Logic Operating System for 32-bit Xs.*
 ![@nsible Ignition Sequence](assets/nsible_boot.gif)
 
 ---
