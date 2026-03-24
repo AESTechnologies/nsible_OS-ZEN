@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility, optimized glyph spacing. Injected Void reflex with Verity Lock UI, absolute URI pointer, and seamless Composer OS command fall-through.",
+//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility. Injected Void reflex with Verity Lock UI, seamless Composer OS command fall-through, and kernel-level SIGINT/SIGTSTP Blast Doors.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -531,6 +531,14 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 }
 
 pub fn main() !void {
+    //^:: BLAST DOORS - THE SIGINT/SIGTSTP KERNEL TRAP<<dev:archx m_txr.Gem3P>>\.
+    var sa = std.mem.zeroes(linux.Sigaction);
+    sa.handler = .{ .handler = @as(usize, 1) }; // SIG_IGN is absolute constant 1
+    _ = linux.sigaction(2, &sa, null);  // Lock SIGINT  (^C)
+    _ = linux.sigaction(3, &sa, null);  // Lock SIGQUIT (^\)
+    _ = linux.sigaction(20, &sa, null); // Lock SIGTSTP (^Z)
+    //:X
+
     const fs = std.fs.cwd();
     fs.makeDir("timeline") catch |err|
     { if (err != error.PathAlreadyExists) {} };
