@@ -18,6 +18,14 @@ RESET='\033[0m'
 CRIMSON_BG='\033[48;2;220;20;60m'
 WHITE_FG='\033[38;2;255;255;255m'
 
+check_void_link() {
+    if ping -q -c 1 -W 2 github.com >/dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 trap 'tput cnorm; tput sgr0; rm -f .nsible_job.log' SIGINT SIGTERM EXIT
 
 draw_splash() {
@@ -169,123 +177,170 @@ run_with_loader() {
 tput civis
 
 if [ "$cmd" = "sync" ]; then
-    # 1. Take a hash of nsible BEFORE any pulls to see if it changes
-    NSIBLE_PRE_HASH=$(md5sum nsible 2>/dev/null | awk '{print $1}')
+    # 1. Take a hash of the bootloader BEFORE any pulls
+    NSIBLE_PRE_HASH=$(md5sum "$0" 2>/dev/null | awk '{print $1}')
 
-    if [ -n "$(git status --porcelain)" ]; then
-        cols=$(tput cols)
-        lines=$(tput lines)
-        tput cnorm
-        tput clear
-        draw_splash "$cols" "$lines"
-        
-        tput cup 0 0
-        local header_text=" 高爪 @NSIBLE OS // LOCAL DIVERGENCE DETECTED "
-        printf "${CRIMSON_BG}${WHITE_FG}%-*s${RESET}" "$cols" "${header_text:0:$cols}"
+    if check_void_link; then
+        if [ -n "$(git status --porcelain)" ]; then
+            cols=$(tput cols)
+            lines=$(tput lines)
+            tput cnorm
+            tput clear
+            draw_splash "$cols" "$lines"
+            
+            tput cup 0 0
+            local header_text=" 高爪 @NSIBLE OS // LOCAL DIVERGENCE DETECTED "
+            printf "${CRIMSON_BG}${WHITE_FG}%-*s${RESET}" "$cols" "${header_text:0:$cols}"
 
-        tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
-        echo -e "${CRIMSON}[ ! ] LOCAL DIVERGENCE DETECTED${RESET}"
-        tput cup $(( (lines / 2) + 3 )) $(( (cols - 60) / 2 ))
-        echo -e "${SILVER}      Files on this vessel have been modified.${RESET}"
-        
-        tput cup $(( (lines / 2) + 5 )) $(( (cols - 60) / 2 ))
-        echo -e "      ${BRASS}[I]${RESET}NTEGRATE : Pull cloud updates, keep local changes."
-        tput cup $(( (lines / 2) + 6 )) $(( (cols - 60) / 2 ))
-        echo -e "      ${BRASS}[S]${RESET}AVE      : Commit local changes & Push to Zen."
-        tput cup $(( (lines / 2) + 7 )) $(( (cols - 60) / 2 ))
-        echo -e "      ${BRASS}[O]${RESET}VERWRITE : Discard local changes & Force-Sync to Zen."
-        tput cup $(( (lines / 2) + 8 )) $(( (cols - 60) / 2 ))
-        echo -e "      ${BRASS}[C]${RESET}ANCEL"
-        
-        tput cup $(( (lines / 2) + 10 )) $(( (cols - 60) / 2 ))
-        printf "      :: SELECT PROTOCOL > "
-        read -r choice
-        tput civis
-        
-        case "$choice" in 
-            i|I)
-                run_with_loader "STASHING LOCAL MODS..." git stash
-                run_with_loader "PULLING FROM VOID (REBASE)..." git pull --rebase origin zen
-                if [ $? -ne 0 ]; then
-                    tput cnorm; tput sgr0; clear; echo -e "${CRIMSON}[ ! ] REBASE FAILED. CONFLICT DETECTED.${RESET}"; cat .nsible_job.log; git rebase --abort; exit 1
-                fi
-                run_with_loader "RE-APPLYING LOCAL MODS..." git stash pop
-                ;;
-            s|S)
+            tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
+            echo -e "${CRIMSON}[ ! ] LOCAL DIVERGENCE DETECTED${RESET}"
+            tput cup $(( (lines / 2) + 3 )) $(( (cols - 60) / 2 ))
+            echo -e "${SILVER}      Files on this vessel have been modified.${RESET}"
+            
+            tput cup $(( (lines / 2) + 5 )) $(( (cols - 60) / 2 ))
+            echo -e "      ${BRASS}[I]${RESET}NTEGRATE : Pull cloud updates, keep local changes."
+            tput cup $(( (lines / 2) + 6 )) $(( (cols - 60) / 2 ))
+            echo -e "      ${BRASS}[S]${RESET}AVE      : Commit local changes & Push to Zen."
+            tput cup $(( (lines / 2) + 7 )) $(( (cols - 60) / 2 ))
+            echo -e "      ${BRASS}[O]${RESET}VERWRITE : Discard local changes & Force-Sync to Zen."
+            tput cup $(( (lines / 2) + 8 )) $(( (cols - 60) / 2 ))
+            echo -e "      ${BRASS}[C]${RESET}ANCEL"
+            
+            tput cup $(( (lines / 2) + 10 )) $(( (cols - 60) / 2 ))
+            printf "      :: SELECT PROTOCOL > "
+            read -r choice
+            tput civis
+            
+            case "$choice" in 
+                i|I)
+                    run_with_loader "STASHING LOCAL MODS..." git stash
+                    run_with_loader "PULLING FROM VOID (REBASE)..." git pull --rebase origin zen
+                    if [ $? -ne 0 ]; then
+                        tput cnorm
+                        tput sgr0
+                        clear
+                        echo -e "${CRIMSON}[ ! ] REBASE FAILED. CONFLICT DETECTED.${RESET}"
+                        cat .nsible_job.log
+                        git rebase --abort
+                        echo -e "${DIM}Restoring stashed local modifications...${RESET}"
+                        git stash pop
+                        exit 1
+                    fi
+                    run_with_loader "RE-APPLYING LOCAL MODS..." git stash pop
+                    ;;
+                s|S)
+                    tput cnorm
+                    tput cup $(( (lines / 2) + 12 )) $(( (cols - 60) / 2 ))
+                    printf "      :: ENTER COMMIT MESSAGE > "
+                    read -r msg
+                    tput civis
+                    
+                    run_with_loader "COMMITTING LOCAL STATE..." git add .
+                    run_with_loader "SECURING COMMIT..." git commit -m "vessel(acer): $msg"
+                    
+                    # REBASE BEFORE PUSHING TO PREVENT REJECTS
+                    run_with_loader "ALIGNING WITH ZEN (REBASE)..." git pull --rebase origin zen
+                    if [ $? -ne 0 ]; then
+                        tput cnorm
+                        tput sgr0
+                        clear
+                        echo -e "${CRIMSON}[ ! ] REBASE FAILED. CANNOT PUSH.${RESET}"
+                        cat .nsible_job.log
+                        git rebase --abort
+                        exit 1
+                    fi
+
+                    run_with_loader "PUSHING TO ZEN..." git push origin zen
+                    if [ $? -ne 0 ]; then
+                        tput cnorm
+                        tput sgr0
+                        clear
+                        echo -e "${CRIMSON}[ ! ] PUSH FAILED.${RESET}"
+                        cat .nsible_job.log
+                        exit 1
+                    fi
+                    ;;
+                o|O)
+                    run_with_loader "FLUSHING LOCAL STATE..." git fetch origin zen
+                    run_with_loader "RESETTING TO ZEN..." git reset --hard origin/zen
+                    ;;
+                *)
+                    tput cnorm
+                    exit 1
+                    ;;
+            esac
+        else
+            run_with_loader "PHILOTIC SYNC (ZEN)..." git pull --rebase origin zen
+            if [ $? -ne 0 ]; then
                 tput cnorm
-                tput cup $(( (lines / 2) + 12 )) $(( (cols - 60) / 2 ))
-                printf "      :: ENTER COMMIT MESSAGE > "
-                read -r msg
-                tput civis
-                run_with_loader "COMMITTING LOCAL STATE..." git add .
-                run_with_loader "SECURING COMMIT..." git commit -m "vessel(acer): $msg"
-                
-                # REBASE BEFORE PUSHING TO PREVENT REJECTS
-                run_with_loader "ALIGNING WITH ZEN (REBASE)..." git pull --rebase origin zen
-                if [ $? -ne 0 ]; then
-                    tput cnorm; tput sgr0; clear; echo -e "${CRIMSON}[ ! ] REBASE FAILED. CANNOT PUSH.${RESET}"; cat .nsible_job.log; git rebase --abort; exit 1
-                fi
-
-                run_with_loader "PUSHING TO ZEN..." git push origin zen
-                if [ $? -ne 0 ]; then
-                    tput cnorm; tput sgr0; clear; echo -e "${CRIMSON}[ ! ] PUSH FAILED.${RESET}"; cat .nsible_job.log; exit 1
-                fi
-                ;;
-            o|O)
-                run_with_loader "FLUSHING LOCAL STATE..." git fetch origin zen
-                run_with_loader "RESETTING TO ZEN..." git reset --hard origin/zen
-                ;;
-            *)
-                tput cnorm; exit 1
-                ;;
-        esac
-    else
-        run_with_loader "PHILOTIC SYNC (ZEN)..." git pull --rebase origin zen
-        if [ $? -ne 0 ]; then
-            tput cnorm; tput sgr0; clear; echo -e "${CRIMSON}[ ! ] DISCORDANT STATE.${RESET}"; cat .nsible_job.log; exit 1
+                tput sgr0
+                clear
+                echo -e "${CRIMSON}[ ! ] DISCORDANT STATE.${RESET}"
+                cat .nsible_job.log
+                exit 1
+            fi
         fi
-    fi
 
-    # 2. Check if nsible was updated during the pull. If so, physically restart the script.
-    NSIBLE_POST_HASH=$(md5sum nsible 2>/dev/null | awk '{print $1}')
-    if [ "$NSIBLE_PRE_HASH" != "$NSIBLE_POST_HASH" ]; then
-        tput cnorm; tput sgr0; clear
-        echo -e "${BRASS}[ @://ziGGit.zen.boot/m_host^\.->> INFRALOGICALLY RESONANT...${RESET}"
-        sleep 1
-        exec ./nsible sync
+        # 2. Check if the bootloader was updated during the pull.
+        NSIBLE_POST_HASH=$(md5sum "$0" 2>/dev/null | awk '{print $1}')
+        if [ "$NSIBLE_PRE_HASH" != "$NSIBLE_POST_HASH" ]; then
+            tput cnorm
+            tput sgr0
+            clear
+            echo -e "${BRASS}[ @://ziGGit.zen.boot/m_host^\.->> INFRALOGICALLY RESONANT...${RESET}"
+            sleep 1
+            exec "$0" "$@"
+        fi
+    else
+        run_with_loader "VOID UNREACHABLE :: AUTONOMOUS MODE..." sleep 2
     fi
     
     run_with_loader "GENERATING CORE.AIUA SNAPSHOT..." generate_core_snapshot
 
-    echo "// [@://nsible_os/src/version.zig/.-={" > src/version.zig
-    echo "//    module: \"ziGGit Auto-Versioning Provisioner\"," >> src/version.zig
-    echo "//    version: \"0.2.0\"," >> src/version.zig
-    echo "//    description: \"An automatically generated data_object for providing version control to @nsible stack\"," >> src/version.zig
-    echo "//    changes: \"GZL-X Encapsulation compliant.\"," >> src/version.zig
-    echo "//    philotic_inferences: \"Know what you think you know.\"" >> src/version.zig
-    echo "pub const VERSION = \"$NSIBLE_VERSION\";" >> src/version.zig 
-    echo "// }-.]" >> src/version.zig
+    run_with_loader "VERIFYING VERSION CAPSULE..." sleep 0.1
 
-    if [ ! -d "assets/.gzl" ]; then mkdir -p "assets/.gzl"; fi
+    if ! grep -q "pub const VERSION = \"$NSIBLE_VERSION\";" src/version.zig 2>/dev/null; then
+        run_with_loader "FORGING VERSION.ZIG..." sleep 0.1
+        cat << EOF > src/version.zig
+// [@://nsible_os/src/version.zig/.-={
+//    module: "ziGGit Auto-Versioning Provisioner",
+//    version: "0.2.0",
+//    description: "An automatically generated data_object for providing version control to @nsible stack",
+//    changes: "GZL-X Encapsulation compliant.",
+//    philotic_inferences: "Know what you think you know."
+pub const VERSION = "$NSIBLE_VERSION";
+// }-.]
+EOF
+    fi
+
+    if [ ! -d "assets/.gzl" ]; then 
+        mkdir -p "assets/.gzl"
+    fi
 
     if [ ! -f "assets/.gzl/.void" ]; then
-        run_with_loader "FORGING TEMPORAL DECAY VOID..."
-        echo "// [@://nsible_os/assets/.gzl/.void/.-={" > "assets/.gzl/.void"
-        echo "//   module: \"Temporal Decay Void\"," >> "assets/.gzl/.void"
-        echo "//   description: \"Graveyard for banished artifacts and dormant logic.\"," >> "assets/.gzl/.void"
-        echo "//   philotic_inferences: \"Nothing is truly lost; it merely awaits reclamation.\"" >> "assets/.gzl/.void"
-        echo "// }-.]" >> "assets/.gzl/.void"
-        echo "" >> "assets/.gzl/.void"
+        run_with_loader "FORGING TEMPORAL DECAY VOID..." sleep 0.1
+        cat << EOF > "assets/.gzl/.void"
+// [@://nsible_os/assets/.gzl/.void/.-={
+//   module: "Temporal Decay Void",
+//   description: "Graveyard for banished artifacts and dormant logic.",
+//   philotic_inferences: "Nothing is truly lost; it merely awaits reclamation."
+// }-.]
+
+EOF
     fi
 
     run_with_loader "COMPILING SOVEREIGN KERNEL..." /home/static/.local/bin/zig build
     
     if [ $? -eq 0 ]; then
-        tput cnorm; tput sgr0; clear; rm -f .nsible_job.log
+        tput cnorm
+        tput sgr0
+        clear
+        rm -f .nsible_job.log
         trap - EXIT SIGINT SIGTERM 
         exec sudo ./zig-out/bin/nsible_os
     else
-        tput cnorm; tput sgr0
+        tput cnorm
+        tput sgr0
         echo -e "\n${CRIMSON}[ ! ] BUILD FAILED. TRACE WRITTEN TO BLACK BOX (trail.tome).${RESET}\n"
         cat .nsible_job.log | sudo tee trail.tome > /dev/null
         cat .nsible_job.log
@@ -294,27 +349,37 @@ if [ "$cmd" = "sync" ]; then
     fi
 
 elif [ "$cmd" = "log" ]; then
-    tput cnorm; tput sgr0; clear
+    tput cnorm
+    tput sgr0
+    clear
     echo "[ @NSIBLE :: BLACK BOX ARCHIVE ]"
     if [ -f "trail.tome" ]; then cat trail.tome
     else echo "   :: The Void is quiet. No fatal traces found."; fi
 
 elif [ "$cmd" = "purge" ]; then
-    tput cnorm; tput sgr0; clear
+    tput cnorm
+    tput sgr0
+    clear
     echo "[ @NSIBLE :: INITIATING DEEP PURGE ]"
     rm -rf zig-cache zig-out trail.tome assets/void.tome assets/indexer
     echo "   :: Compiler caches, unlinked assets, and Black Box cleared."
 elif [ "$cmd" = "orbit" ]; then
     if [ -f "./zig-out/bin/nsible_os" ]; then
-        tput cnorm; tput sgr0; clear
+        tput cnorm
+        tput sgr0
+        clear
         trap - EXIT SIGINT SIGTERM
         exec sudo ./zig-out/bin/nsible_os
     else
-        tput cnorm; tput sgr0; clear
+        tput cnorm
+        tput sgr0
+        clear
         echo -e "${CRIMSON}[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST.${RESET}"
     fi
 else
-    tput cnorm; tput sgr0; clear
+    tput cnorm
+    tput sgr0
+    clear
     echo "Unknown directive: $cmd"
     echo "Usage: ./nsible [sync | log | purge | orbit]"
 fi
