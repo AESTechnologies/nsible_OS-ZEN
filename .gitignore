@@ -8,6 +8,6 @@
 !buid.zig.zon
 !nsible
 !src/**
-assets/gfx/**
+!assets/gfx/**
 assets/void.tome
 *.tome
