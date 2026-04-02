@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.10.25-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Expanded aud.io UI bar to 480px, doubled track title visibility. Injected Void reflex with Verity Lock UI, seamless Composer OS command fall-through, and kernel-level SIGINT/SIGTSTP Blast Doors (corrected calling convention).",
+//   changes: "Migrated trail.tome to void asset & aiua.tome to timeline. Injected Void reflex with Verity Lock UI, seamless Composer OS command fall-through, and kernel-level SIGINT/SIGTSTP Blast Doors (corrected calling convention).",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 const std = @import("std");
 const linux = std.os.linux;
@@ -354,10 +354,10 @@ fn strikeRadio(allocator: std.mem.Allocator) void {
         pcm[i] = @as(u8, @intFromFloat(out));
     }
 
-    if (std.fs.cwd().createFile("resonator.raw", .{})) |file| {
+    if (std.fs.cwd().createFile("timeline/.resonator.raw", .{})) |file| {
         file.writeAll(pcm) catch {};
         file.close();
-        const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "resonator.raw" };
+        const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "timeline/.resonator.raw" };
         var agent = std.process.Child.init(&argv, allocator);
         agent.stdout_behavior = .Ignore; agent.stderr_behavior = .Ignore;
         _ = agent.spawn() catch {};
@@ -419,7 +419,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     var aiua_mass: usize = 0;
     var inference_count: usize = 0;
 
-    if (std.fs.cwd().openFile("aiua.tome", .{})) |file|
+    if (std.fs.cwd().openFile("timeline/.aiua.tome", .{})) |file|
     {
         if (file.stat()) |stat|
         {
@@ -496,7 +496,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         avium_resonance = (avium_resonance << 5) | (avium_resonance >> 59); 
     }
 
-    if (std.fs.cwd().createFile(".birdsong.sik", .{})) |sik_file|
+    if (std.fs.cwd().createFile("timeline/.birdsong.sik", .{})) |sik_file|
     {
         var res_buf: [16]u8 = undefined;
         const res_str = std.fmt.bufPrint(&res_buf, "{x:0>16}", .{avium_resonance}) catch "0000000000000000";
@@ -505,6 +505,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     } else |_|
     {}
 
+	// AEQUATUS EVOCATUS SALARARIUS :: VAE VICTIS
     print(WIDTH / 2 - 80, center_y - 60, "\xC6\xA7   T E C H N O L O G I E S", 0x00FFFFFF);
     print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", 0x00AAAAAA);
     print(WIDTH / 2 - 40, center_y + 45, "[ ALCNDNOM ]", 0x00FFBF00); 
@@ -515,11 +516,11 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     print(time_x, center_y + 65, time_str, 0x00555555);
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
 
-    if (std.fs.cwd().createFile("resonator.raw", .{})) |file|
+    if (std.fs.cwd().createFile("timeline/.resonator.raw", .{})) |file|
     {
         file.writeAll(pcm) catch {};
         file.close();
-        const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "resonator.raw" };
+        const argv = [_][]const u8{ "aplay", "-q", "-f", "U8", "-r", "8000", "-c", "1", "timeline/.resonator.raw" };
         var agent = std.process.Child.init(&argv, allocator);
         agent.stdout_behavior = .Ignore;
         agent.stderr_behavior = .Ignore;
@@ -548,14 +549,16 @@ pub fn main() !void {
     { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("assets/aud.io") catch |err|
     { if (err != error.PathAlreadyExists) {} };
-    if (fs.access("aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("aiua.tome", .{})) |f|
+
+	// <<dev:archx-MMXXVINIVNII:IVNXLIV>>: Refactor to anchor timeline/.aiua.tome in the timeline dir. (3 instances chg'd)
+    if (fs.access("timeline/.aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("timeline/.aiua.tome", .{})) |f|
     { f.close(); } else |_|
     {} }
     
     var is_trail_modal: bool = false;
     var trail_buffer: [4096]u8 = undefined;
     var trail_len: usize = 0;
-    if (fs.openFile("trail.tome", .{})) |file|
+    if (fs.openFile("assets/.void/.trail.tome", .{})) |file|
     {
         if (file.stat()) |stat|
         {
@@ -569,7 +572,7 @@ pub fn main() !void {
     } else |_|
     {}
     
-    if (fs.createFile("trail.tome", .{})) |f| { panic_fd = f.handle; } else |_|
+    if (fs.createFile("assets/.void/.trail.tome", .{})) |f| { panic_fd = f.handle; } else |_|
     {}
 
     _ = linux.syscall5(.mount, @intFromPtr("proc"), @intFromPtr("/proc"), @intFromPtr("proc"), 0, 0);
@@ -604,7 +607,7 @@ pub fn main() !void {
     const mchn_str = if (mchn_len > 0) mchn_buf[0..mchn_len] else "mchn";
     var soc_buf: [64]u8 = .{0} ** 64;
     var soc_len: usize = 0;
-    if (fs.openFile("aiua.tome", .{})) |file|
+    if (fs.openFile("timeline/.aiua.tome", .{})) |file|
     {
         var fl_buf: [256]u8 = undefined;
         if (file.read(&fl_buf)) |br|
@@ -1020,7 +1023,7 @@ pub fn main() !void {
                     if (journal_len > 0) {
                         const socius_alias = journal[0..journal_len];
                         var sik_buf: [16]u8 = .{ '0' } ** 16;
-                        if (std.fs.cwd().openFile(".birdsong.sik", .{})) |f|
+                        if (std.fs.cwd().openFile("timeline/.birdsong.sik", .{})) |f|
                         {
                             _ = f.readAll(&sik_buf) catch 0;
                             f.close();
@@ -1114,7 +1117,7 @@ pub fn main() !void {
                     if (journal_len > 0) {
       
                         const dest = std.mem.trim(u8, journal[0..journal_len], " ");
-                        if (std.fs.cwd().openFile("assets/void.tome", .{})) |src| {
+                        if (std.fs.cwd().openFile("assets/.void/.00", .{})) |src| {
                             if (std.fs.cwd().createFile(dest, .{})) |dst|
                             {
                                 const data = src.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
@@ -1150,7 +1153,7 @@ pub fn main() !void {
                     if (void_target_idx) |idx| {
                         if (idx < sys_hunter.lens.links.items.len) {
                             const fba_alloc = sys_hunter.sap_fba.allocator();
-                            if (fba_alloc.dupe(u8, "/assets/.gzl/.void")) |duped| {
+                            if (fba_alloc.dupe(u8, "/assets/.void/.00")) |duped| {
                                 sys_hunter.lens.links.items[idx] = duped;
                             } else |_| {}
                         }
@@ -1260,7 +1263,7 @@ pub fn main() !void {
                             if (std.fs.cwd().readFileAlloc(void_allocator, "assets/aud.io/.queue.nsb", 10 * 1024 * 1024)) |q_data|
                             {
                                 defer void_allocator.free(q_data);
-                                if (std.fs.cwd().createFile("assets/void.tome", .{ .truncate = true })) |f| {
+                                if (std.fs.cwd().createFile("assets/.void/.00", .{ .truncate = true })) |f| {
                                     f.writeAll(q_data) catch {};
                                     f.close();
                                     is_bash_modal = true;
@@ -1317,7 +1320,7 @@ pub fn main() !void {
                                 agent.stderr_behavior = .Pipe;
                             
                                 if (agent.spawn()) |_| {
-                                    if (std.fs.cwd().createFile("assets/void.tome", .{}) catch null) |f| {
+                                    if (std.fs.cwd().createFile("assets/.void/.00", .{}) catch null) |f| {
                   
                                          if (agent.stdout) |stdout| {
                                             const out_data = stdout.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
@@ -1636,7 +1639,7 @@ pub fn main() !void {
                     print(mx + 20, my + 10, "[ SHELL OUTPUT ]", 0x00FFBF00);
                     drawRect(mx + 20, my + 25, mw - 40, 1, 0x00444444);
 
-                    if (std.fs.cwd().openFile("assets/void.tome", .{})) |file|
+                    if (std.fs.cwd().openFile("assets/.void/.00", .{})) |file|
                     {
                         const f_content = file.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
                         defer void_allocator.free(f_content);

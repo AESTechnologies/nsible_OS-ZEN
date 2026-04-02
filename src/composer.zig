@@ -1,7 +1,7 @@
 // [@://nsible_os/src/composer.zig/.-={
-//   module: "The Composer Lobe",
+//   module: "The Composer IDE",
 //   version: "0.10.25-apex // Banysang",
-//   description: "Native, full-screen text editor lobe operating in a dedicated 50MB BSS matrix.",
+//   description: "Native, full-screen IDE  operating in a dedicated 50MB BSS matrix.",
 //   changes: "Injected autonomous modal states, native syntax highlighting, absolute UI displacement, and syntax-corrected O(1) Viewport Optimization.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
@@ -110,7 +110,7 @@ pub const Composer = struct {
         }
 
         if (clean_path.len == 0) {
-            clean_path = "untitled.txt";
+            clean_path = "jour.nal";
         }
         
         const is_abs = std.mem.startsWith(u8, clean_path, "/");
@@ -138,7 +138,7 @@ pub const Composer = struct {
         }
 
         if (clean_path.len == 0) {
-            clean_path = "untitled.txt";
+            clean_path = "jour.nal";
         }
         
         const is_abs = std.mem.startsWith(u8, clean_path, "/");
@@ -423,7 +423,7 @@ pub const Composer = struct {
     }
 
     fn isKeyword(word: []const u8) bool {
-        const keywords = [_][]const u8{ "pub", "fn", "const", "var", "if", "else", "return", "struct", "enum", "while", "for", "switch", "catch", "try", "true", "false", "undefined", "and", "or", "void", "null" };
+        const keywords = [_][]const u8{ "pub", "fn", "const", "var", "if", "else", "return", "struct", "enum", "while", "for", "switch", "catch", "try", "true", "false", "undefined", "and", "or", "void", "null", "@://" };
         for (keywords) |kw| {
             if (std.mem.eql(u8, word, kw)) { return true; }
         }

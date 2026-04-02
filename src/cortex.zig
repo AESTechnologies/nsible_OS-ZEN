@@ -20,7 +20,7 @@ var output_buf: [256]u8 = undefined;
 pub fn dispatch(cmd: []const u8) Response {
     if (cmd.len == 0) return .{ .action = .NONE };
 
-    // [!] THE SHELL LOBE DISPATCH
+    // [!] THE GZL-$ MODAL
     if (std.mem.startsWith(u8, cmd, "$/")) {
         return .{ .action = .BASH_EXEC, .text = cmd[2..] };
     }

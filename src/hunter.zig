@@ -292,7 +292,7 @@ pub const Hunter = struct {
     pub fn createMemo(self: *Hunter, title: []const u8, content: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        const clean_title = if (title.len == 0) "untitled_anomaly" else title;
+        const clean_title = if (title.len == 0) "undesignated..." else title;
         var uri_buf: [256]u8 = undefined;
         const full_uri = try std.fmt.bufPrint(&uri_buf, "memo://{s}", .{clean_title});
         const title_dupe = try self.allocator.dupe(u8, full_uri);
@@ -378,7 +378,7 @@ pub const Hunter = struct {
         src_file.close();
         defer self.allocator.free(content);
 
-        const void_file = std.fs.cwd().openFile("assets/.gzl/.void", .{ .mode = .read_write }) catch {
+        const void_file = std.fs.cwd().openFile("assets/.void/.00", .{ .mode = .read_write }) catch {
             self.status = "VOID_ERR_SYS";
             return;
         };
@@ -388,7 +388,7 @@ pub const Hunter = struct {
         const ts = std.time.timestamp();
         var header_buf: [512]u8 = undefined;
         const header = std.fmt.bufPrint(&header_buf,
-            "\n// [@://nsible_os/assets/.gzl/.void/.-={{\n" ++
+            "\n// [@://nsible_os/assets/.void/.00/.-={{\n" ++
             "//   module: \"Banished Artifact\",\n" ++
             "//   origin: \"{s}\",\n" ++
             "//   φdate: \"{d}\",\n" ++
@@ -678,14 +678,14 @@ pub const Hunter = struct {
     }
 
     fn saveHistory(self: *Hunter) !void {
-        const file = try std.fs.cwd().createFile("aiua.tome", .{});
+        const file = try std.fs.cwd().createFile("timeline/.aiua.tome", .{});
         defer file.close();
         for (self.history.items) |entry| { try file.writeAll(entry); try file.writeAll("\n");
         }
     }
 
     fn loadHistory(self: *Hunter) !void {
-        const file = std.fs.cwd().openFile("aiua.tome", .{}) catch return;
+        const file = std.fs.cwd().openFile("timeline/.aiua.tome", .{}) catch return;
         defer file.close();
         const content = file.readToEndAlloc(self.allocator, 1024 * 1024) catch return; defer self.allocator.free(content);
         var iter = std.mem.splitScalar(u8, content, '\n');

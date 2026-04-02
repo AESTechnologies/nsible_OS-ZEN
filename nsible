@@ -86,7 +86,7 @@ run_with_loader() {
     local exit_code=0
     local job_done=0
     
-    local data=$(cat core.aiua aiua.tome trail.tome 2>/dev/null | tr '\n' ' ' | sed 's/[^[:print:]]//g')
+    local data=$(cat core.aiua timeline/.aiua.tome assets/.void/.trail.tome 2>/dev/null | tr '\n' ' ' | sed 's/[^[:print:]]//g')
     if [ -z "$data" ]; then data="01010111 01000001 01001011 01001001 01001110 01000111 "; fi
     data="${data} :: ${data} :: ${data} :: ${data} :: "
     
@@ -341,8 +341,8 @@ EOF
     else
         tput cnorm
         tput sgr0
-        echo -e "\n${CRIMSON}[ ! ] BUILD FAILED. TRACE WRITTEN TO BLACK BOX (trail.tome).${RESET}\n"
-        cat .nsible_job.log | sudo tee trail.tome > /dev/null
+        echo -e "\n${CRIMSON}[ ! ] BUILD FAILED. TRACE WRITTEN TO BLACK BOX (assets/.void/.trail.tome).${RESET}\n"
+        cat .nsible_job.log | sudo tee assets/.void/.trail.tome > /dev/null
         cat .nsible_job.log
         rm -f .nsible_job.log
         exit 1
@@ -353,7 +353,7 @@ elif [ "$cmd" = "log" ]; then
     tput sgr0
     clear
     echo "[ @NSIBLE :: BLACK BOX ARCHIVE ]"
-    if [ -f "trail.tome" ]; then cat trail.tome
+    if [ -f "assets/.void/.trail.tome" ]; then cat assets/.void/.trail.tome
     else echo "   :: The Void is quiet. No fatal traces found."; fi
 
 elif [ "$cmd" = "purge" ]; then
@@ -361,7 +361,7 @@ elif [ "$cmd" = "purge" ]; then
     tput sgr0
     clear
     echo "[ @NSIBLE :: INITIATING DEEP PURGE ]"
-    rm -rf zig-cache zig-out trail.tome assets/void.tome assets/indexer
+    rm -rf zig-cache zig-out assets/.void/.trail.tome assets/void.tome assets/indexer
     echo "   :: Compiler caches, unlinked assets, and Black Box cleared."
 elif [ "$cmd" = "orbit" ]; then
     if [ -f "./zig-out/bin/nsible_os" ]; then

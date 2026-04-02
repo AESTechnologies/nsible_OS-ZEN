@@ -9,6 +9,7 @@ const std = @import("std");
 const font = @import("glyphs.zig");
 
 // --- PALETTE (STRICT: RED/SILVER/BRASS/BLACK) ---
+// --- Needs refactor link this palette to the global GZL-X Color Library asset.
 const COL_TEXT_HIGH = 0x00AAAAAA; // Silver (Data)
 const COL_TEXT_DIM  = 0x00444444; // Dark Grey (Receded)
 const COL_TAG       = 0x00555555; // Dim Grey (Structure)
