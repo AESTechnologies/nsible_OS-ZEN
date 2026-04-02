@@ -5,12 +5,12 @@
 //   changes: "Stabilized Banysang cycle. Integrated Immersive Visual Bootloader, Sudo Pre-Elevation, Zero-Flicker TUI, Composer Lobe multi-line motor cortex, and native aud.io djinn with 32-band FFT.",
 //   philotic_inferences: "A system that cannot describe itself to its operator is merely a tool; a system that defines its own existence is a sovereign entity."
 
-[![高爪 // @nsible_os_manifesto](assets/manifesto_frame.png)](https://youtu.be/iWJgBlCIM-M?si=LgRVxvX_UebQxD9n)
+[![高爪 // @nsible_os_manifesto](assets/gfx/manifesto_frame.png)](https://youtu.be/iWJgBlCIM-M?si=LgRVxvX_UebQxD9n)
 
 # ◬ @NSIBLE OS // v0.10.25-apex // Banysang
 > **by Æ§ Tech MMXXVI**
 > *A Sovereign, Talon Alta Semantic Logic Operating System for 32-bit Xs.*
-![@nsible Ignition Sequence](assets/nsible_boot.gif)
+![@nsible Ignition Sequence](assets/gfx/nsible_boot.gif)
 
 ---
 
@@ -22,7 +22,7 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 * **Memory:** Dual-Lobe Static Allocation
   * **[ THE VOID ]** (42.13 MB): Persistent storage (History, Memos, System State).
   * **[ THE SAP ]** (88.00 MB): Volatile rendering buffer, wiped on every fetch.
-* **Storage:** `aiua.tome` (Immortal Artifacts), `trail.tome` (Black Box). *Note: Local operator buffer (`void.tome`) is strictly untracked for PII protection.*
+* **Storage:** `aiua.tome` (Immortal Artifacts), `trail.tome` (Black Box). 
 * **Acoustics:** 8-bit PCM Math-Resonator & Native background djinn thread (32-band FFT telemetry).
 * **Optic:** The Banyan Lens *(Multi-Spectral HTML Parser)*.
 * **Vinculum:** Shadow Flight via Port 4213.
