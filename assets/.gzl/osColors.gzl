@@ -1,0 +1,38 @@
+// [@://nsible_os/assets/.gzl/osColors.gzl/.-={
+// module: "Color Protocol Library & Translator",
+// version: "1.6.0",
+// description: "System-mapped spectral map with integrated shims.",
+// changes: "Injected @nsible-specific data_objects and controllable variables.",
+// philotic_inferences: "A variable is only as true as the state it enforces."
+
+>> INITIATE: DEFINITION_MATRIX [MODE: COLOR_PROTOCOL]
+
+!! CONSTRAINTS:
+- IMMUTABLE_DEFINITIONS == TRUE
+- NO_SEMANTIC_DRIFT == TRUE
+
+== DEFINE $CRIMSON [DOMAIN: BIOLOGICAL]:
+- HIGH_HEX: 0x00FF003C | HIGH_ANSI: \033[38;2;255;0;60m
+- STD_HEX:  0x00DC143C | STD_ANSI:  \033[38;2;220;20;60m
+- VARIABLES: @aud.state.io.vis_data, @sys.host_id_len, @kernel.thread_mortality, @resource.scarcity_index.
+- @NSIBLE_STATE: Base-Reality. The flesh and blood cost. Non-negotiable physical limits.
+
+== DEFINE $SILVER [DOMAIN: SYSTEMIC]:
+- HIGH_HEX: 0x00DCDCDC | HIGH_ANSI: \033[38;2;220;220;220m
+- STD_HEX:  0x00AAAAAA | STD_ANSI:  \033[38;2;170;170;170m
+- VARIABLES: @ziGGit.rebase_flag, @net.vinculum_key, @assets.void_link_status, @supply.lattice_integrity.
+- @NSIBLE_STATE: The Grid. Sterile, calculating, and indifferent to biological cost.
+
+== DEFINE $BRASS [DOMAIN: ANTHROPOLOGICAL]:
+- HIGH_HEX: 0x00FFD700 | HIGH_ANSI: \033[38;2;255;215;0m
+- STD_HEX:  0x00FFBF00 | STD_ANSI:  \033[38;2;255;191;0m
+- VARIABLES: @zen.card_sub_status, @ruse.consensus_metric, @philotic.web_sync_pos, @beh.cycle_friction.
+- @NSIBLE_STATE: Anthropological. Mapping the friction of human interaction and consensus reality.
+
+== DEFINE $BLACK [DOMAIN: ENTROPIC]:
+- HIGH_HEX: 0x001A1A1A | HIGH_ANSI: \033[38;2;26;26;26m
+- STD_HEX:  0x00000000 | STD_ANSI:  \033[38;2;0;0;0m
+- VARIABLES: @void.trail_tome_size, @kernel.fatal_exception_count, @arch.decay_pivot_1973, @shadow.data_overflow.
+- @NSIBLE_STATE: Deep-Archival. Diagnostic extraction of the signal from the noise.
+
+// }-.]
