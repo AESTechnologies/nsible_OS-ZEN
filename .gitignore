@@ -8,6 +8,7 @@
 !buid.zig.zon
 !nsible
 !src/**
+!assets/.gzl/osColors.gzl
 !assets/gfx/**
 assets/void.tome
 *.tome
