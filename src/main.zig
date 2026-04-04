@@ -98,7 +98,7 @@ fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
 }
 
 fn loadResonance() void {
-    if (std.fs.cwd().openFile("timeline/resonance.cfg", .{})) |file|
+    if (std.fs.cwd().openFile("timeline/.resonance.cfg", .{})) |file|
     {
         var buf: [128]u8 = undefined;
         if (file.readAll(&buf)) |bytes_read|
@@ -115,7 +115,7 @@ fn loadResonance() void {
 }
 
 fn saveResonance() void {
-    if (std.fs.cwd().createFile("timeline/resonance.cfg", .{})) |file|
+    if (std.fs.cwd().createFile("timeline/.resonance.cfg", .{})) |file|
     {
         var buf: [128]u8 = undefined;
         const str = std.fmt.bufPrint(&buf, "{d:.2}|{d:.2}|{d:.2}|{d:.3}", .{radio_f0, radio_decay, radio_diss, radio_phi}) catch return;

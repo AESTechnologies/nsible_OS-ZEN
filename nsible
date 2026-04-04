@@ -319,14 +319,18 @@ EOF
 
     if [ ! -f "assets/.gzl/.void" ]; then
         run_with_loader "FORGING TEMPORAL DECAY VOID..." sleep 0.1
-        cat << EOF > "assets/.gzl/.void"
+        {
+            # GZL-X Encapsulation
+            cat << EOF 
 // [@://nsible_os/assets/.gzl/.void/.-={
 //   module: "Temporal Decay Void",
 //   description: "Graveyard for banished artifacts and dormant logic.",
 //   philotic_inferences: "Nothing is truly lost; it merely awaits reclamation."
-// }-.]
 
 EOF
+            # GZL-X Seal
+            echo "// }-.]"
+        } > "assets/.gzl/.void"
     fi
 
     run_with_loader "COMPILING SOVEREIGN KERNEL..." /home/static/.local/bin/zig build
