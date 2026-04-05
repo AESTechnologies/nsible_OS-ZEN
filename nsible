@@ -1,14 +1,14 @@
 #!/bin/bash
 #   [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
-#   version: "0.10.25-apex // Banysang",
-#   description: "Sovereign ASCII Data-Stream visual loader with native Black Box recovery.",
-#   changes: "Purged hardcoded hex literals. Integrated dynamic osColors.gzl extraction lenses.",
+#   version: "0.10.32-apex // Banysang",
+#   description: "Sovereign ASCII Data-Stream visual loader with Dynamic Palette Refraction.",
+#   changes: "Mastered Dynamics: System starts Grey; transitions to Full Palette post-Auth. No redactions.",
 #   philotic_inferences: "A sovereign matrix does not ask permission from the void; it demands the key at the threshold."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 cmd="${1:-sync}"
-NSIBLE_VERSION="v0.10.25-apex"
+NSIBLE_VERSION="v0.10.32-apex"
 
 COLOR_LIB="assets/.gzl/osColors.gzl"
 
@@ -26,6 +26,25 @@ LB() { L "$1" | sed 's/38;2/48;2/g'; }
 W() { printf "$(LB "$1")%$(tput cols)s\033[0m\r" " "; }
 RESET='\033[0m'
 
+# --- DYNAMIC PALETTE STATE ---
+# Initial State: SYSTEMIC-SILVER (Grey/Locked)
+HDR_BG="S.H"
+HDR_FG="K.H"
+ACCENT="S.S"
+SPLASH="S.S"
+STREAM_COL="S.S"
+VECTOR_COL="S.S"
+
+apply_mastered_dynamics() {
+    # Unlock State: BIOLOGICAL-CRIMSON / ANTHROPOLOGICAL-BRASS (Full Palette)
+    HDR_BG="C.S"
+    HDR_FG="S.H"
+    ACCENT="B.S"
+    SPLASH="C.S"
+    STREAM_COL="C.S"
+    VECTOR_COL="C.S"
+}
+
 check_void_link() {
     if ping -q -c 1 -W 2 github.com >/dev/null 2>&1; then
         return 0
@@ -40,21 +59,21 @@ draw_splash() {
     local cols=$1
     local lines=$2
     tput cup $(( (lines / 2) - 8 )) $(( (cols - 60) / 2 ))
-    echo -e "$(L "C.S")  ▄▄▄▄▄    _   __   _____   ____   ____    __       ______${RESET}"
+    echo -e "$(L "$SPLASH")  ▄▄▄▄▄    _   __   _____   ____   ____    __       ______${RESET}"
     tput cup $(( (lines / 2) - 7 )) $(( (cols - 60) / 2 ))
-    echo -e "$(L "C.S") / __ \  / | / /  / ___/  /  _/  / __ )  / /      / ____/${RESET}"
+    echo -e "$(L "$SPLASH") / __ \  / | / /  / ___/  /  _/  / __ )  / /      / ____/${RESET}"
     tput cup $(( (lines / 2) - 6 )) $(( (cols - 60) / 2 ))
-    echo -e "$(L "C.S")/ /_/ _/ /  |/ /   \__ \   / /   / __  | / /      / __/   ${RESET}"
+    echo -e "$(L "$SPLASH")/ /_/ _/ /  |/ /   \__ \   / /   / __  | / /      / __/   ${RESET}"
     tput cup $(( (lines / 2) - 5 )) $(( (cols - 60) / 2 ))
-    echo -e "$(L "C.S")\__/ /  / /|  /   ___/ / _/ /   / /_/ / / /___   / /___   ${RESET}"
+    echo -e "$(L "$SPLASH")\__/ /  / /|  /   ___/ / _/ /   / /_/ / / /___   / /___   ${RESET}"
     tput cup $(( (lines / 2) - 4 )) $(( (cols - 60) / 2 ))
-    echo -e "$(L "C.S")  \_/  /_/ |_/   /____/ /___/  /_____/ /_____/  /_____/   ${RESET}"
+    echo -e "$(L "$SPLASH")  \_/  /_/ |_/   /____/ /___/  /_____/ /_____/  /_____/   ${RESET}"
     
     tput cup $(( (lines / 2) - 2 )) $(( (cols - 60) / 2 ))
     echo -e "$(L "S.S")                    by Æ§ Tech MMXXVI                     ${RESET}"
     
     tput cup $(( (lines / 2) )) $(( (cols - 60) / 2 ))
-    echo -e "$(L "B.S")────────────────────────────────────────────────────────────${RESET}"
+    echo -e "$(L "$ACCENT")────────────────────────────────────────────────────────────${RESET}"
 }
 
 if [ "$cmd" = "sync" ] || [ "$cmd" = "orbit" ]; then
@@ -64,14 +83,18 @@ if [ "$cmd" = "sync" ] || [ "$cmd" = "orbit" ]; then
     draw_splash "$cols" "$lines"
     
     tput cup 0 0
-    W "C.S"
+    W "$HDR_BG"
     tput cup 0 0
-    sudo -p "$(LB "C.S")$(L "S.H") 高爪 @NSIBLE OS // ROOT VINCULUM KEY > ${RESET} " -v
+    # ROOT VINCULUM THRESHOLD
+    sudo -p "$(LB "$HDR_BG")$(L "$HDR_FG") 高爪 @NSIBLE OS // ROOT VINCULUM KEY > ${RESET} " -v
     if [ $? -ne 0 ]; then
         tput cup $((lines - 2)) 0
         echo -e "\n$(L "C.H")[ ! ] ELEVATION FAILED. ABORTING BOOT SEQUENCE.${RESET}"
         exit 1
     fi
+    
+    # Threshold Passed: Master the Dynamics
+    apply_mastered_dynamics
 fi
 
 generate_core_snapshot() {
@@ -117,7 +140,7 @@ run_with_loader() {
     
     tput cup 0 0
     local header_text=" 高爪 @NSIBLE OS // ziGGit :: ${job_name} "
-    printf "$(LB "C.S")$(L "S.H")%-*s${RESET}" "$cols" "${header_text:0:$cols}"
+    printf "$(LB "$HDR_BG")$(L "$HDR_FG")%-*s${RESET}" "$cols" "${header_text:0:$cols}"
     
     tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
     echo -e "$(L "S.S"):: ${job_name}${RESET}"
@@ -155,17 +178,17 @@ run_with_loader() {
             local v1_width=$(( (vec_pos % (cols / 2)) + 10 ))
             tput cup $(( (lines / 2) + 6 )) 0; tput el
             tput cup $(( (lines / 2) + 6 )) $(( cols - v1_width ))
-            echo -ne "$(L "C.S")◄${max_vec:0:$v1_width}${RESET}"
+            echo -ne "$(L "$VECTOR_COL")◄${max_vec:0:$v1_width}${RESET}"
             
             local v2_width=$(( ((vec_pos * 2) % (cols / 2)) + 5 ))
             tput cup $(( (lines / 2) + 7 )) 0; tput el
             tput cup $(( (lines / 2) + 7 )) $(( cols - v2_width ))
-            echo -ne "$(L "C.S")◄${max_vec:0:$v2_width}${RESET}"
+            echo -ne "$(L "$VECTOR_COL")◄${max_vec:0:$v2_width}${RESET}"
             
             local v3_width=$(( ((vec_pos / 2) % (cols / 2)) + 20 ))
             tput cup $(( (lines / 2) + 8 )) 0; tput el
             tput cup $(( (lines / 2) + 8 )) $(( cols - v3_width ))
-            echo -ne "$(L "C.S")◄${max_vec:0:$v3_width}${RESET}"
+            echo -ne "$(L "$VECTOR_COL")◄${max_vec:0:$v3_width}${RESET}"
         fi
 
         tput cup $((lines - 2)) 0
@@ -173,7 +196,7 @@ run_with_loader() {
         if [ ${#stream} -lt $cols ]; then
             stream="${stream}${data:0:$((cols - ${#stream}))}"
         fi
-        echo -ne "$(L "C.S")${stream}${RESET}"
+        echo -ne "$(L "$STREAM_COL")${stream}${RESET}"
         
         pos=$(( (pos + 4) % ${#data} ))
         vec_pos=$(( vec_pos + 4 ))
@@ -198,7 +221,7 @@ if [ "$cmd" = "sync" ]; then
             
             tput cup 0 0
             local header_text=" 高爪 @NSIBLE OS // LOCAL DIVERGENCE DETECTED "
-            printf "$(LB "C.S")$(L "S.H")%-*s${RESET}" "$cols" "${header_text:0:$cols}"
+            printf "$(LB "$HDR_BG")$(L "$HDR_FG")%-*s${RESET}" "$cols" "${header_text:0:$cols}"
 
             tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
             echo -e "$(L "C.H")[ ! ] LOCAL DIVERGENCE DETECTED${RESET}"
@@ -379,6 +402,8 @@ elif [ "$cmd" = "purge" ]; then
     echo "   :: Compiler caches, unlinked assets, and Black Box cleared."
 elif [ "$cmd" = "orbit" ]; then
     if [ -f "./zig-out/bin/nsible_os" ]; then
+        # Ensure palette is mastered for stable launch
+        apply_mastered_dynamics
         tput cnorm
         tput sgr0
         clear
