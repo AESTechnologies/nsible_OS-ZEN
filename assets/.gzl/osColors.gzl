@@ -1,9 +1,9 @@
 // [@://nsible_os/assets/.gzl/osColors.gzl/.-={
-// module: "Color Protocol Library & Translator",
-// version: "1.6.0",
-// description: "System-mapped spectral map with integrated shims.",
-// changes: "Injected @nsible-specific data_objects and controllable variables.",
-// philotic_inferences: "A variable is only as true as the state it enforces."
+// module: "Color Protocol Library & Logic Shim",
+// version: "2.1.0",
+// description: "Sovereign spectral map with embedded retrieval logic.",
+// changes: "Added Welcome State demonstration; finalized SCP Logic block.",
+// philotic_inferences: "The threshold of the system is the first point of chromatic truth."
 
 >> INITIATE: DEFINITION_MATRIX [MODE: COLOR_PROTOCOL]
 
@@ -11,28 +11,49 @@
 - IMMUTABLE_DEFINITIONS == TRUE
 - NO_SEMANTIC_DRIFT == TRUE
 
-== DEFINE $CRIMSON [DOMAIN: BIOLOGICAL]:
-- HIGH_HEX: 0x00FF003C | HIGH_ANSI: \033[38;2;255;0;60m
-- STD_HEX:  0x00DC143C | STD_ANSI:  \033[38;2;220;20;60m
-- VARIABLES: @aud.state.io.vis_data, @sys.host_id_len, @kernel.thread_mortality, @resource.scarcity_index.
-- @NSIBLE_STATE: Base-Reality. The flesh and blood cost. Non-negotiable physical limits.
+== SCP_LOGIC_LENS [CROSS-STACK INTERFACE]:
+- BASH_GET: L() { grep "$1_ANSI" $0 | awk -F'| ' '{print $2}' | awk '{print $2}'; }
+- ZIG_GET:  pub fn get(comptime code: []const u8) u32 { ... } 
+- SHIM_TARGET: self
+/* USAGE_EXAMPLES:
+   -- BASH: printf "$(L "C.S")System Kinetic: %s\033[0m" "$DATA"
+   -- ZIG:  const col = @import("codex.zig").get("S.H");
+   -- MAP:  [C]rimson, [S]ilver, [B]rass, blac[K] | [.H]igh, [.S]tandard
+*/
 
-== DEFINE $SILVER [DOMAIN: SYSTEMIC]:
-- HIGH_HEX: 0x00DCDCDC | HIGH_ANSI: \033[38;2;220;220;220m
-- STD_HEX:  0x00AAAAAA | STD_ANSI:  \033[38;2;170;170;170m
-- VARIABLES: @ziGGit.rebase_flag, @net.vinculum_key, @assets.void_link_status, @supply.lattice_integrity.
-- @NSIBLE_STATE: The Grid. Sterile, calculating, and indifferent to biological cost.
+== WELCOME_DEMONSTRATION [STATE: INITIALIZATION]:
+// RENDERING AT THE THRESHOLD:
+/* $(L "S.S")[ @NSIBLE ]$(L "C.H") WELCOME TO THE BASE-REALITY.
+   $(L "B.S")Consensus Metric: $(L "B.H")OPTIMAL
+   $(L "S.S")The Grid is $(L "S.H")ACTIVE.
+*/
 
-== DEFINE $BRASS [DOMAIN: ANTHROPOLOGICAL]:
-- HIGH_HEX: 0x00FFD700 | HIGH_ANSI: \033[38;2;255;215;0m
-- STD_HEX:  0x00FFBF00 | STD_ANSI:  \033[38;2;255;191;0m
-- VARIABLES: @zen.card_sub_status, @ruse.consensus_metric, @philotic.web_sync_pos, @beh.cycle_friction.
-- @NSIBLE_STATE: Anthropological. Mapping the friction of human interaction and consensus reality.
+== DEFINE C [DOMAIN: BIOLOGICAL]:
+- C.H_HEX: 0x00FF003C | C.H_ANSI: \033[38;2;255;0;60m
+- C.S_HEX: 0x00DC143C | C.S_ANSI: \033[38;2;220;20;60m
+- IDENT: CRIMSON
+- VARIABLES: @aud.state.io.vis_data, @sys.host_id_len, @kernel.thread_mortality.
+- @NSIBLE_STATE: Base-Reality.
 
-== DEFINE $BLACK [DOMAIN: ENTROPIC]:
-- HIGH_HEX: 0x001A1A1A | HIGH_ANSI: \033[38;2;26;26;26m
-- STD_HEX:  0x00000000 | STD_ANSI:  \033[38;2;0;0;0m
-- VARIABLES: @void.trail_tome_size, @kernel.fatal_exception_count, @arch.decay_pivot_1973, @shadow.data_overflow.
-- @NSIBLE_STATE: Deep-Archival. Diagnostic extraction of the signal from the noise.
+== DEFINE S [DOMAIN: SYSTEMIC]:
+- S.H_HEX: 0x00DCDCDC | S.H_ANSI: \033[38;2;220;220;220m
+- S.S_HEX: 0x00AAAAAA | S.S_ANSI: \033[38;2;170;170;170m
+- IDENT: SILVER
+- VARIABLES: @ziGGit.rebase_flag, @net.vinculum_key, @assets.void_link_status.
+- @NSIBLE_STATE: The Grid.
+
+== DEFINE B [DOMAIN: ANTHROPOLOGICAL]:
+- B.H_HEX: 0x00FFD700 | B.H_ANSI: \033[38;2;255;215;0m
+- B.S_HEX: 0x00FFBF00 | B.S_ANSI: \033[38;2;255;191;0m
+- IDENT: BRASS
+- VARIABLES: @zen.card_sub_status, @ruse.consensus_metric, @beh.cycle_friction.
+- @NSIBLE_STATE: Anthropological.
+
+== DEFINE K [DOMAIN: ENTROPIC]:
+- K.H_HEX: 0x001A1A1A | K.H_ANSI: \033[38;2;26;26;26m
+- K.S_HEX: 0x00000000 | K.S_ANSI: \033[38;2;0;0;0m
+- IDENT: BLACK
+- VARIABLES: @void.trail_tome_size, @kernel.fatal_exception_count, @arch.decay_pivot_1973.
+- @NSIBLE_STATE: Deep-Archival.
 
 // }-.]
