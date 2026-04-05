@@ -366,9 +366,21 @@ elif [ "$cmd" = "orbit" ]; then
         tput cnorm; tput sgr0; clear
         echo -e "$(L "C.H")[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST.${RESET}"
     fi
+elif [ "$cmd" = "clean" ]; then
+    echo -e "${B_H} >> CLEANING LOCAL BUILD ARTIFACTS...${RESET}"
+    rm -rf zig-cache/
+    echo "Done."
+elif [ "$cmd" = "debug" ]; then
+    echo -e "${S_H} [ @NSIBLE :: DEBUG MODE ] ${RESET}"
+    echo "CMD: $cmd"
+    echo "VERSION: $NSIBLE_VERSION"
+    echo "LIB: $COLOR_LIB"
+elif [ "$cmd" = "shell" ]; then
+    echo -e "${B_H} >> OPENING SUB-SHELL IN @NSIBLE ENVIRONMENT... ${RESET}"
+    /bin/bash
 else
-    tput cnorm; tput sgr0; clear
-    echo "Unknown directive: $cmd"
-    echo "Usage: ./nsible [sync | log | purge | orbit]"
+    echo -e "${C_H}[ ! ] UNKNOWN COMMAND: $cmd${RESET}"
+    echo "Usage: ./nsible [build|sync|log|purge|orbit|clean|debug|shell]"
+    exit 1
 fi
 # }-.]
