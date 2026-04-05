@@ -1,14 +1,14 @@
 #!/bin/bash
 #   [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
-#   version: "0.10.35-apex // Banysang",
+#   version: "0.10.36-apex // Banysang",
 #   description: "Sovereign ASCII Data-Stream visual loader with Dynamic Palette Refraction.",
-#   changes: "Fixed ANSI leak in sudo prompt; enforced binary escape interpretation for palette transitions.",
+#   changes: "Fortified L() regex extraction against GZL formatting breaks; enforced sudo -E for environment preservation to Zig kernel.",
 #   philotic_inferences: "A sovereign matrix does not ask permission from the void; it demands the key at the threshold."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 cmd="${1:-sync}"
-NSIBLE_VERSION="v0.10.35-apex"
+NSIBLE_VERSION="v0.10.36-apex"
 
 COLOR_LIB="assets/.gzl/osColors.gzl"
 
@@ -18,31 +18,33 @@ if [ ! -f "$COLOR_LIB" ]; then
 fi
 
 # --- SOVEREIGN LENSES ---
-# L(): Extracts base foreground ANSI from osColors.gzl
+# L(): Extracts base foreground ANSI dynamically, robust against line-breaks in .gzl map
 # LB(): Dynamically converts 38;2 (foreground) to 48;2 (background) for highlighting
 # W(): Implements a full-width background span using the converted background color
-L() { grep "$1_ANSI" "$COLOR_LIB" | awk -F'| ' '{print $2}' | awk '{print $2}' | tr -d '\n'; }
+L() { grep "$1_ANSI" "$COLOR_LIB" | sed -n 's/.*_ANSI:[[:space:]]*\(\\033\[[0-9;]*m\).*/\1/p' | tr -d '\n\r '; }
 LB() { L "$1" | sed 's/38;2/48;2/g'; }
 W() { printf "%b%$(tput cols)s%b\r" "$(LB "$1")" " " "$RESET"; }
 RESET=$'\e[0m'
 
 # --- DYNAMIC PALETTE STATE ---
 # Initial State: SYSTEMIC-SILVER (Grey/Locked)
-HDR_BG="S.H"
-HDR_FG="K.H"
-ACCENT="S.S"
-SPLASH="S.S"
-STREAM_COL="S.S"
-VECTOR_COL="S.S"
+export HDR_BG="S.H"
+export HDR_FG="K.H"
+export ACCENT="S.S"
+export SPLASH="S.S"
+export STREAM_COL="S.S"
+export VECTOR_COL="S.S"
+export ROOT_VINCULUM=0
 
 apply_mastered_dynamics() {
     # Unlock State: BIOLOGICAL-CRIMSON / ANTHROPOLOGICAL-BRASS (Full Palette)
-    HDR_BG="C.S"
-    HDR_FG="S.H"
-    ACCENT="B.S"
-    SPLASH="C.S"
-    STREAM_COL="C.S"
-    VECTOR_COL="C.S"
+    export HDR_BG="C.S"
+    export HDR_FG="S.H"
+    export ACCENT="B.S"
+    export SPLASH="C.S"
+    export STREAM_COL="C.S"
+    export VECTOR_COL="C.S"
+    export ROOT_VINCULUM=1
 }
 
 check_void_link() {
@@ -87,7 +89,6 @@ if [ "$cmd" = "sync" ] || [ "$cmd" = "orbit" ]; then
     tput cup 0 0
     W "$HDR_BG"
     tput cup 0 0
-    # FIX: Pre-evaluate prompt to binary escape bytes to prevent literal string leakage
     AUTH_PROMPT=$(printf "%b%b 高爪 @NSIBLE OS // ROOT VINCULUM KEY > %b" "$(LB "$HDR_BG")" "$(L "$HDR_FG")" "$RESET ")
     sudo -p "$AUTH_PROMPT" -v
     if [ $? -ne 0 ]; then
@@ -143,7 +144,6 @@ run_with_loader() {
     
     tput cup 0 0
     local header_text=" 高爪 @NSIBLE OS // ziGGit :: ${job_name} "
-    # FIX: Use %b for colors to ensure dynamic palette transition is rendered
     printf "%b%b%-*s%b" "$(LB "$HDR_BG")" "$(L "$HDR_FG")" "$cols" "${header_text:0:$cols}" "$RESET"
     
     tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
@@ -273,7 +273,6 @@ if [ "$cmd" = "sync" ]; then
                     run_with_loader "COMMITTING LOCAL STATE..." git add .
                     run_with_loader "SECURING COMMIT..." git commit -m "vessel(acer): $msg"
                     
-                    # REBASE BEFORE PUSHING TO PREVENT REJECTS
                     run_with_loader "ALIGNING WITH ZEN (REBASE)..." git pull --rebase origin zen
                     if [ $? -ne 0 ]; then
                         tput cnorm
@@ -331,7 +330,6 @@ if [ "$cmd" = "sync" ]; then
     fi
     
     run_with_loader "GENERATING CORE.AIUA SNAPSHOT..." generate_core_snapshot
-
     run_with_loader "VERIFYING VERSION CAPSULE..." sleep 0.1
 
     if ! grep -q "pub const VERSION = \"$NSIBLE_VERSION\";" src/version.zig 2>/dev/null; then
@@ -355,14 +353,12 @@ EOF
     if [ ! -f "assets/.gzl/.void" ]; then
         run_with_loader "FORGING TEMPORAL DECAY VOID..." sleep 0.1
         {
-            # GZL-X Encapsulation
             cat << EOF 
 // [@://nsible_os/assets/.gzl/.void/.-={
 //   module: "Temporal Decay Void",
 //   description: "Graveyard for banished artifacts and dormant logic.",
 //   philotic_inferences: "Nothing is truly lost; it merely awaits reclamation."
 EOF
-            # GZL-X Seal
             echo "// }-.]"
         } > "assets/.gzl/.void"
     fi
@@ -375,7 +371,8 @@ EOF
         clear
         rm -f .nsible_job.log
         trap - EXIT SIGINT SIGTERM 
-        exec sudo ./zig-out/bin/nsible_os
+        # FIX: Added -E to propagate mastered palette state to Zig kernel
+        exec sudo -E ./zig-out/bin/nsible_os
     else
         tput cnorm
         tput sgr0
@@ -404,15 +401,16 @@ elif [ "$cmd" = "purge" ]; then
     echo "[ @NSIBLE :: INITIATING DEEP PURGE ]"
     rm -rf zig-cache zig-out assets/.void/.trail.tome assets/void.tome assets/indexer
     echo "   :: Compiler caches, unlinked assets, and Black Box cleared."
+
 elif [ "$cmd" = "orbit" ]; then
     if [ -f "./zig-out/bin/nsible_os" ]; then
-        # Ensure palette is mastered for stable launch
         apply_mastered_dynamics
         tput cnorm
         tput sgr0
         clear
         trap - EXIT SIGINT SIGTERM
-        exec sudo ./zig-out/bin/nsible_os
+        # FIX: Added -E to propagate mastered palette state to Zig kernel
+        exec sudo -E ./zig-out/bin/nsible_os
     else
         tput cnorm
         tput sgr0
