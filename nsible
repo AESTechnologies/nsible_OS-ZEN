@@ -31,9 +31,9 @@ RESET=$'\e[0m'
 export HDR_BG="S.H"
 export HDR_FG="K.H"
 export ACCENT="S.S"
-export SPLASH="S.S"
+export SPLASH="S.H"
 export STREAM_COL="S.S"
-export VECTOR_COL="S.S"
+export VECTOR_COL="S.H"
 export ROOT_VINCULUM=0
 
 apply_mastered_dynamics() {
