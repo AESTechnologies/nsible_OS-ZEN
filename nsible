@@ -232,15 +232,15 @@ if [ "$cmd" = "sync" ]; then
             local header_text=" 高爪 @NSIBLE OS // ZEN DIVERGENCE DETECTED "
             printf "%b%b%-*s%b" "$(LB "$HDR_BG")" "$(L "$HDR_FG")" "$cols" "${header_text:0:$cols}" "$RESET"
             tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
-            echo -e "$(L "C.H")[ ! ] LOCAL DIVERGENCE DETECTED${RESET}"
+            echo -e "$(L "C.H")[ ! ] ZEN DIVERGENCE DETECTED${RESET}"
             tput cup $(( (lines / 2) + 3 )) $(( (cols - 60) / 2 ))
             echo -e "$(L "S.S")      Files on this vessel have been modified.${RESET}"
             tput cup $(( (lines / 2) + 5 )) $(( (cols - 60) / 2 ))
-            echo -e "      $(L "B.S")[I]$(L "S.S")NTEGRATE : Pull cloud updates, keep local changes."
+            echo -e "      $(L "B.S")[I]$(L "S.S")NTEGRATE : Pull net updates, keep mchn changes."
             tput cup $(( (lines / 2) + 6 )) $(( (cols - 60) / 2 ))
-            echo -e "      $(L "B.S")[S]$(L "S.S")AVE      : Commit local changes & Push to Zen."
+            echo -e "      $(L "B.S")[S]$(L "S.S")AVE      : Commit mchn changes & Push to Zen."
             tput cup $(( (lines / 2) + 7 )) $(( (cols - 60) / 2 ))
-            echo -e "      $(L "B.S")[O]$(L "S.S")VERWRITE : Discard local changes & Force-Sync to Zen."
+            echo -e "      $(L "B.S")[O]$(L "S.S")VERWRITE : Discard mchn changes & Force-Sync to Zen."
             tput cup $(( (lines / 2) + 8 )) $(( (cols - 60) / 2 ))
             echo -e "      $(L "B.S")[C]$(L "S.S")ANCEL"
             tput cup $(( (lines / 2) + 10 )) $(( (cols - 60) / 2 ))
@@ -249,18 +249,18 @@ if [ "$cmd" = "sync" ]; then
             tput civis
             case "$choice" in 
                 i|I)
-                    run_with_loader "STASHING LOCAL MODS..." git stash
+                    run_with_loader "STASHING MCHN MODS..." git stash
                     run_with_loader "PULLING FROM VOID (REBASE)..." git pull --rebase origin zen
                     if [ $? -ne 0 ]; then
                         tput cnorm; tput sgr0; clear
                         echo -e "$(L "C.H")[ ! ] REBASE FAILED. CONFLICT DETECTED.${RESET}"
                         cat .nsible_job.log
                         git rebase --abort
-                        echo -e "$(L "K.H")Restoring stashed local modifications...${RESET}"
+                        echo -e "$(L "K.H")Restoring stashed modifications...${RESET}"
                         git stash pop
                         exit 1
                     fi
-                    run_with_loader "RE-APPLYING LOCAL MODS..." git stash pop
+                    run_with_loader "RE-APPLYING MCHN MODS..." git stash pop
                 ;;
                 s|S)
                     tput cnorm
@@ -268,7 +268,7 @@ if [ "$cmd" = "sync" ]; then
                     printf "      :: ENTER COMMIT MESSAGE > "
                     read -r msg
                     tput civis
-                    run_with_loader "COMMITTING LOCAL STATE..." git add .
+                    run_with_loader "COMMITTING MCHN STATE..." git add .
                     run_with_loader "SECURING COMMIT..." git commit -m "vessel(acer): $msg"
                     run_with_loader "ALIGNING WITH ZEN (REBASE)..." git pull --rebase origin zen
                     if [ $? -ne 0 ]; then
@@ -287,7 +287,7 @@ if [ "$cmd" = "sync" ]; then
                     fi
                 ;;
                 o|O)
-                    run_with_loader "FLUSHING LOCAL STATE..." git fetch origin zen
+                    run_with_loader "ZEROING MCHN STATE..." git fetch origin zen
                     run_with_loader "RESETTING TO ZEN..." git reset --hard origin/zen
                 ;;
                 *) tput cnorm; exit 1 ;;
@@ -368,7 +368,7 @@ elif [ "$cmd" = "orbit" ]; then
         echo -e "$(L "C.H")[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST.${RESET}"
     fi
 elif [ "$cmd" = "clean" ]; then
-    echo -e "${B_H} >> CLEANING LOCAL BUILD ARTIFACTS...${RESET}"
+    echo -e "${B_H} >> CLEANING MCHN BUILD ARTIFACTS...${RESET}"
     rm -rf zig-cache/
     echo "Done."
 elif [ "$cmd" = "debug" ]; then
