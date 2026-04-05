@@ -2,7 +2,7 @@
 //   module: "The Composer IDE",
 //   version: "0.10.25-apex // Banysang",
 //   description: "Native, full-screen IDE  operating in a dedicated 50MB BSS matrix.",
-//   changes: "Injected autonomous modal states, native syntax highlighting, absolute UI displacement, and syntax-corrected O(1) Viewport Optimization.",
+//   changes: "Refracted syntax engine for multi-standard comment support (// and #); implemented string-literal isolation to prevent false amber triggers in hex or strings.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
@@ -52,7 +52,6 @@ pub const Composer = struct {
             .dirty = false,
             .edits_since_save = 0,
             .last_xx_ms = 0,
-            
             .mode = .EDIT,
             .input_buf = .{0} ** 256,
             .input_len = 0,
@@ -300,7 +299,7 @@ pub const Composer = struct {
                 self.mode = .EDIT;
             },
             else => {
-                self.mode = .EDIT; 
+                self.mode = .EDIT;
             }
         }
     }
@@ -334,7 +333,6 @@ pub const Composer = struct {
             self.seq_buf[k] = self.seq_buf[k+1];
         }
         self.seq_buf[5] = c;
-
         if (std.mem.endsWith(u8, &self.seq_buf, ".!SK-.")) {
             self.phantom_strike(6);
             self.setMode(.SEEK);
@@ -435,10 +433,9 @@ pub const Composer = struct {
         const start_y: usize = 46; 
         const char_w: usize = 8;
         const line_h: usize = 10;
-        
+
         // Exclusively clear the Composer's workspace, leaving the global OS Header intact
         drawRect(buffer, width, height, 0, 20, width, height - 20, 0x00000000);
-        
         drawRect(buffer, width, height, 0, 20, width, 20, 0x00DC143C); // @NSIBLE-RED Title Bar
         var title_buf: [128]u8 = undefined;
         const header = std.fmt.bufPrint(&title_buf, "[ THE COMPOSER ] // {s} {s}", .{
@@ -447,7 +444,7 @@ pub const Composer = struct {
         }) catch "COMPOSER";
         var head_cx: usize = 10;
         for (header) |c| { 
-            drawCharToBuf(buffer, width, height, head_cx, 26, c, 0x00000000); 
+            drawCharToBuf(buffer, width, height, head_cx, 26, c, 0x00000000);
             head_cx += char_w; 
         }
 
@@ -463,7 +460,8 @@ pub const Composer = struct {
         while (i < self.cursor_idx) : (i += 1) {
             const c = self.buffer[i];
             if (c == '\n') {
-                cx = start_x; cy += line_h; line_no += 1;
+                cx = start_x;
+                cy += line_h; line_no += 1;
             } else if (c == '\t') {
                 cx += char_w * 4;
                 if (cx >= width - 20) { cx = start_x; cy += line_h; }
@@ -493,7 +491,6 @@ pub const Composer = struct {
         var draw_start_idx: usize = 0;
         var in_comment = false;
         var in_string = false;
-        
         i = 0;
         while (i < self.len) : (i += 1) {
             if (cy + line_h >= visible_top) {
@@ -502,15 +499,16 @@ pub const Composer = struct {
             }
             const c = self.buffer[i];
             if (c == '\n') {
-                cx = start_x; cy += line_h; line_no += 1;
+                cx = start_x;
+                cy += line_h; line_no += 1;
                 in_comment = false;
                 in_string = false;
             } else if (c == '\t') {
                 cx += char_w * 4;
                 if (cx >= width - 20) { cx = start_x; cy += line_h; }
             } else {
-				// IDENTIFY COMMENTS: '//" and/or '#' outside of active strings
-                if ((c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') or (c == '#')) {
+                // IDENTIFY COMMENTS: '//' and/or '#' outside of active strings
+                if (!in_string and ((c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') or (c == '#'))) {
                     in_comment = true;
                 } else if (c == '"' and !in_comment) {
                     in_string = !in_string;
@@ -535,7 +533,7 @@ pub const Composer = struct {
                 const num_str = std.fmt.bufPrint(&num_buf, "{d: >4}", .{line_no}) catch "   0";
                 var nx: usize = 8;
                 for (num_str) |nc| { 
-                    drawCharToBuf(buffer, width, height, nx, cy - pixel_scroll_y, nc, 0x00555555); 
+                    drawCharToBuf(buffer, width, height, nx, cy - pixel_scroll_y, nc, 0x00555555);
                     nx += char_w; 
                 }
                 drawCharToBuf(buffer, width, height, nx + 4, cy - pixel_scroll_y, 0xB3, 0x00444444);
@@ -543,7 +541,7 @@ pub const Composer = struct {
 
             if (i == self.len) { break; }
             const c = self.buffer[i];
-
+            
             if (in_comment) {
                 current_color = 0x00FFBF00; // Amber
                 if (c == '\n') { in_comment = false; }
@@ -551,7 +549,8 @@ pub const Composer = struct {
                 current_color = 0x00FFFFFF; // Silver
                 if (c == '"') { in_string = false; }
             } else {
-                if (c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') {
+                // Refactored Detection: Handle both '//' and '#' comments
+                if (!in_string and ((c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') or (c == '#'))) {
                     in_comment = true;
                     current_color = 0x00FFBF00;
                 } else if (c == '"') {
@@ -574,9 +573,9 @@ pub const Composer = struct {
             }
 
             is_start_of_line = false;
-
             if (c == '\n') {
-                cx = start_x; cy += line_h; line_no += 1; is_start_of_line = true;
+                cx = start_x;
+                cy += line_h; line_no += 1; is_start_of_line = true;
             } else if (c == '\t') {
                 cx += char_w * 4;
                 if (cx >= width - 20) { cx = start_x; cy += line_h; }
@@ -596,7 +595,7 @@ pub const Composer = struct {
         }
         
         if (self.mode != .EDIT) {
-            drawRect(buffer, width, height, 0, height - 40, width, 20, 0x00DC143C); 
+            drawRect(buffer, width, height, 0, height - 40, width, 20, 0x00DC143C);
             const prefix = switch(self.mode) {
                 .SEEK => "[ SEEK ] > ",
                 .SWITCH_FIND => "[ SWITCH: FIND ] > ",
@@ -607,11 +606,11 @@ pub const Composer = struct {
             };
             var mx: usize = 10;
             for (prefix) |c| { 
-                drawCharToBuf(buffer, width, height, mx, height - 34, c, 0x00000000); 
+                drawCharToBuf(buffer, width, height, mx, height - 34, c, 0x00000000);
                 mx += 8; 
             }
             for (self.input_buf[0..self.input_len]) |c| { 
-                drawCharToBuf(buffer, width, height, mx, height - 34, c, 0x00FFFFFF); 
+                drawCharToBuf(buffer, width, height, mx, height - 34, c, 0x00FFFFFF);
                 mx += 8; 
             }
             drawCharToBuf(buffer, width, height, mx, height - 34, 0xDB, 0x00FFBF00);
@@ -631,14 +630,14 @@ pub const Composer = struct {
         var byte_buf: [64]u8 = undefined;
         const byte_str = std.fmt.bufPrint(&byte_buf, "L:{d} | B:{d}/{d}", .{cursor_line, self.cursor_idx, self.len}) catch "";
         for (byte_str) |c| { 
-            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00FFBF00); 
+            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00FFBF00);
             b_cx += 8; 
         }
         
         const help_str = ".!XX-. Discard   .!SV-. Save to Disk";
         b_cx = width - (help_str.len * 8) - 10;
         for (help_str) |c| { 
-            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00555555); 
+            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00555555);
             b_cx += 8; 
         }
     }
