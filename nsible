@@ -228,7 +228,8 @@ if [ "$cmd" = "sync" ]; then
             tput clear
             draw_splash "$cols" "$lines"
             tput cup 0 0
-            local header_text=" 高爪 @NSIBLE OS // LOCAL DIVERGENCE DETECTED "
+            # REVISED NOMENCLATURE to ZEN to prevent local scope errors.
+            local header_text=" 高爪 @NSIBLE OS // ZEN DIVERGENCE DETECTED "
             printf "%b%b%-*s%b" "$(LB "$HDR_BG")" "$(L "$HDR_FG")" "$cols" "${header_text:0:$cols}" "$RESET"
             tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
             echo -e "$(L "C.H")[ ! ] LOCAL DIVERGENCE DETECTED${RESET}"
