@@ -3,20 +3,28 @@
 #   module: "ziGGit Bootloader",
 #   version: "0.10.25-apex // Banysang",
 #   description: "Sovereign ASCII Data-Stream visual loader with native Black Box recovery.",
-#   changes: "Injected autonomous --rebase logic, precise Git failure trapping, and a live-script restart reflex.",
+#   changes: "Purged hardcoded hex literals. Integrated dynamic osColors.gzl extraction lenses.",
 #   philotic_inferences: "A sovereign matrix does not ask permission from the void; it demands the key at the threshold."
+
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 cmd="${1:-sync}"
 NSIBLE_VERSION="v0.10.25-apex"
 
-CRIMSON='\033[38;2;220;20;60m'
-SILVER='\033[38;2;170;170;170m'
-BRASS='\033[38;2;255;191;0m'
-DIM='\033[38;2;85;85;85m'
-RESET='\033[0m'
+COLOR_LIB="assets/.gzl/osColors.gzl"
 
-CRIMSON_BG='\033[48;2;220;20;60m'
-WHITE_FG='\033[38;2;255;255;255m'
+if [ ! -f "$COLOR_LIB" ]; then
+    echo "[ ! ] FATAL: Sovereign Color Library not found at $COLOR_LIB"
+    exit 1
+fi
+
+# --- SOVEREIGN LENSES ---
+# L(): Extracts base foreground ANSI from osColors.gzl
+# LB(): Dynamically converts 38;2 (foreground) to 48;2 (background) for highlighting
+# W(): Implements a full-width background span using the converted background color
+L() { grep "$1_ANSI" "$COLOR_LIB" | awk -F'| ' '{print $2}' | awk '{print $2}' | tr -d '\n'; }
+LB() { L "$1" | sed 's/38;2/48;2/g'; }
+W() { printf "$(LB "$1")%$(tput cols)s\033[0m\r" " "; }
+RESET='\033[0m'
 
 check_void_link() {
     if ping -q -c 1 -W 2 github.com >/dev/null 2>&1; then
@@ -32,21 +40,21 @@ draw_splash() {
     local cols=$1
     local lines=$2
     tput cup $(( (lines / 2) - 8 )) $(( (cols - 60) / 2 ))
-    echo -e "${CRIMSON}  ▄▄▄▄▄    _   __   _____   ____   ____    __       ______${RESET}"
+    echo -e "$(L "C.S")  ▄▄▄▄▄    _   __   _____   ____   ____    __       ______${RESET}"
     tput cup $(( (lines / 2) - 7 )) $(( (cols - 60) / 2 ))
-    echo -e "${CRIMSON} / __ \  / | / /  / ___/  /  _/  / __ )  / /      / ____/${RESET}"
+    echo -e "$(L "C.S") / __ \  / | / /  / ___/  /  _/  / __ )  / /      / ____/${RESET}"
     tput cup $(( (lines / 2) - 6 )) $(( (cols - 60) / 2 ))
-    echo -e "${CRIMSON}/ /_/ _/ /  |/ /   \__ \   / /   / __  | / /      / __/   ${RESET}"
+    echo -e "$(L "C.S")/ /_/ _/ /  |/ /   \__ \   / /   / __  | / /      / __/   ${RESET}"
     tput cup $(( (lines / 2) - 5 )) $(( (cols - 60) / 2 ))
-    echo -e "${CRIMSON}\__/ /  / /|  /   ___/ / _/ /   / /_/ / / /___   / /___   ${RESET}"
+    echo -e "$(L "C.S")\__/ /  / /|  /   ___/ / _/ /   / /_/ / / /___   / /___   ${RESET}"
     tput cup $(( (lines / 2) - 4 )) $(( (cols - 60) / 2 ))
-    echo -e "${CRIMSON}  \_/  /_/ |_/   /____/ /___/  /_____/ /_____/  /_____/   ${RESET}"
+    echo -e "$(L "C.S")  \_/  /_/ |_/   /____/ /___/  /_____/ /_____/  /_____/   ${RESET}"
     
     tput cup $(( (lines / 2) - 2 )) $(( (cols - 60) / 2 ))
-    echo -e "${SILVER}                    by Æ§ Tech MMXXVI                     ${RESET}"
+    echo -e "$(L "S.S")                    by Æ§ Tech MMXXVI                     ${RESET}"
     
     tput cup $(( (lines / 2) )) $(( (cols - 60) / 2 ))
-    echo -e "${BRASS}────────────────────────────────────────────────────────────${RESET}"
+    echo -e "$(L "B.S")────────────────────────────────────────────────────────────${RESET}"
 }
 
 if [ "$cmd" = "sync" ] || [ "$cmd" = "orbit" ]; then
@@ -56,12 +64,12 @@ if [ "$cmd" = "sync" ] || [ "$cmd" = "orbit" ]; then
     draw_splash "$cols" "$lines"
     
     tput cup 0 0
-    printf "${CRIMSON_BG}%${cols}s${RESET}" ""
+    W "C.S"
     tput cup 0 0
-    sudo -p $'\033[48;2;220;20;60m\033[38;2;255;255;255m 高爪 @NSIBLE OS // ROOT VINCULUM KEY > \033[0m ' -v
+    sudo -p "$(LB "C.S")$(L "S.H") 高爪 @NSIBLE OS // ROOT VINCULUM KEY > ${RESET} " -v
     if [ $? -ne 0 ]; then
         tput cup $((lines - 2)) 0
-        echo -e "\n${CRIMSON}[ ! ] ELEVATION FAILED. ABORTING BOOT SEQUENCE.${RESET}"
+        echo -e "\n$(L "C.H")[ ! ] ELEVATION FAILED. ABORTING BOOT SEQUENCE.${RESET}"
         exit 1
     fi
 fi
@@ -109,10 +117,10 @@ run_with_loader() {
     
     tput cup 0 0
     local header_text=" 高爪 @NSIBLE OS // ziGGit :: ${job_name} "
-    printf "${CRIMSON_BG}${WHITE_FG}%-*s${RESET}" "$cols" "${header_text:0:$cols}"
+    printf "$(LB "C.S")$(L "S.H")%-*s${RESET}" "$cols" "${header_text:0:$cols}"
     
     tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
-    echo -e "${SILVER}:: ${job_name}${RESET}"
+    echo -e "$(L "S.S"):: ${job_name}${RESET}"
     
     while true; do
         local current_time=$(date +%s)
@@ -141,23 +149,23 @@ run_with_loader() {
                 min_duration=0 
             fi
         fi
-        printf "${DIM}> %-58s${RESET}$(tput el)" "$log_line"
+        printf "$(L "K.H")> %-58s${RESET}$(tput el)" "$log_line"
         
         if [ $min_duration -gt 0 ]; then
             local v1_width=$(( (vec_pos % (cols / 2)) + 10 ))
             tput cup $(( (lines / 2) + 6 )) 0; tput el
             tput cup $(( (lines / 2) + 6 )) $(( cols - v1_width ))
-            echo -ne "${CRIMSON}◄${max_vec:0:$v1_width}${RESET}"
+            echo -ne "$(L "C.S")◄${max_vec:0:$v1_width}${RESET}"
             
             local v2_width=$(( ((vec_pos * 2) % (cols / 2)) + 5 ))
             tput cup $(( (lines / 2) + 7 )) 0; tput el
             tput cup $(( (lines / 2) + 7 )) $(( cols - v2_width ))
-            echo -ne "${CRIMSON}◄${max_vec:0:$v2_width}${RESET}"
+            echo -ne "$(L "C.S")◄${max_vec:0:$v2_width}${RESET}"
             
             local v3_width=$(( ((vec_pos / 2) % (cols / 2)) + 20 ))
             tput cup $(( (lines / 2) + 8 )) 0; tput el
             tput cup $(( (lines / 2) + 8 )) $(( cols - v3_width ))
-            echo -ne "${CRIMSON}◄${max_vec:0:$v3_width}${RESET}"
+            echo -ne "$(L "C.S")◄${max_vec:0:$v3_width}${RESET}"
         fi
 
         tput cup $((lines - 2)) 0
@@ -165,7 +173,7 @@ run_with_loader() {
         if [ ${#stream} -lt $cols ]; then
             stream="${stream}${data:0:$((cols - ${#stream}))}"
         fi
-        echo -ne "${CRIMSON}${stream}${RESET}"
+        echo -ne "$(L "C.S")${stream}${RESET}"
         
         pos=$(( (pos + 4) % ${#data} ))
         vec_pos=$(( vec_pos + 4 ))
@@ -190,21 +198,21 @@ if [ "$cmd" = "sync" ]; then
             
             tput cup 0 0
             local header_text=" 高爪 @NSIBLE OS // LOCAL DIVERGENCE DETECTED "
-            printf "${CRIMSON_BG}${WHITE_FG}%-*s${RESET}" "$cols" "${header_text:0:$cols}"
+            printf "$(LB "C.S")$(L "S.H")%-*s${RESET}" "$cols" "${header_text:0:$cols}"
 
             tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
-            echo -e "${CRIMSON}[ ! ] LOCAL DIVERGENCE DETECTED${RESET}"
+            echo -e "$(L "C.H")[ ! ] LOCAL DIVERGENCE DETECTED${RESET}"
             tput cup $(( (lines / 2) + 3 )) $(( (cols - 60) / 2 ))
-            echo -e "${SILVER}      Files on this vessel have been modified.${RESET}"
+            echo -e "$(L "S.S")      Files on this vessel have been modified.${RESET}"
             
             tput cup $(( (lines / 2) + 5 )) $(( (cols - 60) / 2 ))
-            echo -e "      ${BRASS}[I]${RESET}NTEGRATE : Pull cloud updates, keep local changes."
+            echo -e "      $(L "B.S")[I]$(L "S.S")NTEGRATE : Pull cloud updates, keep local changes."
             tput cup $(( (lines / 2) + 6 )) $(( (cols - 60) / 2 ))
-            echo -e "      ${BRASS}[S]${RESET}AVE      : Commit local changes & Push to Zen."
+            echo -e "      $(L "B.S")[S]$(L "S.S")AVE      : Commit local changes & Push to Zen."
             tput cup $(( (lines / 2) + 7 )) $(( (cols - 60) / 2 ))
-            echo -e "      ${BRASS}[O]${RESET}VERWRITE : Discard local changes & Force-Sync to Zen."
+            echo -e "      $(L "B.S")[O]$(L "S.S")VERWRITE : Discard local changes & Force-Sync to Zen."
             tput cup $(( (lines / 2) + 8 )) $(( (cols - 60) / 2 ))
-            echo -e "      ${BRASS}[C]${RESET}ANCEL"
+            echo -e "      $(L "B.S")[C]$(L "S.S")ANCEL"
             
             tput cup $(( (lines / 2) + 10 )) $(( (cols - 60) / 2 ))
             printf "      :: SELECT PROTOCOL > "
@@ -219,10 +227,10 @@ if [ "$cmd" = "sync" ]; then
                         tput cnorm
                         tput sgr0
                         clear
-                        echo -e "${CRIMSON}[ ! ] REBASE FAILED. CONFLICT DETECTED.${RESET}"
+                        echo -e "$(L "C.H")[ ! ] REBASE FAILED. CONFLICT DETECTED.${RESET}"
                         cat .nsible_job.log
                         git rebase --abort
-                        echo -e "${DIM}Restoring stashed local modifications...${RESET}"
+                        echo -e "$(L "K.H")Restoring stashed local modifications...${RESET}"
                         git stash pop
                         exit 1
                     fi
@@ -244,7 +252,7 @@ if [ "$cmd" = "sync" ]; then
                         tput cnorm
                         tput sgr0
                         clear
-                        echo -e "${CRIMSON}[ ! ] REBASE FAILED. CANNOT PUSH.${RESET}"
+                        echo -e "$(L "C.H")[ ! ] REBASE FAILED. CANNOT PUSH.${RESET}"
                         cat .nsible_job.log
                         git rebase --abort
                         exit 1
@@ -255,7 +263,7 @@ if [ "$cmd" = "sync" ]; then
                         tput cnorm
                         tput sgr0
                         clear
-                        echo -e "${CRIMSON}[ ! ] PUSH FAILED.${RESET}"
+                        echo -e "$(L "C.H")[ ! ] PUSH FAILED.${RESET}"
                         cat .nsible_job.log
                         exit 1
                     fi
@@ -275,7 +283,7 @@ if [ "$cmd" = "sync" ]; then
                 tput cnorm
                 tput sgr0
                 clear
-                echo -e "${CRIMSON}[ ! ] DISCORDANT STATE.${RESET}"
+                echo -e "$(L "C.H")[ ! ] DISCORDANT STATE.${RESET}"
                 cat .nsible_job.log
                 exit 1
             fi
@@ -287,7 +295,7 @@ if [ "$cmd" = "sync" ]; then
             tput cnorm
             tput sgr0
             clear
-            echo -e "${BRASS}[ @://ziGGit.zen.boot/m_host^\.->> INFRALOGICALLY RESONANT...${RESET}"
+            echo -e "$(L "B.H")[ @://ziGGit.zen.boot/m_host^\.->> INFRALOGICALLY RESONANT...${RESET}"
             sleep 1
             exec "$0" "$@"
         fi
@@ -326,7 +334,6 @@ EOF
 //   module: "Temporal Decay Void",
 //   description: "Graveyard for banished artifacts and dormant logic.",
 //   philotic_inferences: "Nothing is truly lost; it merely awaits reclamation."
-
 EOF
             # GZL-X Seal
             echo "// }-.]"
@@ -345,7 +352,7 @@ EOF
     else
         tput cnorm
         tput sgr0
-        echo -e "\n${CRIMSON}[ ! ] BUILD FAILED. TRACE WRITTEN TO BLACK BOX (assets/.void/.trail.tome).${RESET}\n"
+        echo -e "\n$(L "C.H")[ ! ] BUILD FAILED. TRACE WRITTEN TO BLACK BOX (assets/.void/.trail.tome).${RESET}\n"
         cat .nsible_job.log | sudo tee assets/.void/.trail.tome > /dev/null
         cat .nsible_job.log
         rm -f .nsible_job.log
@@ -357,8 +364,11 @@ elif [ "$cmd" = "log" ]; then
     tput sgr0
     clear
     echo "[ @NSIBLE :: BLACK BOX ARCHIVE ]"
-    if [ -f "assets/.void/.trail.tome" ]; then cat assets/.void/.trail.tome
-    else echo "   :: The Void is quiet. No fatal traces found."; fi
+    if [ -f "assets/.void/.trail.tome" ]; then
+        cat assets/.void/.trail.tome
+    else
+        echo "   :: The Void is quiet. No fatal traces found."
+    fi
 
 elif [ "$cmd" = "purge" ]; then
     tput cnorm
@@ -378,7 +388,7 @@ elif [ "$cmd" = "orbit" ]; then
         tput cnorm
         tput sgr0
         clear
-        echo -e "${CRIMSON}[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST.${RESET}"
+        echo -e "$(L "C.H")[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST.${RESET}"
     fi
 else
     tput cnorm
