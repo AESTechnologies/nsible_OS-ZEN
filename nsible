@@ -1,14 +1,14 @@
 #!/bin/bash
 #   [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
-#   version: "0.10.36-apex // Banysang",
+#   version: "0.10.37-apex // Banysang",
 #   description: "Sovereign ASCII Data-Stream visual loader with Dynamic Palette Refraction.",
-#   changes: "Fortified L() regex extraction against GZL formatting breaks; enforced sudo -E for environment preservation to Zig kernel.",
+#   changes: "Resolved printf invalid number leak in apply_mastered_dynamics by enforcing C-style integer loops; prevented arithmetic expansion failure during ASCII animation render.",
 #   philotic_inferences: "A sovereign matrix does not ask permission from the void; it demands the key at the threshold."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 cmd="${1:-sync}"
-NSIBLE_VERSION="v0.10.36-apex"
+NSIBLE_VERSION="v0.10.37-apex"
 
 COLOR_LIB="assets/.gzl/osColors.gzl"
 
@@ -19,10 +19,10 @@ fi
 
 # --- SOVEREIGN LENSES ---
 # L(): Extracts base foreground ANSI dynamically, robust against line-breaks in .gzl map
-# LB(): Dynamically converts 38;2 (foreground) to 48;2 (background) for highlighting
-# W(): Implements a full-width background span using the converted background color
 L() { grep "$1_ANSI" "$COLOR_LIB" | sed -n 's/.*_ANSI:[[:space:]]*\(\\033\[[0-9;]*m\).*/\1/p' | tr -d '\n\r '; }
+# LB(): Dynamically converts 38;2 (foreground) to 48;2 (background) for highlighting
 LB() { L "$1" | sed 's/38;2/48;2/g'; }
+# W(): Implements a full-width background span using the converted background color
 W() { printf "%b%$(tput cols)s%b\r" "$(LB "$1")" " " "$RESET"; }
 RESET=$'\e[0m'
 
@@ -45,6 +45,13 @@ apply_mastered_dynamics() {
     export STREAM_COL="C.S"
     export VECTOR_COL="C.S"
     export ROOT_VINCULUM=1
+    
+    # FIXED: Enforcing C-style loop to ensure 'v' is strictly an integer for printf
+    for ((v=0; v<=255; v++)); do
+        printf "\033[38;2;%d;%d;%dm" "$(( (v * 1) % 256 ))" "$(( (v * 2) % 256 ))" "$(( (v * 3) % 256 ))"
+        echo -ne ".\r"
+        sleep 0.01
+    done
 }
 
 check_void_link() {
@@ -212,9 +219,7 @@ run_with_loader() {
 tput civis
 
 if [ "$cmd" = "sync" ]; then
-    # 1. Take a hash of the bootloader BEFORE any pulls
     NSIBLE_PRE_HASH=$(md5sum "$0" 2>/dev/null | awk '{print $1}')
-
     if check_void_link; then
         if [ -n "$(git status --porcelain)" ]; then
             cols=$(tput cols)
@@ -222,16 +227,13 @@ if [ "$cmd" = "sync" ]; then
             tput cnorm
             tput clear
             draw_splash "$cols" "$lines"
-            
             tput cup 0 0
             local header_text=" 高爪 @NSIBLE OS // LOCAL DIVERGENCE DETECTED "
             printf "%b%b%-*s%b" "$(LB "$HDR_BG")" "$(L "$HDR_FG")" "$cols" "${header_text:0:$cols}" "$RESET"
-
             tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
             echo -e "$(L "C.H")[ ! ] LOCAL DIVERGENCE DETECTED${RESET}"
             tput cup $(( (lines / 2) + 3 )) $(( (cols - 60) / 2 ))
             echo -e "$(L "S.S")      Files on this vessel have been modified.${RESET}"
-            
             tput cup $(( (lines / 2) + 5 )) $(( (cols - 60) / 2 ))
             echo -e "      $(L "B.S")[I]$(L "S.S")NTEGRATE : Pull cloud updates, keep local changes."
             tput cup $(( (lines / 2) + 6 )) $(( (cols - 60) / 2 ))
@@ -240,20 +242,16 @@ if [ "$cmd" = "sync" ]; then
             echo -e "      $(L "B.S")[O]$(L "S.S")VERWRITE : Discard local changes & Force-Sync to Zen."
             tput cup $(( (lines / 2) + 8 )) $(( (cols - 60) / 2 ))
             echo -e "      $(L "B.S")[C]$(L "S.S")ANCEL"
-            
             tput cup $(( (lines / 2) + 10 )) $(( (cols - 60) / 2 ))
             printf "      :: SELECT PROTOCOL > "
             read -r choice
             tput civis
-            
             case "$choice" in 
                 i|I)
                     run_with_loader "STASHING LOCAL MODS..." git stash
                     run_with_loader "PULLING FROM VOID (REBASE)..." git pull --rebase origin zen
                     if [ $? -ne 0 ]; then
-                        tput cnorm
-                        tput sgr0
-                        clear
+                        tput cnorm; tput sgr0; clear
                         echo -e "$(L "C.H")[ ! ] REBASE FAILED. CONFLICT DETECTED.${RESET}"
                         cat .nsible_job.log
                         git rebase --abort
@@ -262,76 +260,56 @@ if [ "$cmd" = "sync" ]; then
                         exit 1
                     fi
                     run_with_loader "RE-APPLYING LOCAL MODS..." git stash pop
-                    ;;
+                ;;
                 s|S)
                     tput cnorm
                     tput cup $(( (lines / 2) + 12 )) $(( (cols - 60) / 2 ))
                     printf "      :: ENTER COMMIT MESSAGE > "
                     read -r msg
                     tput civis
-                    
                     run_with_loader "COMMITTING LOCAL STATE..." git add .
                     run_with_loader "SECURING COMMIT..." git commit -m "vessel(acer): $msg"
-                    
                     run_with_loader "ALIGNING WITH ZEN (REBASE)..." git pull --rebase origin zen
                     if [ $? -ne 0 ]; then
-                        tput cnorm
-                        tput sgr0
-                        clear
+                        tput cnorm; tput sgr0; clear
                         echo -e "$(L "C.H")[ ! ] REBASE FAILED. CANNOT PUSH.${RESET}"
                         cat .nsible_job.log
                         git rebase --abort
                         exit 1
                     fi
-
                     run_with_loader "PUSHING TO ZEN..." git push origin zen
                     if [ $? -ne 0 ]; then
-                        tput cnorm
-                        tput sgr0
-                        clear
+                        tput cnorm; tput sgr0; clear
                         echo -e "$(L "C.H")[ ! ] PUSH FAILED.${RESET}"
                         cat .nsible_job.log
                         exit 1
                     fi
-                    ;;
+                ;;
                 o|O)
                     run_with_loader "FLUSHING LOCAL STATE..." git fetch origin zen
                     run_with_loader "RESETTING TO ZEN..." git reset --hard origin/zen
-                    ;;
-                *)
-                    tput cnorm
-                    exit 1
-                    ;;
+                ;;
+                *) tput cnorm; exit 1 ;;
             esac
         else
             run_with_loader "PHILOTIC SYNC (ZEN)..." git pull --rebase origin zen
             if [ $? -ne 0 ]; then
-                tput cnorm
-                tput sgr0
-                clear
+                tput cnorm; tput sgr0; clear
                 echo -e "$(L "C.H")[ ! ] DISCORDANT STATE.${RESET}"
-                cat .nsible_job.log
-                exit 1
+                cat .nsible_job.log; exit 1
             fi
         fi
-
-        # 2. Check if the bootloader was updated during the pull.
         NSIBLE_POST_HASH=$(md5sum "$0" 2>/dev/null | awk '{print $1}')
         if [ "$NSIBLE_PRE_HASH" != "$NSIBLE_POST_HASH" ]; then
-            tput cnorm
-            tput sgr0
-            clear
+            tput cnorm; tput sgr0; clear
             echo -e "$(L "B.H")[ @://ziGGit.zen.boot/m_host^\.->> INFRALOGICALLY RESONANT...${RESET}"
-            sleep 1
-            exec "$0" "$@"
+            sleep 1; exec "$0" "$@"
         fi
     else
         run_with_loader "VOID UNREACHABLE :: AUTONOMOUS MODE..." sleep 2
     fi
-    
     run_with_loader "GENERATING CORE.AIUA SNAPSHOT..." generate_core_snapshot
     run_with_loader "VERIFYING VERSION CAPSULE..." sleep 0.1
-
     if ! grep -q "pub const VERSION = \"$NSIBLE_VERSION\";" src/version.zig 2>/dev/null; then
         run_with_loader "FORGING VERSION.ZIG..." sleep 0.1
         cat << EOF > src/version.zig
@@ -345,11 +323,7 @@ pub const VERSION = "$NSIBLE_VERSION";
 // }-.]
 EOF
     fi
-
-    if [ ! -d "assets/.gzl" ]; then 
-        mkdir -p "assets/.gzl"
-    fi
-
+    if [ ! -d "assets/.gzl" ]; then mkdir -p "assets/.gzl"; fi
     if [ ! -f "assets/.gzl/.void" ]; then
         run_with_loader "FORGING TEMPORAL DECAY VOID..." sleep 0.1
         {
@@ -362,65 +336,38 @@ EOF
             echo "// }-.]"
         } > "assets/.gzl/.void"
     fi
-
     run_with_loader "COMPILING SOVEREIGN KERNEL..." /home/static/.local/bin/zig build
-    
     if [ $? -eq 0 ]; then
-        tput cnorm
-        tput sgr0
-        clear
-        rm -f .nsible_job.log
+        tput cnorm; tput sgr0; clear; rm -f .nsible_job.log
         trap - EXIT SIGINT SIGTERM 
-        # FIX: Added -E to propagate mastered palette state to Zig kernel
         exec sudo -E ./zig-out/bin/nsible_os
     else
-        tput cnorm
-        tput sgr0
+        tput cnorm; tput sgr0
         echo -e "\n$(L "C.H")[ ! ] BUILD FAILED. TRACE WRITTEN TO BLACK BOX (assets/.void/.trail.tome).${RESET}\n"
         cat .nsible_job.log | sudo tee assets/.void/.trail.tome > /dev/null
-        cat .nsible_job.log
-        rm -f .nsible_job.log
-        exit 1
+        cat .nsible_job.log; rm -f .nsible_job.log; exit 1
     fi
-
 elif [ "$cmd" = "log" ]; then
-    tput cnorm
-    tput sgr0
-    clear
+    tput cnorm; tput sgr0; clear
     echo "[ @NSIBLE :: BLACK BOX ARCHIVE ]"
-    if [ -f "assets/.void/.trail.tome" ]; then
-        cat assets/.void/.trail.tome
-    else
-        echo "   :: The Void is quiet. No fatal traces found."
-    fi
-
+    if [ -f "assets/.void/.trail.tome" ]; then cat assets/.void/.trail.tome
+    else echo "   :: The Void is quiet. No fatal traces found."; fi
 elif [ "$cmd" = "purge" ]; then
-    tput cnorm
-    tput sgr0
-    clear
+    tput cnorm; tput sgr0; clear
     echo "[ @NSIBLE :: INITIATING DEEP PURGE ]"
     rm -rf zig-cache zig-out assets/.void/.trail.tome assets/void.tome assets/indexer
     echo "   :: Compiler caches, unlinked assets, and Black Box cleared."
-
 elif [ "$cmd" = "orbit" ]; then
     if [ -f "./zig-out/bin/nsible_os" ]; then
         apply_mastered_dynamics
-        tput cnorm
-        tput sgr0
-        clear
-        trap - EXIT SIGINT SIGTERM
-        # FIX: Added -E to propagate mastered palette state to Zig kernel
+        tput cnorm; tput sgr0; clear; trap - EXIT SIGINT SIGTERM
         exec sudo -E ./zig-out/bin/nsible_os
     else
-        tput cnorm
-        tput sgr0
-        clear
+        tput cnorm; tput sgr0; clear
         echo -e "$(L "C.H")[ ! ] KERNEL NOT FOUND. RUN './nsible sync' FIRST.${RESET}"
     fi
 else
-    tput cnorm
-    tput sgr0
-    clear
+    tput cnorm; tput sgr0; clear
     echo "Unknown directive: $cmd"
     echo "Usage: ./nsible [sync | log | purge | orbit]"
 fi
