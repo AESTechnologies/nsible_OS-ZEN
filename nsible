@@ -150,8 +150,8 @@ run_with_loader() {
     draw_splash "$cols" "$lines"
     
     tput cup 0 0
-    local header_text=" 高爪 @NSIBLE OS // ziGGit :: ${job_name} "
-    printf "%b%b%-*s%b" "$(LB "$HDR_BG")" "$(L "$HDR_FG")" "$cols" "${header_text:0:$cols}" "$RESET"
+    local headerText=" 高爪 @NSIBLE OS // ziGGit :: ${job_name} "
+    printf "%b%b%-*s%b" "$(LB "$HDR_BG")" "$(L "$HDR_FG")" "$cols" "${headerText:0:$cols}" "$RESET"
     
     tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
     echo -e "$(L "S.S"):: ${job_name}${RESET}"
@@ -229,8 +229,8 @@ if [ "$cmd" = "sync" ]; then
             draw_splash "$cols" "$lines"
             tput cup 0 0
             # REVISED NOMENCLATURE to ZEN to prevent local scope errors.
-            local header_text=" 高爪 @NSIBLE OS // ZEN DIVERGENCE DETECTED "
-            printf "%b%b%-*s%b" "$(LB "$HDR_BG")" "$(L "$HDR_FG")" "$cols" "${header_text:0:$cols}" "$RESET"
+            local headerText=" 高爪 @NSIBLE OS // ZEN DIVERGENCE DETECTED "
+            printf "%b%b%-*s%b" "$(LB "$HDR_BG")" "$(L "$HDR_FG")" "$cols" "${headerText:0:$cols}" "$RESET"
             tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
             echo -e "$(L "C.H")[ ! ] ZEN DIVERGENCE DETECTED${RESET}"
             tput cup $(( (lines / 2) + 3 )) $(( (cols - 60) / 2 ))
