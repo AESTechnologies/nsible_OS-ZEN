@@ -509,7 +509,8 @@ pub const Composer = struct {
                 cx += char_w * 4;
                 if (cx >= width - 20) { cx = start_x; cy += line_h; }
             } else {
-                if (c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') {
+				// IDENTIFY COMMENTS: '//" and/or '#' outside of active strings
+                if (!in_string and ((c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') or c == '#')) {
                     in_comment = true;
                 } else if (c == '"' and !in_comment) {
                     in_string = !in_string;
