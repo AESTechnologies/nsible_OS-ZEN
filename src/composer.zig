@@ -1,8 +1,8 @@
 // [@://nsible_os/src/composer.zig/.-={
 //   module: "The Composer IDE",
-//   version: "0.10.27-apex // Banysang",
+//   version: "0.10.28-apex // Banysang",
 //   description: "Native, full-screen IDE operating in a dedicated 50MB BSS matrix.",
-//   changes: "Restored Universal Syntax Router integration in the render loops. Fixed multiline (/* */) and dynamic single-line (#) comment detection constraints.",
+//   changes: "Restored Universal Syntax Router integration. Fixed multiline (/* */) mapping while preserving native single-line (// and #) defaults to prevent custom baseline collapse.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
@@ -525,6 +525,8 @@ pub const Composer = struct {
         var draw_start_idx: usize = 0;
         var in_comment = false;
         var in_string = false;
+        var in_block_comment = false;
+        
         i = 0;
         while (i < self.len) : (i += 1) {
             if (cy + line_h >= visible_top) {
@@ -537,24 +539,31 @@ pub const Composer = struct {
             var just_started_string = false;
             
             if (!in_comment and !in_string) {
-                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len) {
-                    if (std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
-                        in_comment = true;
-                        just_started_comment = true;
-                    }
-                }
-                if (!in_comment and c == '"') {
+                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len and std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
+                    in_comment = true;
+                    just_started_comment = true;
+                    if (self.comment_suf_len > 0) in_block_comment = true;
+                } else if ((c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') or c == '#') {
+                    in_comment = true;
+                    just_started_comment = true;
+                    in_block_comment = false;
+                } else if (c == '"') {
                     in_string = true;
                     just_started_string = true;
                 }
             }
             
             if (in_comment and !just_started_comment) {
-                if (self.comment_suf_len > 0) {
-                    if (i + 1 >= self.comment_suf_len) {
+                if (in_block_comment) {
+                    if (self.comment_suf_len > 0 and i + 1 >= self.comment_suf_len) {
                         if (std.mem.eql(u8, self.buffer[i + 1 - self.comment_suf_len .. i + 1], self.comment_suf[0..self.comment_suf_len])) {
                             in_comment = false;
+                            in_block_comment = false;
                         }
+                    }
+                } else {
+                    if (c == '\n') {
+                        in_comment = false;
                     }
                 }
             } else if (in_string and !just_started_string and c == '"') {
@@ -564,7 +573,7 @@ pub const Composer = struct {
             if (c == '\n') {
                 cx = start_x;
                 cy += line_h; line_no += 1;
-                if (self.comment_suf_len == 0) in_comment = false;
+                if (!in_block_comment) in_comment = false;
                 in_string = false;
             } else if (c == '\t') {
                 cx += char_w * 4;
@@ -602,13 +611,15 @@ pub const Composer = struct {
             var just_started_string = false;
             
             if (!in_comment and !in_string) {
-                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len) {
-                    if (std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
-                        in_comment = true;
-                        just_started_comment = true;
-                    }
-                }
-                if (!in_comment and c == '"') {
+                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len and std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
+                    in_comment = true;
+                    just_started_comment = true;
+                    if (self.comment_suf_len > 0) in_block_comment = true;
+                } else if ((c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') or c == '#') {
+                    in_comment = true;
+                    just_started_comment = true;
+                    in_block_comment = false;
+                } else if (c == '"') {
                     in_string = true;
                     just_started_string = true;
                 }
@@ -634,11 +645,16 @@ pub const Composer = struct {
             }
 
             if (in_comment and !just_started_comment) {
-                if (self.comment_suf_len > 0) {
-                    if (i + 1 >= self.comment_suf_len) {
+                if (in_block_comment) {
+                    if (self.comment_suf_len > 0 and i + 1 >= self.comment_suf_len) {
                         if (std.mem.eql(u8, self.buffer[i + 1 - self.comment_suf_len .. i + 1], self.comment_suf[0..self.comment_suf_len])) {
                             in_comment = false;
+                            in_block_comment = false;
                         }
+                    }
+                } else {
+                    if (c == '\n') {
+                        in_comment = false;
                     }
                 }
             } else if (in_string and !just_started_string and c == '"') {
@@ -649,7 +665,7 @@ pub const Composer = struct {
             if (c == '\n') {
                 cx = start_x;
                 cy += line_h; line_no += 1; is_start_of_line = true;
-                if (self.comment_suf_len == 0) in_comment = false;
+                if (!in_block_comment) in_comment = false;
                 in_string = false;
             } else if (c == '\t') {
                 cx += char_w * 4;
