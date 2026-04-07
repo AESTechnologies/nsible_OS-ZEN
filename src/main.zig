@@ -40,7 +40,7 @@ var radio_f0: f32 = 432.0;
 var radio_decay: f32 = 2.5;
 var radio_diss: f32 = 0.45;
 var radio_phi: f32 = 1.618;
-var radio_sel: u8 = 0; 
+var radio_sel: u8 = 0;
 var pulse_timer: usize = 0; 
 const PULSE_MAX: usize = 120;
 //^::SEEDED AUD.IO STATE<<dev:archx m_txr.Gem3P>>\.
@@ -536,10 +536,12 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 pub fn main() !void {
     //^:: BLAST DOORS - THE SIGINT/SIGTSTP KERNEL TRAP<<dev:archx m_txr.Gem3P>>\.
     var sa = std.mem.zeroes(linux.Sigaction);
-    sa.handler = .{ .handler = @as(?*const fn (i32) callconv(.c) void, @ptrFromInt(1)) }; 
+    sa.handler = .{ .handler = @as(?*const fn (i32) callconv(.c) void, @ptrFromInt(1)) };
     _ = linux.sigaction(2, &sa, null);  // Lock SIGINT  (^C)
-    _ = linux.sigaction(3, &sa, null);  // Lock SIGQUIT (^\)
-    _ = linux.sigaction(20, &sa, null); // Lock SIGTSTP (^Z)
+    _ = linux.sigaction(3, &sa, null);
+// Lock SIGQUIT (^\)
+    _ = linux.sigaction(20, &sa, null);
+// Lock SIGTSTP (^Z)
     //:X
 
     const fs = std.fs.cwd();
@@ -550,9 +552,9 @@ pub fn main() !void {
     { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("assets/aud.io") catch |err|
     { if (err != error.PathAlreadyExists) {} };
-
-	// <<dev:archx-MMXXVINIVNII:IVNXLIV>>: Refactor to anchor timeline/.aiua.tome in the timeline dir.
-    if (fs.access("timeline/.aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("timeline/.aiua.tome", .{})) |f|
+// <<dev:archx-MMXXVINIVNII:IVNXLIV>>: Refactor to anchor timeline/.aiua.tome in the timeline dir.
+    if (fs.access("timeline/.aiua.tome", .{})) |_| {} else |_|
+    { if (fs.createFile("timeline/.aiua.tome", .{})) |f|
     { f.close(); } else |_|
     {} }
     
@@ -708,7 +710,8 @@ pub fn main() !void {
                 journal_len = 0; }
                 else if (is_bash_modal) { is_bash_modal = false;
                 }
-                else if (is_void_modal) { is_void_modal = false; }
+                else if (is_void_modal) { is_void_modal = false;
+                }
                 
                 esc_len = 0;
                 esc_timer = 0;
@@ -820,7 +823,7 @@ pub fn main() !void {
                         else if (is_assist_modal) { is_assist_modal = false;
                         }
                         else if (is_void_modal) { 
-                            is_void_modal = false; 
+                            is_void_modal = false;
                             sys_hunter.status = "[ VOID CANCELLED ]"; 
                             journal_len = 0; 
                         }
@@ -906,7 +909,9 @@ pub fn main() !void {
                     var target_path = std.mem.trim(u8, journal[0..journal_len], " ");
 
                     var is_melt = target_path.len > 0;
-                    for (target_path) |c| { if (c < '0' or c > '9') is_melt = false; }
+                    for (target_path) |c|
+                    { if (c < '0' or c > '9') is_melt = false;
+                    }
 
                     var resolved_alloc: ?[]u8 = null;
                     void_target_idx = null; 
@@ -914,7 +919,8 @@ pub fn main() !void {
                         const idx = std.fmt.parseInt(usize, target_path, 10) catch std.math.maxInt(usize);
                         sys_hunter.mutex.lock();
                         if (idx < sys_hunter.lens.links.items.len) {
-                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
+                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res|
+                            {
                                 resolved_alloc = res;
                                 target_path = res;
                                 void_target_idx = idx; 
@@ -946,7 +952,8 @@ pub fn main() !void {
                         is_void_modal = true;
                     }
 
-                    if (resolved_alloc) |res| { sys_hunter.allocator.free(res); }
+                    if (resolved_alloc) |res|
+                    { sys_hunter.allocator.free(res); }
                     journal_len = 0;
                     reflex_triggered = true;
                 }
@@ -992,7 +999,7 @@ pub fn main() !void {
                 }
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!SR-.")) {
-                sys_hunter.hunt(".!SR-.") catch {};
+                sys_hunter.toggleSort();
                 if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 reflex_triggered = true;
             }
@@ -1026,7 +1033,8 @@ pub fn main() !void {
             if (is_tabula_rasa) {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
-                        const socius_alias = journal[0..journal_len];
+                        const socius_alias 
+= journal[0..journal_len];
                         var sik_buf: [16]u8 = .{ '0' } ** 16;
                         if (std.fs.cwd().openFile("timeline/.birdsong.sik", .{})) |f|
                         {
@@ -1122,23 +1130,22 @@ pub fn main() !void {
                     if (journal_len > 0) {
       
                         const dest = std.mem.trim(u8, journal[0..journal_len], " ");
-                        
                         if (std.mem.lastIndexOfScalar(u8, dest, '/')) |last_slash| {
                             const dir_path = dest[0..last_slash];
                             std.fs.cwd().makePath(dir_path) catch {};
                         }
                         
-                        if (std.fs.cwd().openFile("assets/.void/.00", .{})) |src| {
+                        if (std.fs.cwd().openFile("assets/.void/.00", .{})) |src|
+                        {
                             if (std.fs.cwd().createFile(dest, .{})) |dst|
                             {
                                 const data = src.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
-                                
                                 var parsed_ext: []const u8 = "";
-                                if (std.mem.lastIndexOfScalar(u8, dest, '.')) |dot_idx| {
+                                if (std.mem.lastIndexOfScalar(u8, dest, '.')) |dot_idx|
+                                {
                                     parsed_ext = dest[dot_idx..];
                                 }
                                 const syn = sys_root.resolveGzlSyntax(parsed_ext);
-                                
                                 var header_buf: [1024]u8 = undefined;
                                 const header = sys_root.buildHeader(header_buf[0..], syn, dest, "Operator Artifact (Bash Pipe)", null, "Extracted via autonomous matrix sub-shell.");
                                 dst.writeAll(header) catch {};
@@ -1173,9 +1180,9 @@ pub fn main() !void {
                 }
             }
             else if (is_void_modal) {
+                
                 if (byte == 'y' or byte == 'Y') {
                     sys_hunter.banishToVoid(void_target_path[0..void_target_len]) catch {};
-                    
                     sys_hunter.mutex.lock();
                     if (void_target_idx) |idx| {
                         if (idx < sys_hunter.lens.links.items.len) {
@@ -1186,7 +1193,6 @@ pub fn main() !void {
                         }
                     }
                     sys_hunter.mutex.unlock();
-                    
                     is_void_modal = false;
                     journal_len = 0;
                 } else if (byte == 'n' or byte == 'N') {
@@ -1201,7 +1207,8 @@ pub fn main() !void {
             }
             else {
                 if (byte 
-                == '\n' or byte == '\r') {
+           
+                 == '\n' or byte == '\r') {
                     const raw_cmd = journal[0..journal_len];
                     const cmd_slice = std.mem.trim(u8, raw_cmd, " ");
                     
@@ -1344,14 +1351,16 @@ pub fn main() !void {
                                  agent.stdin_behavior = .Ignore;
  
                                 agent.stdout_behavior = .Pipe;
+                              
                                 agent.stderr_behavior = .Pipe;
                             
                                 if (agent.spawn()) |_| {
-                                    if (std.fs.cwd().createFile("assets/.void/.00", .{}) catch null) |f| {
+                                 
+                                   if (std.fs.cwd().createFile("assets/.void/.00", .{}) catch null) |f| {
                   
                                          if (agent.stdout) |stdout| {
+                             
                                             const out_data = stdout.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
-      
                                             f.writeAll(out_data) catch {};
                                             void_allocator.free(out_data);
                                         }
