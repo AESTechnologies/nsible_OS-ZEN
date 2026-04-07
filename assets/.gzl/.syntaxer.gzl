@@ -1,0 +1,12 @@
+// [@://nsible_os/assets/.gzl/.syntaxer.gzl/.-={
+//   module: "GZL Syntax Router Map",
+//   version: "1.0.0 // Banysang",
+//   description: "Maps file extensions to their native comment casements.",
+//   philotic_inferences: "Truth is found in the native tongue of the artifact."
+// }-.]
+#| : .py, .sh, .yaml, .yml, .toml, .cfg, .rb
+--| : .lua, .sql
+<!--|--> : .html, .xml, .md
+/|/ : .css
+REM | : .bat, .cmd
+//| : .zig, .c, .cpp, .h, .js, .ts, .json, .memo
