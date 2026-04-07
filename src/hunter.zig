@@ -1,8 +1,8 @@
 // [@://nsible_os/src/hunter.zig/.-={
-//   module: "Hunter Traversal Lobe",
-//   version: "0.10.31-apex // Banysang",
+//   module: "Hunter Traversal Rectifier",
+//   version: "0.10.32-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Purged generic 'pipe' artifact prefix. Implemented dynamic hostname and context extraction. Eradicated premature static GZL-X terminator from the file header.",
+//   changes: "Overhauled True Pipe string formatting to natively assign sub-directories, shed domains, and retain target extensions.",
 //   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
 
 const std = @import("std");
@@ -23,7 +23,8 @@ const FlightVector = struct {
     result_payload: ?[]u8, 
     is_complete: bool,    
     success: bool,
-    is_pipe: bool, 
+    is_pipe: bool,
+    pipe_target_file: ?[]u8,
 };
 
 pub const Hunter = struct {
@@ -196,69 +197,92 @@ pub const Hunter = struct {
                 if (vector.success and vector.result_payload != null) {
                     const body = vector.result_payload.?;
                     if (vector.is_pipe) {
-                        const ts = std.time.timestamp();
-                        
-                        // 1. Precise Hostname Extraction
-                        var hostname: []const u8 = "unknown_host";
-                        if (std.mem.indexOf(u8, vector.url, "://")) |scheme_idx| {
-                            const host_start = scheme_idx + 3;
-                            var host_end = host_start;
-                            while (host_end < vector.url.len and vector.url[host_end] != '/' and vector.url[host_end] != ':' and vector.url[host_end] != '?') : (host_end += 1) {}
-                            if (host_end > host_start) hostname = vector.url[host_start..host_end];
-                        } else {
-                            var host_end: usize = 0;
-                            while (host_end < vector.url.len and vector.url[host_end] != '/' and vector.url[host_end] != ':' and vector.url[host_end] != '?') : (host_end += 1) {}
-                            if (host_end > 0) hostname = vector.url[0..host_end];
-                        }
-                        if (std.mem.startsWith(u8, hostname, "www.")) hostname = hostname[4..];
+                        var parsed_ext: []const u8 = "";
+                        var title_for_uri: []const u8 = "";
+                        var physical_path: []const u8 = "";
+                        var filename_buf: [512]u8 = undefined;
+                        var path_buf: [512]u8 = undefined;
 
-                        // 2. Precise Filename Extraction
-                        var parsed_filename: []const u8 = "artifact";
-                        if (std.mem.lastIndexOfScalar(u8, vector.url, '/')) |slash_idx| {
-                            if (slash_idx + 1 < vector.url.len) {
-                                var possible_file = vector.url[slash_idx + 1 ..];
-                                if (std.mem.indexOfScalar(u8, possible_file, '?')) |q_idx| possible_file = possible_file[0..q_idx];
-                                if (std.mem.indexOfScalar(u8, possible_file, '#')) |h_idx| possible_file = possible_file[0..h_idx];
-                                if (possible_file.len > 0) {
-                                    parsed_filename = possible_file;
+                        if (vector.pipe_target_file) |custom_file| {
+                            if (std.mem.lastIndexOfScalar(u8, custom_file, '.')) |dot_idx| {
+                                parsed_ext = custom_file[dot_idx..];
+                                title_for_uri = custom_file;
+                            } else {
+                                parsed_ext = ".memo";
+                                title_for_uri = std.fmt.bufPrint(&filename_buf, "{s}.memo", .{custom_file}) catch custom_file;
+                            }
+                            
+                            if (std.mem.indexOfScalar(u8, title_for_uri, '/')) |_| {
+                                physical_path = std.fmt.bufPrint(&path_buf, "timeline/{s}", .{title_for_uri}) catch "timeline/mems/anomaly.memo";
+                            } else {
+                                physical_path = std.fmt.bufPrint(&path_buf, "timeline/mems/{s}", .{title_for_uri}) catch "timeline/mems/anomaly.memo";
+                            }
+                        } else {
+                            const ts = std.time.timestamp();
+                            var hostname: []const u8 = "unknown_host";
+                            if (std.mem.indexOf(u8, vector.url, "://")) |scheme_idx| {
+                                const host_start = scheme_idx + 3;
+                                var host_end = host_start;
+                                while (host_end < vector.url.len and vector.url[host_end] != '/' and vector.url[host_end] != ':' and vector.url[host_end] != '?') : (host_end += 1) {}
+                                if (host_end > host_start) hostname = vector.url[host_start..host_end];
+                            } else {
+                                var host_end: usize = 0;
+                                while (host_end < vector.url.len and vector.url[host_end] != '/' and vector.url[host_end] != ':' and vector.url[host_end] != '?') : (host_end += 1) {}
+                                if (host_end > 0) hostname = vector.url[0..host_end];
+                            }
+                            if (std.mem.startsWith(u8, hostname, "www.")) hostname = hostname[4..];
+                            if (std.mem.lastIndexOfScalar(u8, hostname, '.')) |dot_idx| {
+                                hostname = hostname[0..dot_idx];
+                            }
+
+                            var parsed_filename: []const u8 = "artifact";
+                            if (std.mem.lastIndexOfScalar(u8, vector.url, '/')) |slash_idx| {
+                                if (slash_idx + 1 < vector.url.len) {
+                                    var possible_file = vector.url[slash_idx + 1 ..];
+                                    if (std.mem.indexOfScalar(u8, possible_file, '?')) |q_idx| possible_file = possible_file[0..q_idx];
+                                    if (std.mem.indexOfScalar(u8, possible_file, '#')) |h_idx| possible_file = possible_file[0..h_idx];
+                                    if (possible_file.len > 0) {
+                                        parsed_filename = possible_file;
+                                    }
                                 }
                             }
-                        }
 
-                        // 3. Syntax Extension Isolation
-                        var parsed_ext: []const u8 = "";
-                        if (std.mem.lastIndexOfScalar(u8, parsed_filename, '.')) |dot_idx| {
-                            parsed_ext = parsed_filename[dot_idx..];
-                        }
+                            if (std.mem.lastIndexOfScalar(u8, parsed_filename, '.')) |dot_idx| {
+                                parsed_ext = parsed_filename[dot_idx..];
+                            }
 
-                        // 4. Secure Nomenclature Routing
-                        var title_buf: [256]u8 = undefined;
-                        const title = std.fmt.bufPrint(&title_buf, "{s}.{d}.{s}", .{hostname, ts, parsed_filename}) catch "pipe_anomaly";
+                            title_for_uri = std.fmt.bufPrint(&filename_buf, "{s}.{d}.{s}", .{hostname, ts, parsed_filename}) catch "pipe_anomaly";
+                            physical_path = std.fmt.bufPrint(&path_buf, "timeline/mems/{s}", .{title_for_uri}) catch "timeline/mems/anomaly.memo";
+                        }
                         
                         var uri_buf: [256]u8 = undefined;
-                        if (std.fmt.bufPrint(&uri_buf, "memo://{s}", .{title})) |full_uri| {
+                        if (std.fmt.bufPrint(&uri_buf, "memo://{s}", .{title_for_uri})) |full_uri| {
                             if (self.allocator.dupe(u8, full_uri)) |title_dupe| {
                                 if (self.history.append(self.allocator, title_dupe)) |_| {
                                     self.history_index = self.history.items.len - 1;
-                                    var filename_buf: [256]u8 = undefined;
-                                    if (std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}", .{title})) |filename| {
-                                        if (std.fs.cwd().createFile(filename, .{})) |file| {
-                                            const syn = sys_root.resolveGzlSyntax(parsed_ext);
-                                            const safe_url: []const u8 = if (vector.url.len > 256) vector.url[0..256] else vector.url;
-                                            
-                                            var header_buf: [1024]u8 = undefined;
-                                            const header = sys_root.buildHeader(header_buf[0..], syn, filename, "Operator Artifact (Pipe)", safe_url, "Automatically extracted via True Pipe routing.");
-                                            
-                                            file.writeAll(header) catch {};
-                                            file.writeAll(body) catch {};
-                                            
-                                            var footer_buf: [128]u8 = undefined;
-                                            const footer = sys_root.buildFooter(footer_buf[0..], syn);
-                                            file.writeAll(footer) catch {};
-                                            
-                                            file.close();
-                                        } else |_| {} 
+                                    
+                                    if (std.mem.lastIndexOfScalar(u8, physical_path, '/')) |last_slash| {
+                                        const dir_path = physical_path[0..last_slash];
+                                        std.fs.cwd().makePath(dir_path) catch {};
+                                    }
+
+                                    if (std.fs.cwd().createFile(physical_path, .{})) |file| {
+                                        const syn = sys_root.resolveGzlSyntax(parsed_ext);
+                                        const safe_url: []const u8 = if (vector.url.len > 256) vector.url[0..256] else vector.url;
+                                        
+                                        var header_buf: [1024]u8 = undefined;
+                                        const header = sys_root.buildHeader(header_buf[0..], syn, physical_path, "Operator Artifact (Pipe)", safe_url, "Automatically extracted via True Pipe routing.");
+                                        
+                                        file.writeAll(header) catch {};
+                                        file.writeAll(body) catch {};
+                                        
+                                        var footer_buf: [128]u8 = undefined;
+                                        const footer = sys_root.buildFooter(footer_buf[0..], syn);
+                                        file.writeAll(footer) catch {};
+                                        
+                                        file.close();
                                     } else |_| {} 
+                                    
                                     self.saveHistory() catch {};
                                     self.status = "PIPE_SEALED";
                                 } else |_| { self.allocator.free(title_dupe); self.status = "PIPE_FAIL_MEM"; }
@@ -285,6 +309,7 @@ pub const Hunter = struct {
                 if (self.thread_handle) |t| t.detach();
                 self.thread_handle = null;
                 self.allocator.free(vector.url);
+                if (vector.pipe_target_file) |pf| self.allocator.free(pf);
                 self.allocator.destroy(vector);
                 self.current_vector = null;
             } 
@@ -500,20 +525,60 @@ pub const Hunter = struct {
     pub fn pipeMemo(self: *Hunter, target: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        var actual_target: []const u8 = target;
+        var actual_url_part: []const u8 = target;
+        var explicit_file: ?[]u8 = null;
+        
+        if (std.mem.indexOfScalar(u8, target, '|')) |pipe_idx| {
+            actual_url_part = std.mem.trim(u8, target[0..pipe_idx], " \t");
+            const right = std.mem.trim(u8, target[pipe_idx+1..], " \t");
+            if (right.len > 0 and !std.mem.eql(u8, right, "memo")) {
+                explicit_file = try self.allocator.dupe(u8, right);
+            }
+        }
+        
+        if (std.mem.startsWith(u8, actual_url_part, "@://")) {
+            const possible_idx = actual_url_part[4..];
+            var check_melt = possible_idx.len > 0;
+            for (possible_idx) |c| { if (c < '0' or c > '9') check_melt = false; }
+            if (check_melt) {
+                actual_url_part = possible_idx;
+            }
+        }
+
         var free_target = false;
-        var is_melt = target.len > 0;
-        for (target) |c| { if (c < '0' or c > '9') is_melt = false; }
+        var is_melt = actual_url_part.len > 0;
+        for (actual_url_part) |c| { if (c < '0' or c > '9') is_melt = false; }
+        var actual_target: []const u8 = actual_url_part;
+        
         if (is_melt) {
-            const idx = std.fmt.parseInt(usize, target, 10) catch return;
+            const idx = std.fmt.parseInt(usize, actual_url_part, 10) catch {
+                if (explicit_file) |ef| self.allocator.free(ef);
+                return;
+            };
             if (idx < self.lens.links.items.len) {
                 actual_target = try self.resolveMeltTarget(self.lens.links.items[idx]);
                 free_target = true;
-            } else { self.status = "PIPE_ERR_VOID"; return; }
+            } else { 
+                self.status = "PIPE_ERR_VOID"; 
+                if (explicit_file) |ef| self.allocator.free(ef);
+                return; 
+            }
+        } else {
+            actual_target = try self.resolveMeltTarget(actual_url_part);
+            free_target = true;
         }
+        
         if (self.current_vector) |_| { if (self.thread_handle) |t| t.detach(); self.current_vector = null; }
         const vector = try self.allocator.create(FlightVector);
-        vector.* = .{ .allocator = self.allocator, .url = try self.allocator.dupe(u8, actual_target), .result_payload = null, .is_complete = false, .success = false, .is_pipe = true };
+        vector.* = .{ 
+            .allocator = self.allocator, 
+            .url = try self.allocator.dupe(u8, actual_target), 
+            .result_payload = null, 
+            .is_complete = false, 
+            .success = false, 
+            .is_pipe = true,
+            .pipe_target_file = explicit_file
+        };
         if (free_target) self.allocator.free(actual_target);
         self.current_vector = vector;
         self.thread_handle = try std.Thread.spawn(.{}, shadowFlight, .{vector});
@@ -656,7 +721,7 @@ pub const Hunter = struct {
         gop.value_ptr.* += 1;
         if (self.current_vector) |_| { if (self.thread_handle) |t| t.detach(); self.current_vector = null; }
         const vector = try self.allocator.create(FlightVector);
-        vector.* = .{ .allocator = self.allocator, .url = try self.allocator.dupe(u8, target), .result_payload = null, .is_complete = false, .success = false, .is_pipe = false };
+        vector.* = .{ .allocator = self.allocator, .url = try self.allocator.dupe(u8, target), .result_payload = null, .is_complete = false, .success = false, .is_pipe = false, .pipe_target_file = null };
         self.current_vector = vector;
         self.thread_handle = try std.Thread.spawn(.{}, shadowFlight, .{vector});
         self.allocator.free(self.url); self.url = try self.allocator.dupe(u8, target);
