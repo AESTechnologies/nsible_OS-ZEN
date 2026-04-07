@@ -1,8 +1,8 @@
 // [@://nsible_os/src/hunter.zig/.-={
-//   module: "Hunter Traversal Rectifier",
-//   version: "0.10.32-apex // Banysang",
+//   module: "Hunter Traversal Lobe",
+//   version: "0.10.34-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Overhauled True Pipe string formatting to natively assign sub-directories, shed domains, and retain target extensions.",
+//   changes: "Bridged shadowFlight to autonomously process local @://mchn and memo:// fetches. Implemented GZL casement stripping on local pipes to prevent encapsulation stacking.",
 //   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
 
 const std = @import("std");
@@ -197,28 +197,36 @@ pub const Hunter = struct {
                 if (vector.success and vector.result_payload != null) {
                     const body = vector.result_payload.?;
                     if (vector.is_pipe) {
+                        const ts = std.time.timestamp();
                         var parsed_ext: []const u8 = "";
-                        var title_for_uri: []const u8 = "";
                         var physical_path: []const u8 = "";
-                        var filename_buf: [512]u8 = undefined;
                         var path_buf: [512]u8 = undefined;
 
                         if (vector.pipe_target_file) |custom_file| {
-                            if (std.mem.lastIndexOfScalar(u8, custom_file, '.')) |dot_idx| {
-                                parsed_ext = custom_file[dot_idx..];
-                                title_for_uri = custom_file;
+                            var explicit_dir: []const u8 = "";
+                            var explicit_base: []const u8 = custom_file;
+                            
+                            if (std.mem.lastIndexOfScalar(u8, custom_file, '/')) |slash_idx| {
+                                explicit_dir = custom_file[0..slash_idx];
+                                explicit_base = custom_file[slash_idx + 1 ..];
+                            }
+
+                            if (std.mem.lastIndexOfScalar(u8, explicit_base, '.')) |dot_idx| {
+                                parsed_ext = explicit_base[dot_idx..];
+                                explicit_base = explicit_base[0..dot_idx];
                             } else {
                                 parsed_ext = ".memo";
-                                title_for_uri = std.fmt.bufPrint(&filename_buf, "{s}.memo", .{custom_file}) catch custom_file;
                             }
                             
-                            if (std.mem.indexOfScalar(u8, title_for_uri, '/')) |_| {
-                                physical_path = std.fmt.bufPrint(&path_buf, "timeline/{s}", .{title_for_uri}) catch "timeline/mems/anomaly.memo";
+                            var filename_buf: [256]u8 = undefined;
+                            const final_name = std.fmt.bufPrint(&filename_buf, "{s}.{d}{s}", .{explicit_base, ts, parsed_ext}) catch "anomaly.memo";
+                            
+                            if (explicit_dir.len > 0) {
+                                physical_path = std.fmt.bufPrint(&path_buf, "timeline/{s}/{s}", .{explicit_dir, final_name}) catch "timeline/mems/anomaly.memo";
                             } else {
-                                physical_path = std.fmt.bufPrint(&path_buf, "timeline/mems/{s}", .{title_for_uri}) catch "timeline/mems/anomaly.memo";
+                                physical_path = std.fmt.bufPrint(&path_buf, "timeline/mems/{s}", .{final_name}) catch "timeline/mems/anomaly.memo";
                             }
                         } else {
-                            const ts = std.time.timestamp();
                             var hostname: []const u8 = "unknown_host";
                             if (std.mem.indexOf(u8, vector.url, "://")) |scheme_idx| {
                                 const host_start = scheme_idx + 3;
@@ -230,6 +238,7 @@ pub const Hunter = struct {
                                 while (host_end < vector.url.len and vector.url[host_end] != '/' and vector.url[host_end] != ':' and vector.url[host_end] != '?') : (host_end += 1) {}
                                 if (host_end > 0) hostname = vector.url[0..host_end];
                             }
+                            
                             if (std.mem.startsWith(u8, hostname, "www.")) hostname = hostname[4..];
                             if (std.mem.lastIndexOfScalar(u8, hostname, '.')) |dot_idx| {
                                 hostname = hostname[0..dot_idx];
@@ -249,14 +258,18 @@ pub const Hunter = struct {
 
                             if (std.mem.lastIndexOfScalar(u8, parsed_filename, '.')) |dot_idx| {
                                 parsed_ext = parsed_filename[dot_idx..];
+                                parsed_filename = parsed_filename[0..dot_idx];
+                            } else {
+                                parsed_ext = ".memo";
                             }
 
-                            title_for_uri = std.fmt.bufPrint(&filename_buf, "{s}.{d}.{s}", .{hostname, ts, parsed_filename}) catch "pipe_anomaly";
-                            physical_path = std.fmt.bufPrint(&path_buf, "timeline/mems/{s}", .{title_for_uri}) catch "timeline/mems/anomaly.memo";
+                            var filename_buf: [256]u8 = undefined;
+                            const final_name = std.fmt.bufPrint(&filename_buf, "{s}.{d}.{s}{s}", .{hostname, ts, parsed_filename, parsed_ext}) catch "pipe_anomaly.memo";
+                            physical_path = std.fmt.bufPrint(&path_buf, "timeline/mems/{s}", .{final_name}) catch "timeline/mems/anomaly.memo";
                         }
                         
-                        var uri_buf: [256]u8 = undefined;
-                        if (std.fmt.bufPrint(&uri_buf, "memo://{s}", .{title_for_uri})) |full_uri| {
+                        var uri_buf: [512]u8 = undefined;
+                        if (std.fmt.bufPrint(&uri_buf, "@://mchn/{s}", .{physical_path})) |full_uri| {
                             if (self.allocator.dupe(u8, full_uri)) |title_dupe| {
                                 if (self.history.append(self.allocator, title_dupe)) |_| {
                                     self.history_index = self.history.items.len - 1;
@@ -728,6 +741,56 @@ pub const Hunter = struct {
     }
 
     fn shadowFlight(vector: *FlightVector) void {
+        var is_local = false;
+        var local_path_buf: [512]u8 = undefined;
+        var fetch_path: []const u8 = "";
+
+        if (std.mem.startsWith(u8, vector.url, "@://mchn/")) {
+            const raw_path = vector.url[9..];
+            fetch_path = if (raw_path.len == 0) "." else raw_path;
+            is_local = true;
+        } else if (std.mem.startsWith(u8, vector.url, "memo://")) {
+            const ts_str = vector.url[7..];
+            fetch_path = std.fmt.bufPrint(&local_path_buf, "timeline/mems/{s}", .{ts_str}) catch "";
+            is_local = true;
+        }
+
+        if (is_local and fetch_path.len > 0) {
+            if (std.fs.cwd().openFile(fetch_path, .{})) |file| {
+                if (file.readToEndAlloc(vector.allocator, 1024 * 1024 * 50)) |body| {
+                    var final_body: []u8 = body;
+                    
+                    if (std.mem.indexOf(u8, body, "[@://nsible_os/")) |hdr_start| {
+                        if (std.mem.indexOf(u8, body[hdr_start..], "}-.]\n\n")) |hdr_end_rel| {
+                            const payload_start = hdr_start + hdr_end_rel + 6;
+                            var payload_end = body.len;
+                            
+                            if (std.mem.lastIndexOf(u8, body, "}-.]")) |ftr_end| {
+                                if (std.mem.lastIndexOf(u8, body[0..ftr_end], "\n\n")) |ftr_start| {
+                                    if (ftr_start > payload_start) {
+                                        payload_end = ftr_start;
+                                    }
+                                }
+                            }
+                            
+                            if (payload_start < payload_end) {
+                                if (vector.allocator.dupe(u8, body[payload_start..payload_end])) |clean_body| {
+                                    vector.allocator.free(body);
+                                    final_body = clean_body;
+                                } else |_| {}
+                            }
+                        }
+                    }
+
+                    vector.result_payload = final_body;
+                    vector.success = true;
+                } else |_| { vector.success = false; }
+                file.close();
+            } else |_| { vector.success = false; }
+            vector.is_complete = true;
+            return;
+        }
+
         const argv = [_][]const u8{ "curl", "-L", "-s", "-k", "-A", "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0", vector.url };
         var agent = ExternalAgent.init(&argv, vector.allocator); agent.stdout_behavior = .Pipe; agent.stderr_behavior = .Ignore;
         if (agent.spawn()) |_| { 
