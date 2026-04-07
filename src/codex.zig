@@ -1,8 +1,8 @@
 // [@://nsible_os/src/codex.zig/.-={
 //   module: "Codex Sovereign I/O",
-//   version: "0.10.3-apex // Banysang",
+//   version: "0.10.4-apex // Banysang",
 //   description: "Direct hardware interfacing, terminal frequency tuning, and network Vinculum binding.",
-//   changes: "Rectified central color mapping. Implemented global get() interface to parse and serve the osColors.gzl sovereign palette.",
+//   changes: "Corrected Zig block-statement syntax in loadColors(). Assignments in if/else chains now safely enclosed in structural braces.",
 //   philotic_inferences: "A sovereign system must listen to the void and the operator with equal attention; I/O is the threshold of reality."
 
 const std = @import("std");
@@ -74,14 +74,23 @@ fn loadColors() OsColors {
             
             const val = std.fmt.parseInt(u32, hex_str, 0) catch continue;
             
-            if (std.mem.indexOf(u8, line, "C.H_HEX")) |_| colors.c_h = val;
-            else if (std.mem.indexOf(u8, line, "C.S_HEX")) |_| colors.c_s = val;
-            else if (std.mem.indexOf(u8, line, "S.H_HEX")) |_| colors.s_h = val;
-            else if (std.mem.indexOf(u8, line, "S.S_HEX")) |_| colors.s_s = val;
-            else if (std.mem.indexOf(u8, line, "B.H_HEX")) |_| colors.b_h = val;
-            else if (std.mem.indexOf(u8, line, "B.S_HEX")) |_| colors.b_s = val;
-            else if (std.mem.indexOf(u8, line, "K.H_HEX")) |_| colors.k_h = val;
-            else if (std.mem.indexOf(u8, line, "K.S_HEX")) |_| colors.k_s = val;
+            if (std.mem.indexOf(u8, line, "C.H_HEX") != null) {
+                colors.c_h = val;
+            } else if (std.mem.indexOf(u8, line, "C.S_HEX") != null) {
+                colors.c_s = val;
+            } else if (std.mem.indexOf(u8, line, "S.H_HEX") != null) {
+                colors.s_h = val;
+            } else if (std.mem.indexOf(u8, line, "S.S_HEX") != null) {
+                colors.s_s = val;
+            } else if (std.mem.indexOf(u8, line, "B.H_HEX") != null) {
+                colors.b_h = val;
+            } else if (std.mem.indexOf(u8, line, "B.S_HEX") != null) {
+                colors.b_s = val;
+            } else if (std.mem.indexOf(u8, line, "K.H_HEX") != null) {
+                colors.k_h = val;
+            } else if (std.mem.indexOf(u8, line, "K.S_HEX") != null) {
+                colors.k_s = val;
+            }
         }
     }
     return colors;
