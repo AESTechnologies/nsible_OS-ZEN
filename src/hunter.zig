@@ -1,8 +1,8 @@
 // [@://nsible_os/src/hunter.zig/.-={
-//   module: "Hunter Traversal Lobe",
-//   version: "0.10.35-apex // Banysang",
+//   module: "Hunter Traversal Module",
+//   version: "0.10.36-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Injected native .!SR-. interception for 4-way chronological/lexicographical sorting of local MELT directory structures.",
+//   changes: "Purged UI-layer GZL keystroke sequences (.!SR-.) from the data model. Isolated sort toggling into a dedicated method.",
 //   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
 
 const std = @import("std");
@@ -188,6 +188,25 @@ pub const Hunter = struct {
             if (self.scroll_y > abs_dir) { self.scroll_y -= abs_dir; } else { self.scroll_y = 0; }
         } else {
             self.scroll_y += @as(usize, @intCast(direction));
+        }
+    }
+
+    pub fn toggleSort(self: *Hunter) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        
+        self.sort_mode = (self.sort_mode + 1) % 4;
+        self.status = switch(self.sort_mode) {
+            0 => "SORT: NAME [ASC]",
+            1 => "SORT: NAME [DESC]",
+            2 => "SORT: DATE [ASC]",
+            3 => "SORT: DATE [DESC]",
+            else => "SORT",
+        };
+        
+        if (self.history.items.len > 0) {
+            const current_target = self.history.items[self.history_index];
+            self.executeFetch(current_target, true) catch {};
         }
     }
 
@@ -863,39 +882,9 @@ pub const Hunter = struct {
         vector.is_complete = true;
     }
 
-    pub fn navigateHistory(self: *Hunter, direction: i32) !void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        if (self.history.items.len == 0) return;
-        if (direction < 0) { 
-            if (self.history_index > 0) self.history_index -= 1;
-        } else if (direction > 0) { 
-            if (self.history_index < self.history.items.len - 1) self.history_index += 1;
-        }
-        self.saveHistory() catch {}; try self.executeFetch(self.history.items[self.history_index], false);
-    }
-    
     pub fn hunt(self: *Hunter, target: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        
-        // --- NATIVE SORT TOGGLE INTERCEPT ---
-        if (std.mem.eql(u8, target, ".!SR-.")) {
-            self.sort_mode = (self.sort_mode + 1) % 4;
-            self.status = switch(self.sort_mode) {
-                0 => "SORT: NAME [ASC]",
-                1 => "SORT: NAME [DESC]",
-                2 => "SORT: DATE [ASC]",
-                3 => "SORT: DATE [DESC]",
-                else => "SORT",
-            };
-            if (self.history.items.len > 0) {
-                const current_target = self.history.items[self.history_index];
-                return self.executeFetch(current_target, true);
-            }
-            return;
-        }
-
         try self.history.append(self.allocator, try self.allocator.dupe(u8, target));
         self.history_index = self.history.items.len - 1; self.saveHistory() catch {}; try self.executeFetch(target, false);
     }
