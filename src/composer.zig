@@ -1,8 +1,8 @@
 // [@://nsible_os/src/composer.zig/.-={
 //   module: "The Composer IDE",
-//   version: "0.10.26-apex // Banysang",
+//   version: "0.10.27-apex // Banysang",
 //   description: "Native, full-screen IDE operating in a dedicated 50MB BSS matrix.",
-//   changes: "Linked to Universal Syntax Router (root.zig) for dynamic multi-standard syntax highlighting and GZL buffer instantiation.",
+//   changes: "Restored Universal Syntax Router integration in the render loops. Fixed multiline (/* */) and dynamic single-line (#) comment detection constraints.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
@@ -142,10 +142,10 @@ pub const Composer = struct {
             self.setStatus("FILE LOADED");
         } else |_| {
             var header_buf: [1024]u8 = undefined;
-            const header = sys_root.buildHeader(&header_buf, syn, clean_path, "Composer Artifact", null, "Unsealed matrix composition.");
+            const header = sys_root.buildHeader(header_buf[0..], syn, clean_path, "Composer Artifact", null, "Unsealed matrix composition.");
             
             var footer_buf: [128]u8 = undefined;
-            const footer = sys_root.buildFooter(&footer_buf, syn);
+            const footer = sys_root.buildFooter(footer_buf[0..], syn);
             
             @memcpy(self.buffer[0..header.len], header);
             @memcpy(self.buffer[header.len..header.len + 2], "\n\n");
@@ -467,6 +467,7 @@ pub const Composer = struct {
         const start_y: usize = 46; 
         const char_w: usize = 8;
         const line_h: usize = 10;
+
         // Exclusively clear the Composer's workspace, leaving the global OS Header intact
         drawRect(buffer, width, height, 0, 20, width, height - 20, 0x00000000);
         drawRect(buffer, width, height, 0, 20, width, 20, 0x00DC143C); // @NSIBLE-RED Title Bar
@@ -531,41 +532,44 @@ pub const Composer = struct {
                 break;
             }
             const c = self.buffer[i];
+            
+            var just_started_comment = false;
+            var just_started_string = false;
+            
+            if (!in_comment and !in_string) {
+                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len) {
+                    if (std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
+                        in_comment = true;
+                        just_started_comment = true;
+                    }
+                }
+                if (!in_comment and c == '"') {
+                    in_string = true;
+                    just_started_string = true;
+                }
+            }
+            
+            if (in_comment and !just_started_comment) {
+                if (self.comment_suf_len > 0) {
+                    if (i + 1 >= self.comment_suf_len) {
+                        if (std.mem.eql(u8, self.buffer[i + 1 - self.comment_suf_len .. i + 1], self.comment_suf[0..self.comment_suf_len])) {
+                            in_comment = false;
+                        }
+                    }
+                }
+            } else if (in_string and !just_started_string and c == '"') {
+                in_string = false;
+            }
+
             if (c == '\n') {
                 cx = start_x;
                 cy += line_h; line_no += 1;
-                in_comment = false;
+                if (self.comment_suf_len == 0) in_comment = false;
                 in_string = false;
             } else if (c == '\t') {
                 cx += char_w * 4;
                 if (cx >= width - 20) { cx = start_x; cy += line_h; }
             } else {
-                // IDENTIFY COMMENTS: Dynamically based on syntax router
-                var is_comment_start = false;
-                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len) {
-                    if (std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
-                        is_comment_start = true;
-                    }
-                }
-                
-                if (!in_string and is_comment_start) {
-                    in_comment = true;
-                } else if (c == '"' and !in_comment) {
-                    in_string = !in_string;
-                }
-                
-                if (in_comment) {
-                    if (self.comment_suf_len > 0) {
-                        if (i >= self.comment_suf_len) {
-                            if (std.mem.eql(u8, self.buffer[i - self.comment_suf_len .. i], self.comment_suf[0..self.comment_suf_len])) {
-                                in_comment = false;
-                            }
-                        }
-                    } else if (c == '\n') {
-                        in_comment = false;
-                    }
-                }
-                
                 cx += char_w;
                 if (cx >= width - 20) { cx = start_x; cy += line_h; }
             }
@@ -577,7 +581,6 @@ pub const Composer = struct {
         var is_start_of_line = (cx == start_x);
 
         i = draw_start_idx;
-        
         while (i <= self.len) : (i += 1) {
             if (cy > visible_bottom) { break; } 
             
@@ -595,54 +598,59 @@ pub const Composer = struct {
             if (i == self.len) { break; }
             const c = self.buffer[i];
             
+            var just_started_comment = false;
+            var just_started_string = false;
+            
+            if (!in_comment and !in_string) {
+                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len) {
+                    if (std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
+                        in_comment = true;
+                        just_started_comment = true;
+                    }
+                }
+                if (!in_comment and c == '"') {
+                    in_string = true;
+                    just_started_string = true;
+                }
+            }
+
             if (in_comment) {
                 current_color = 0x00FFBF00; // Amber
+            } else if (in_string) {
+                current_color = 0x00FFFFFF; // Silver
+            } else if (keyword_countdown > 0) {
+                current_color = 0x00DC143C; // Red
+                keyword_countdown -= 1;
+            } else {
+                current_color = 0x00AAAAAA; // Grey
+                if (isAlphanumeric(c) and (i == 0 or !isAlphanumeric(self.buffer[i-1]))) {
+                    var w_len: usize = 0;
+                    while (i + w_len < self.len and isAlphanumeric(self.buffer[i + w_len])) { w_len += 1; }
+                    if (w_len > 0 and isKeyword(self.buffer[i .. i+w_len])) {
+                        current_color = 0x00DC143C;
+                        keyword_countdown = w_len - 1;
+                    }
+                }
+            }
+
+            if (in_comment and !just_started_comment) {
                 if (self.comment_suf_len > 0) {
-                    if (i >= self.comment_suf_len) {
-                        if (std.mem.eql(u8, self.buffer[i - self.comment_suf_len .. i], self.comment_suf[0..self.comment_suf_len])) {
+                    if (i + 1 >= self.comment_suf_len) {
+                        if (std.mem.eql(u8, self.buffer[i + 1 - self.comment_suf_len .. i + 1], self.comment_suf[0..self.comment_suf_len])) {
                             in_comment = false;
                         }
                     }
-                } else if (c == '\n') { 
-                    in_comment = false; 
                 }
-            } else if (in_string) {
-                current_color = 0x00FFFFFF; // Silver
-                if (c == '"') { in_string = false; }
-            } else {
-                var is_comment_start = false;
-                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len) {
-                    if (std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
-                        is_comment_start = true;
-                    }
-                }
-                
-                if (!in_string and is_comment_start) {
-                    in_comment = true;
-                    current_color = 0x00FFBF00;
-                } else if (c == '"') {
-                    in_string = true;
-                    current_color = 0x00FFFFFF;
-                } else if (keyword_countdown > 0) {
-                    current_color = 0x00DC143C; // Red
-                    keyword_countdown -= 1;
-                } else {
-                    current_color = 0x00AAAAAA; // Grey
-                    if (isAlphanumeric(c) and (i == 0 or !isAlphanumeric(self.buffer[i-1]))) {
-                        var w_len: usize = 0;
-                        while (i + w_len < self.len and isAlphanumeric(self.buffer[i + w_len])) { w_len += 1; }
-                        if (w_len > 0 and isKeyword(self.buffer[i .. i+w_len])) {
-                            current_color = 0x00DC143C;
-                            keyword_countdown = w_len - 1;
-                        }
-                    }
-                }
+            } else if (in_string and !just_started_string and c == '"') {
+                in_string = false;
             }
 
             is_start_of_line = false;
             if (c == '\n') {
                 cx = start_x;
                 cy += line_h; line_no += 1; is_start_of_line = true;
+                if (self.comment_suf_len == 0) in_comment = false;
+                in_string = false;
             } else if (c == '\t') {
                 cx += char_w * 4;
                 if (cx >= width - 20) { cx = start_x; cy += line_h; }
@@ -719,8 +727,7 @@ fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8,
             if ((bitmap[y] & (@as(u8, 1) << @intCast(7 - x))) != 0) {
                 const screen_x = px + x;
                 const screen_y = py + y;
-                if (screen_x < w and screen_y < h) { buf[screen_y * w + screen_x] = color;
-                }
+                if (screen_x < w and screen_y < h) { buf[screen_y * w + screen_x] = color; }
             }
         }
     }
@@ -733,8 +740,7 @@ fn drawRect(buf: []u32, bw: usize, bh: usize, x: usize, y: usize, w: usize, h: u
         while (dx < w) : (dx += 1) {
             const sx = x + dx;
             const sy = y + dy;
-            if (sx < bw and sy < bh) { buf[sy * bw + sx] = color;
-            }
+            if (sx < bw and sy < bh) { buf[sy * bw + sx] = color; }
         }
     }
 }
