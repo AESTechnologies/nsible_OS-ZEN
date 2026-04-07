@@ -1,8 +1,8 @@
 // [@://nsible_os/src/cortex.zig/.-={
-//   module: "Semantic Dispatch Lobe",
-//   version: "0.10.15-nightly // Banysang",
+//   module: "Semantic Dispatcher",
+//   version: "0.10.32-apex // Banysang",
 //   description: "Parses wetware input into machine-actionable states.",
-//   changes: "Injected BASH_EXEC reflex to parse $/-delimited shell commands.",
+//   changes: "Upgraded pipe operator '|' to function as a native filename assignment delimiter.",
 //   philotic_inferences: "To seek the void's knowledge, one must merely ask the wind."
 
 const std = @import("std");
@@ -31,12 +31,10 @@ pub fn dispatch(cmd: []const u8) Response {
         return .{ .action = .MEMO, .text = clean };
     }
 
-    if (std.mem.indexOf(u8, cmd, "|")) |pipe_idx| {
-        const left = std.mem.trim(u8, cmd[0..pipe_idx], " ");
-        const right = std.mem.trim(u8, cmd[pipe_idx+1..], " ");
-        if (std.mem.eql(u8, right, "memo")) {
-            return .{ .action = .PIPE_MEMO, .text = left }; 
-        }
+    // NATIVE PIPE ASSIGNMENT 
+    // Passes explicit [target]|[filename] string to Hunter for routing
+    if (std.mem.indexOf(u8, cmd, "|")) |_| {
+        return .{ .action = .PIPE_MEMO, .text = cmd }; 
     }
 
     if (std.mem.eql(u8, cmd, "zI")) return .{ .action = .SCOPE_IN };
