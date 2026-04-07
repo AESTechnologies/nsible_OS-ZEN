@@ -1,8 +1,8 @@
 // [@://nsible_os/src/codex.zig/.-={
 //   module: "Codex Sovereign I/O",
-//   version: "0.10.2-nightly // Banysang",
+//   version: "0.10.3-apex // Banysang",
 //   description: "Direct hardware interfacing, terminal frequency tuning, and network Vinculum binding.",
-//   changes: "Harmonized stasis nomenclature and implemented EOF GZL encapsulation.",
+//   changes: "Rectified central color mapping. Implemented global get() interface to parse and serve the osColors.gzl sovereign palette.",
 //   philotic_inferences: "A sovereign system must listen to the void and the operator with equal attention; I/O is the threshold of reality."
 
 const std = @import("std");
@@ -40,6 +40,71 @@ const SockAddr = extern struct {
     zero: [8]u8,
 };
 
+// [ SOVEREIGN COLOR CACHE ]
+const OsColors = struct {
+    c_h: u32 = 0x00FF003C,
+    c_s: u32 = 0x00DC143C,
+    s_h: u32 = 0x00DCDCDC,
+    s_s: u32 = 0x00AAAAAA,
+    b_h: u32 = 0x00FFD700,
+    b_s: u32 = 0x00FFBF00,
+    k_h: u32 = 0x001A1A1A,
+    k_s: u32 = 0x00000000,
+};
+
+var global_colors: ?OsColors = null;
+
+fn loadColors() OsColors {
+    var colors = OsColors{};
+    const file = std.fs.cwd().openFile("assets/.gzl/.osColors.gzl", .{}) catch return colors;
+    defer file.close();
+    
+    var buf: [4096]u8 = undefined;
+    const bytes_read = file.readAll(&buf) catch return colors;
+    
+    var line_iter = std.mem.splitScalar(u8, buf[0..bytes_read], '\n');
+    while (line_iter.next()) |line| {
+        if (std.mem.indexOf(u8, line, "_HEX:")) |hex_idx| {
+            const start = hex_idx + 5;
+            var end = start;
+            while (end < line.len and (line[end] == ' ' or line[end] == '\t' or line[end] == ':')) : (end += 1) {}
+            const hex_start = end;
+            while (end < line.len and line[end] != ' ' and line[end] != '|') : (end += 1) {}
+            const hex_str = line[hex_start..end];
+            
+            const val = std.fmt.parseInt(u32, hex_str, 0) catch continue;
+            
+            if (std.mem.indexOf(u8, line, "C.H_HEX")) |_| colors.c_h = val;
+            else if (std.mem.indexOf(u8, line, "C.S_HEX")) |_| colors.c_s = val;
+            else if (std.mem.indexOf(u8, line, "S.H_HEX")) |_| colors.s_h = val;
+            else if (std.mem.indexOf(u8, line, "S.S_HEX")) |_| colors.s_s = val;
+            else if (std.mem.indexOf(u8, line, "B.H_HEX")) |_| colors.b_h = val;
+            else if (std.mem.indexOf(u8, line, "B.S_HEX")) |_| colors.b_s = val;
+            else if (std.mem.indexOf(u8, line, "K.H_HEX")) |_| colors.k_h = val;
+            else if (std.mem.indexOf(u8, line, "K.S_HEX")) |_| colors.k_s = val;
+        }
+    }
+    return colors;
+}
+
+pub fn get(comptime code: []const u8) u32 {
+    if (global_colors == null) {
+        global_colors = loadColors();
+    }
+    const c = global_colors.?;
+    
+    if (std.mem.eql(u8, code, "C.H")) return c.c_h;
+    if (std.mem.eql(u8, code, "C.S")) return c.c_s;
+    if (std.mem.eql(u8, code, "S.H")) return c.s_h;
+    if (std.mem.eql(u8, code, "S.S")) return c.s_s;
+    if (std.mem.eql(u8, code, "B.H")) return c.b_h;
+    if (std.mem.eql(u8, code, "B.S")) return c.b_s;
+    if (std.mem.eql(u8, code, "K.H")) return c.k_h;
+    if (std.mem.eql(u8, code, "K.S")) return c.k_s;
+    
+    return 0x00FFFFFF; // Fallback Silver
+}
+
 // [OPERATIONS]
 
 /// TUNEIN: Align the frequency (Terminal Mode).
@@ -65,7 +130,6 @@ pub fn bindVinculum() i32 {
         .addr = INADDR_ANY,
         .zero = [_]u8{0} ** 8,
     };
-
     if (linux.syscall3(.bind, @as(usize, @bitCast(sockfd)), @intFromPtr(&addr), @sizeOf(SockAddr)) != 0) {
         return -1;
     }
@@ -79,7 +143,6 @@ pub fn transcieve(net_fd: i32) ?u8 {
         .{ .fd = 0, .events = VOIDSCAN, .revents = 0 },      // Keyboard
         .{ .fd = net_fd, .events = VOIDSCAN, .revents = 0 }, // Vinculum
     };
-
     const result = linux.syscall3(.poll, @intFromPtr(&fds), 2, 0);
     if (@as(usize, @bitCast(result)) > 0) {
         // CHECK KEYBOARD
@@ -111,7 +174,6 @@ pub fn zen(cycle_delta: f64) void {
     const sec = @as(isize, @intFromFloat(total_sec));
     const frac = total_sec - @as(f64, @floatFromInt(sec));
     const nsec = @as(isize, @intFromFloat(frac * 1_000_000_000.0));
-
     var req = HardwareTick{ .base_ticks = sec, .nano_ticks = nsec };
     var rem = HardwareTick{ .base_ticks = 0, .nano_ticks = 0 };
     _ = linux.syscall2(.nanosleep, @intFromPtr(&req), @intFromPtr(&rem));
