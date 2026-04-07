@@ -1,8 +1,8 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
-//   version: "0.10.34-apex // Banysang",
+//   version: "0.10.35-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Bridged shadowFlight to autonomously process local @://mchn and memo:// fetches. Implemented GZL casement stripping on local pipes to prevent encapsulation stacking.",
+//   changes: "Injected native .!SR-. interception for 4-way chronological/lexicographical sorting of local MELT directory structures.",
 //   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
 
 const std = @import("std");
@@ -40,6 +40,7 @@ pub const Hunter = struct {
     status: []const u8,
     scroll_y: usize,
     active: bool,
+    sort_mode: u8,
     philote_map: PhiloteMap,
     page_cache: PageCache, 
     current_vector: ?*FlightVector, 
@@ -69,6 +70,7 @@ pub const Hunter = struct {
             .status = "IDLE",
             .scroll_y = 0,
             .active = false,
+            .sort_mode = 0,
             .philote_map = .{},
             .page_cache = .{},
  
@@ -640,17 +642,75 @@ pub const Hunter = struct {
         defer html_buf.deinit(self.allocator);
         const is_absolute = std.mem.startsWith(u8, path, "/");
         var is_dir = false;
+        
         if (is_absolute) { 
             if (std.fs.openDirAbsolute(path, .{})) |dir| { var d = dir; is_dir = true; d.close(); } else |_| {} 
         } else { 
             if (std.fs.cwd().openDir(path, .{})) |dir| { var d = dir; is_dir = true; d.close(); } else |_| {} 
         }
+        
         if (is_dir) {
             var dir = if (is_absolute) try std.fs.openDirAbsolute(path, .{ .iterate = true }) else try std.fs.cwd().openDir(path, .{ .iterate = true });
             defer dir.close();
             var iter = dir.iterate();
-            try html_buf.appendSlice(self.allocator, "<b>[ DYNAMIC DISK: "); try html_buf.appendSlice(self.allocator, path); try html_buf.appendSlice(self.allocator, " ]</b><br><br>");
+            
+            const DirEntry = struct {
+                name: []const u8,
+                kind: std.fs.File.Kind,
+                mtime: i128,
+            };
+            
+            var entries: std.ArrayListUnmanaged(DirEntry) = .{};
+            defer {
+                for (entries.items) |e| self.allocator.free(e.name);
+                entries.deinit(self.allocator);
+            }
+
             while (try iter.next()) |entry| {
+                const name_dupe = try self.allocator.dupe(u8, entry.name);
+                var mtime: i128 = 0;
+                
+                if (self.sort_mode >= 2) {
+                    if (entry.kind == .directory) {
+                        if (dir.openDir(entry.name, .{})) |sub_dir| {
+                            var sd = sub_dir;
+                            if (sd.stat()) |stat| mtime = stat.mtime else |_| {}
+                            sd.close();
+                        } else |_| {}
+                    } else {
+                        if (dir.statFile(entry.name)) |stat| mtime = stat.mtime else |_| {}
+                    }
+                }
+                
+                try entries.append(self.allocator, .{ .name = name_dupe, .kind = entry.kind, .mtime = mtime });
+            }
+
+            // O(N^2) Kernel-Safe Insertion Sort mapped to self.sort_mode
+            var idx_i: usize = 1;
+            while (idx_i < entries.items.len) : (idx_i += 1) {
+                var idx_j: usize = idx_i;
+                while (idx_j > 0) : (idx_j -= 1) {
+                    const a = entries.items[idx_j - 1];
+                    const b = entries.items[idx_j];
+                    var swap = false;
+                    switch (self.sort_mode) {
+                        0 => if (std.mem.lessThan(u8, b.name, a.name)) { swap = true; },
+                        1 => if (std.mem.lessThan(u8, a.name, b.name)) { swap = true; },
+                        2 => if (b.mtime < a.mtime) { swap = true; },
+                        3 => if (b.mtime > a.mtime) { swap = true; },
+                        else => {},
+                    }
+                    if (swap) {
+                        entries.items[idx_j - 1] = b;
+                        entries.items[idx_j] = a;
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            try html_buf.appendSlice(self.allocator, "<b>[ DYNAMIC DISK: "); try html_buf.appendSlice(self.allocator, path); try html_buf.appendSlice(self.allocator, " ]</b><br><br>");
+            for (entries.items) |entry| {
                 const icon = if (entry.kind == .directory) "[DIR ]" else "[FILE]";
                 const clean_path = if (std.mem.eql(u8, path, ".")) "" else path;
                 const final_sep = if (clean_path.len > 0 and !std.mem.endsWith(u8, clean_path, "/")) "/" else "";
@@ -818,6 +878,24 @@ pub const Hunter = struct {
     pub fn hunt(self: *Hunter, target: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
+        
+        // --- NATIVE SORT TOGGLE INTERCEPT ---
+        if (std.mem.eql(u8, target, ".!SR-.")) {
+            self.sort_mode = (self.sort_mode + 1) % 4;
+            self.status = switch(self.sort_mode) {
+                0 => "SORT: NAME [ASC]",
+                1 => "SORT: NAME [DESC]",
+                2 => "SORT: DATE [ASC]",
+                3 => "SORT: DATE [DESC]",
+                else => "SORT",
+            };
+            if (self.history.items.len > 0) {
+                const current_target = self.history.items[self.history_index];
+                return self.executeFetch(current_target, true);
+            }
+            return;
+        }
+
         try self.history.append(self.allocator, try self.allocator.dupe(u8, target));
         self.history_index = self.history.items.len - 1; self.saveHistory() catch {}; try self.executeFetch(target, false);
     }
