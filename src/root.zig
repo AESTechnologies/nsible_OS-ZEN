@@ -1,5 +1,5 @@
 // [@://nsible_os/src/root.zig/.-={
-//   module: "Root Encapsulation & Syntax Lobe",
+//   module: "Root GZL-X API & Encapsulation",
 //   version: "0.10.28-apex // Banysang",
 //   description: "Centralized Universal Syntax Router, GZL Encapsulation API, and library entry point.",
 //   changes: "Repurposed root.zig to serve as the core GZL syntax router while maintaining base library exports.",
@@ -87,7 +87,6 @@ pub fn buildHeader(
     }
     
     writer.print("{s}   philotic_inferences: \"{s}\"{s}\n", .{ pre, inferences, suf }) catch return "";
-    writer.print("{s} }}-.]{s}\n\n", .{ pre, suf }) catch return "";
     
     return fbs.getWritten();
 }
