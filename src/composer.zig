@@ -1,8 +1,8 @@
 // [@://nsible_os/src/composer.zig/.-={
 //   module: "The Composer IDE",
-//   version: "0.10.28-apex // Banysang",
+//   version: "0.10.38-apex // Banysang",
 //   description: "Native, full-screen IDE operating in a dedicated 50MB BSS matrix.",
-//   changes: "Restored Universal Syntax Router integration. Fixed multiline (/* */) mapping while preserving native single-line (// and #) defaults to prevent custom baseline collapse.",
+//   changes: "Injected autonomous directory creation (makePath) into the save reflex to support .!ST-. routing to alternate/new directories.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
@@ -172,6 +172,11 @@ pub const Composer = struct {
 
         if (clean_path.len == 0) {
             clean_path = "jour.nal";
+        }
+        
+        if (std.mem.lastIndexOfScalar(u8, clean_path, '/')) |last_slash| {
+            const dir_path = clean_path[0..last_slash];
+            std.fs.cwd().makePath(dir_path) catch {};
         }
         
         const is_abs = std.mem.startsWith(u8, clean_path, "/");
@@ -523,9 +528,10 @@ pub const Composer = struct {
         cy = start_y;
         line_no = 1;
         var draw_start_idx: usize = 0;
-        var in_comment = false;
+        
+        var in_single_comment = false;
+        var in_multi_comment = false;
         var in_string = false;
-        var in_block_comment = false;
         
         i = 0;
         while (i < self.len) : (i += 1) {
@@ -535,37 +541,40 @@ pub const Composer = struct {
             }
             const c = self.buffer[i];
             
-            var just_started_comment = false;
+            var just_started_single = false;
+            var just_started_multi = false;
             var just_started_string = false;
             
-            if (!in_comment and !in_string) {
-                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len and std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
-                    in_comment = true;
-                    just_started_comment = true;
-                    if (self.comment_suf_len > 0) in_block_comment = true;
+            if (!in_single_comment and !in_multi_comment and !in_string) {
+                if (self.comment_pre_len > 0 and self.comment_suf_len > 0 and i + self.comment_pre_len <= self.len and std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
+                    in_multi_comment = true;
+                    just_started_multi = true;
+                } else if (self.comment_pre_len > 0 and self.comment_suf_len == 0 and i + self.comment_pre_len <= self.len and std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
+                    in_single_comment = true;
+                    just_started_single = true;
+                } else if (c == '/' and i + 1 < self.len and self.buffer[i+1] == '*') {
+                    in_multi_comment = true;
+                    just_started_multi = true;
                 } else if ((c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') or c == '#') {
-                    in_comment = true;
-                    just_started_comment = true;
-                    in_block_comment = false;
+                    in_single_comment = true;
+                    just_started_single = true;
                 } else if (c == '"') {
                     in_string = true;
                     just_started_string = true;
                 }
             }
             
-            if (in_comment and !just_started_comment) {
-                if (in_block_comment) {
-                    if (self.comment_suf_len > 0 and i + 1 >= self.comment_suf_len) {
-                        if (std.mem.eql(u8, self.buffer[i + 1 - self.comment_suf_len .. i + 1], self.comment_suf[0..self.comment_suf_len])) {
-                            in_comment = false;
-                            in_block_comment = false;
-                        }
-                    }
-                } else {
-                    if (c == '\n') {
-                        in_comment = false;
+            if (in_multi_comment and !just_started_multi) {
+                var ended = false;
+                if (self.comment_suf_len > 0 and i + 1 >= self.comment_suf_len) {
+                    if (std.mem.eql(u8, self.buffer[i + 1 - self.comment_suf_len .. i + 1], self.comment_suf[0..self.comment_suf_len])) {
+                        ended = true;
                     }
                 }
+                if (!ended and i > 0 and self.buffer[i-1] == '*' and c == '/') {
+                    ended = true;
+                }
+                if (ended) in_multi_comment = false;
             } else if (in_string and !just_started_string and c == '"') {
                 in_string = false;
             }
@@ -573,7 +582,7 @@ pub const Composer = struct {
             if (c == '\n') {
                 cx = start_x;
                 cy += line_h; line_no += 1;
-                if (!in_block_comment) in_comment = false;
+                in_single_comment = false;
                 in_string = false;
             } else if (c == '\t') {
                 cx += char_w * 4;
@@ -607,25 +616,30 @@ pub const Composer = struct {
             if (i == self.len) { break; }
             const c = self.buffer[i];
             
-            var just_started_comment = false;
+            var just_started_single = false;
+            var just_started_multi = false;
             var just_started_string = false;
             
-            if (!in_comment and !in_string) {
-                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len and std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
-                    in_comment = true;
-                    just_started_comment = true;
-                    if (self.comment_suf_len > 0) in_block_comment = true;
+            if (!in_single_comment and !in_multi_comment and !in_string) {
+                if (self.comment_pre_len > 0 and self.comment_suf_len > 0 and i + self.comment_pre_len <= self.len and std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
+                    in_multi_comment = true;
+                    just_started_multi = true;
+                } else if (self.comment_pre_len > 0 and self.comment_suf_len == 0 and i + self.comment_pre_len <= self.len and std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
+                    in_single_comment = true;
+                    just_started_single = true;
+                } else if (c == '/' and i + 1 < self.len and self.buffer[i+1] == '*') {
+                    in_multi_comment = true;
+                    just_started_multi = true;
                 } else if ((c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') or c == '#') {
-                    in_comment = true;
-                    just_started_comment = true;
-                    in_block_comment = false;
+                    in_single_comment = true;
+                    just_started_single = true;
                 } else if (c == '"') {
                     in_string = true;
                     just_started_string = true;
                 }
             }
 
-            if (in_comment) {
+            if (in_multi_comment or in_single_comment) {
                 current_color = 0x00FFBF00; // Amber
             } else if (in_string) {
                 current_color = 0x00FFFFFF; // Silver
@@ -644,19 +658,17 @@ pub const Composer = struct {
                 }
             }
 
-            if (in_comment and !just_started_comment) {
-                if (in_block_comment) {
-                    if (self.comment_suf_len > 0 and i + 1 >= self.comment_suf_len) {
-                        if (std.mem.eql(u8, self.buffer[i + 1 - self.comment_suf_len .. i + 1], self.comment_suf[0..self.comment_suf_len])) {
-                            in_comment = false;
-                            in_block_comment = false;
-                        }
-                    }
-                } else {
-                    if (c == '\n') {
-                        in_comment = false;
+            if (in_multi_comment and !just_started_multi) {
+                var ended = false;
+                if (self.comment_suf_len > 0 and i + 1 >= self.comment_suf_len) {
+                    if (std.mem.eql(u8, self.buffer[i + 1 - self.comment_suf_len .. i + 1], self.comment_suf[0..self.comment_suf_len])) {
+                        ended = true;
                     }
                 }
+                if (!ended and i > 0 and self.buffer[i-1] == '*' and c == '/') {
+                    ended = true;
+                }
+                if (ended) in_multi_comment = false;
             } else if (in_string and !just_started_string and c == '"') {
                 in_string = false;
             }
@@ -665,7 +677,7 @@ pub const Composer = struct {
             if (c == '\n') {
                 cx = start_x;
                 cy += line_h; line_no += 1; is_start_of_line = true;
-                if (!in_block_comment) in_comment = false;
+                in_single_comment = false;
                 in_string = false;
             } else if (c == '\t') {
                 cx += char_w * 4;
