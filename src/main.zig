@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.10.36-apex // Banysang",
+//   version: "v0.10.37-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Injected native .!SR-. interception logic. Aligned bash pipeline with Universal Syntax Router. Corrected GZL encapsulation to strictly seal at EOF.",
+//   changes: "Refactored core rendering pipeline to dynamically source sovereign palette via codex.get(). Eliminated all hardcoded hex values.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -185,21 +185,21 @@ fn print(x: usize, y: usize, text: []const u8, color: u32) void {
 }
 
 fn drawHeader(is_high: bool) void {
-    drawRect(0, 0, WIDTH, 20, 0x00DC143C);
+    drawRect(0, 0, WIDTH, 20, codex.get("C.S"));
     var buf: [128]u8 = undefined;
     const active_host = if (sys_host_id_len > 0) sys_host_id[0..sys_host_id_len] else "mchn:anon";
     const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, active_host}) catch "HEADER_ERR";
-    print(10, 6, header, 0x00FFFFFF);
+    print(10, 6, header, codex.get("S.H"));
 //^::INVERSE HEADER VFX<<dev:archx m_txr.Gem3P>>\.
 if (@"aud.state.io".is_active) {
 	const aud_w = 480;
 	const aud_x = WIDTH - aud_w - 30;
-    drawRect(aud_x, 0, aud_w, 20, 0x00000000);
+    drawRect(aud_x, 0, aud_w, 20, codex.get("K.S"));
 
 	const t_name = @"aud.state.io".track_name[0..@"aud.state.io".track_name_len];
 	var display_name = t_name;
 	if (t_name.len > 28) display_name = t_name[0..28];
-    print(aud_x + 10, 6, display_name, 0x00DC143C);
+    print(aud_x + 10, 6, display_name, codex.get("C.S"));
 
 	const num_bands = 32;
 	const band_w = 3;
@@ -209,15 +209,15 @@ if (@"aud.state.io".is_active) {
 		const h = @as(usize, @intFromFloat(@"aud.state.io".vis_data[i] * 18.0));
         if (h > 0) {
 			const py = 20 - h;
-			drawRect(bx, py, band_w, h, 0x00DC143C);
+			drawRect(bx, py, band_w, h, codex.get("C.S"));
 		}
 		bx += band_space + band_w;
     }
 
-    const shf_color: u32 = if (@"aud.state.io".is_shuffled) 0x00DC143C else 0x00555555;
-    const rpt_color: u32 = if (@"aud.state.io".is_repeat) 0x00DC143C else 0x00555555;
+    const shf_color: u32 = if (@"aud.state.io".is_shuffled) codex.get("C.S") else codex.get("K.H");
+    const rpt_color: u32 = if (@"aud.state.io".is_repeat) codex.get("C.S") else codex.get("K.H");
 	const status_glyph: u8 = if (@"aud.state.io".is_paused) 0x1A else 0x10;
-    const status_color: u32 = if (@"aud.state.io".is_paused) 0x00555555 else 0x00DC143C;
+    const status_color: u32 = if (@"aud.state.io".is_paused) codex.get("K.H") else codex.get("C.S");
 	
     drawChar(aud_x + aud_w - 65, 6, 0x18, shf_color);
     drawChar(aud_x + aud_w - 50, 6, 0x1D, rpt_color); 
@@ -228,16 +228,16 @@ if (@"aud.state.io".is_active) {
     while (v_i < 8) : (v_i += 1) {
         const band_val = @as(f32, @floatFromInt(v_i + 1)) * 15.0;
 // Zones: 15..120
-        var b_color: u32 = 0x00222222;
+        var b_color: u32 = codex.get("K.S");
 // Inactive dark grey
         if (vol_p >= band_val - 7.0) {
-            if (band_val <= 42.0) { b_color = 0x00555555;
+            if (band_val <= 42.0) { b_color = codex.get("K.H");
             }
-            else if (band_val <= 80.0) { b_color = 0x00DC143C;
+            else if (band_val <= 80.0) { b_color = codex.get("C.S");
             }
-            else if (band_val <= 110.0) { b_color = 0x00FFBF00;
+            else if (band_val <= 110.0) { b_color = codex.get("B.S");
             }
-            else { b_color = 0x00FFFFFF;
+            else { b_color = codex.get("S.H");
             }
         }
         drawRect(aud_x + aud_w - 15, 16 - (v_i * 2), 8, 1, b_color);
@@ -245,7 +245,7 @@ if (@"aud.state.io".is_active) {
 } //:X
     // highClaw Mark
     const glyph: u8 = if (is_high) 127 else 128;
-    drawChar(1001, 6, glyph, 0x00FFFFFF);
+    drawChar(1001, 6, glyph, codex.get("S.H"));
 }
 
 fn getUriBarY(input_len: usize, current_url: []const u8) usize {
@@ -281,7 +281,7 @@ fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) 
     const line_h = 10; const padding = 6;
     const start_y = getUriBarY(input_len, current_url);
     const bar_height = HEIGHT - start_y;
-    drawRect(0, start_y, WIDTH, bar_height, 0x00DC143C);
+    drawRect(0, start_y, WIDTH, bar_height, codex.get("C.S"));
     
     var cursor_x: usize = 10; var cursor_y: usize = start_y + padding;
     if (input_len == 0) {
@@ -300,7 +300,7 @@ fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) 
         {
             for (pref) |char|
             {
-                drawChar(cursor_x, cursor_y, char, 0x00888888);
+                drawChar(cursor_x, cursor_y, char, codex.get("K.H"));
                 cursor_x += char_w;
                 if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h;
                 } 
@@ -308,7 +308,7 @@ fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) 
         }
         for (display_url) |char|
         { 
-            drawChar(cursor_x, cursor_y, char, 0x00888888); 
+            drawChar(cursor_x, cursor_y, char, codex.get("K.H")); 
             cursor_x += char_w;
             if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h;
             } 
@@ -316,7 +316,7 @@ fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) 
     } else {
         for (URI_PREFIX) |char|
         { 
-            drawChar(cursor_x, cursor_y, char, 0x00000000); 
+            drawChar(cursor_x, cursor_y, char, codex.get("K.S")); 
             cursor_x += char_w;
             if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h;
             } 
@@ -324,13 +324,13 @@ fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) 
         var i: usize = 0;
         while (i < input_len) : (i += 1) {
             const char = input_buf[i];
-            drawChar(cursor_x, cursor_y, char, 0x00000000);
+            drawChar(cursor_x, cursor_y, char, codex.get("K.S"));
             cursor_x += char_w;
             if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h;
             }
         }
     }
-    drawChar(cursor_x, cursor_y, 0xDB, 0x00000000);
+    drawChar(cursor_x, cursor_y, 0xDB, codex.get("K.S"));
 }
 
 fn strikeRadio(allocator: std.mem.Allocator) void {
@@ -400,11 +400,11 @@ fn drawPulseOverlay() void {
 fn exitSequence() noreturn {
     std.fs.cwd().deleteFile("/tmp/nsible.mpv.sock") catch {};
 
-    clear(0x00000000);
+    clear(codex.get("K.S"));
     const stamp_x = WIDTH - 24;
     const stamp_y = HEIGHT - 16;
-    drawChar(stamp_x, stamp_y, 127, 0x00DC143C);
-    drawChar(stamp_x + 8, stamp_y, 128, 0x00DC143C); 
+    drawChar(stamp_x, stamp_y, 127, codex.get("C.S"));
+    drawChar(stamp_x + 8, stamp_y, 128, codex.get("C.S")); 
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
     const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
     _ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
@@ -412,9 +412,9 @@ fn exitSequence() noreturn {
 }
 
 fn bootSplash(allocator: std.mem.Allocator) void {
-    clear(0x00000000);
+    clear(codex.get("K.S"));
     const center_y = HEIGHT / 2;
-    drawRect(0, center_y, WIDTH, 1, 0x00444444);
+    drawRect(0, center_y, WIDTH, 1, codex.get("K.H"));
     
     loadResonance();
 
@@ -486,7 +486,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 
         const py = @as(isize, center_y) - @as(isize, @intFromFloat(amplitude));
         if (py > 0 and py < HEIGHT) {
-            back_buffer[@as(usize, @intCast(py)) * WIDTH + x] = 0x00DC143C;
+            back_buffer[@as(usize, @intCast(py)) * WIDTH + x] = codex.get("C.S");
         }
     }
 
@@ -508,14 +508,14 @@ fn bootSplash(allocator: std.mem.Allocator) void {
     {}
 
 	// AEQUATUS EVOCATUS SALARARIUS :: VAE VICTIS
-    print(WIDTH / 2 - 80, center_y - 60, "\xC6\xA7   T E C H N O L O G I E S", 0x00FFFFFF);
-    print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", 0x00AAAAAA);
-    print(WIDTH / 2 - 40, center_y + 45, "[ ALCNDNOM ]", 0x00FFBF00); 
+    print(WIDTH / 2 - 80, center_y - 60, "\xC6\xA7   T E C H N O L O G I E S", codex.get("S.H"));
+    print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", codex.get("S.S"));
+    print(WIDTH / 2 - 40, center_y + 45, "[ ALCNDNOM ]", codex.get("B.S")); 
     
     var time_buf: [64]u8 = undefined;
     const time_str = chronos.getCycleString(&time_buf);
     const time_x = WIDTH / 2 - ((time_str.len * 8) / 2);
-    print(time_x, center_y + 65, time_str, 0x00555555);
+    print(time_x, center_y + 65, time_str, codex.get("K.H"));
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
 
     if (std.fs.cwd().createFile("timeline/.resonator.raw", .{})) |file|
@@ -538,10 +538,8 @@ pub fn main() !void {
     var sa = std.mem.zeroes(linux.Sigaction);
     sa.handler = .{ .handler = @as(?*const fn (i32) callconv(.c) void, @ptrFromInt(1)) };
     _ = linux.sigaction(2, &sa, null);  // Lock SIGINT  (^C)
-    _ = linux.sigaction(3, &sa, null);
-// Lock SIGQUIT (^\)
-    _ = linux.sigaction(20, &sa, null);
-// Lock SIGTSTP (^Z)
+    _ = linux.sigaction(3, &sa, null);  // Lock SIGQUIT (^\)
+    _ = linux.sigaction(20, &sa, null); // Lock SIGTSTP (^Z)
     //:X
 
     const fs = std.fs.cwd();
@@ -909,9 +907,7 @@ pub fn main() !void {
                     var target_path = std.mem.trim(u8, journal[0..journal_len], " ");
 
                     var is_melt = target_path.len > 0;
-                    for (target_path) |c|
-                    { if (c < '0' or c > '9') is_melt = false;
-                    }
+                    for (target_path) |c| { if (c < '0' or c > '9') is_melt = false; }
 
                     var resolved_alloc: ?[]u8 = null;
                     void_target_idx = null; 
@@ -919,8 +915,7 @@ pub fn main() !void {
                         const idx = std.fmt.parseInt(usize, target_path, 10) catch std.math.maxInt(usize);
                         sys_hunter.mutex.lock();
                         if (idx < sys_hunter.lens.links.items.len) {
-                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res|
-                            {
+                            if (sys_hunter.resolveMeltTarget(sys_hunter.lens.links.items[idx])) |res| {
                                 resolved_alloc = res;
                                 target_path = res;
                                 void_target_idx = idx; 
@@ -952,8 +947,7 @@ pub fn main() !void {
                         is_void_modal = true;
                     }
 
-                    if (resolved_alloc) |res|
-                    { sys_hunter.allocator.free(res); }
+                    if (resolved_alloc) |res| { sys_hunter.allocator.free(res); }
                     journal_len = 0;
                     reflex_triggered = true;
                 }
@@ -1033,8 +1027,7 @@ pub fn main() !void {
             if (is_tabula_rasa) {
                 if (byte == '\n' or byte == '\r') {
                     if (journal_len > 0) {
-                        const socius_alias 
-= journal[0..journal_len];
+                        const socius_alias = journal[0..journal_len];
                         var sik_buf: [16]u8 = .{ '0' } ** 16;
                         if (std.fs.cwd().openFile("timeline/.birdsong.sik", .{})) |f|
                         {
@@ -1130,22 +1123,23 @@ pub fn main() !void {
                     if (journal_len > 0) {
       
                         const dest = std.mem.trim(u8, journal[0..journal_len], " ");
+                        
                         if (std.mem.lastIndexOfScalar(u8, dest, '/')) |last_slash| {
                             const dir_path = dest[0..last_slash];
                             std.fs.cwd().makePath(dir_path) catch {};
                         }
                         
-                        if (std.fs.cwd().openFile("assets/.void/.00", .{})) |src|
-                        {
+                        if (std.fs.cwd().openFile("assets/.void/.00", .{})) |src| {
                             if (std.fs.cwd().createFile(dest, .{})) |dst|
                             {
                                 const data = src.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
+                                
                                 var parsed_ext: []const u8 = "";
-                                if (std.mem.lastIndexOfScalar(u8, dest, '.')) |dot_idx|
-                                {
+                                if (std.mem.lastIndexOfScalar(u8, dest, '.')) |dot_idx| {
                                     parsed_ext = dest[dot_idx..];
                                 }
                                 const syn = sys_root.resolveGzlSyntax(parsed_ext);
+                                
                                 var header_buf: [1024]u8 = undefined;
                                 const header = sys_root.buildHeader(header_buf[0..], syn, dest, "Operator Artifact (Bash Pipe)", null, "Extracted via autonomous matrix sub-shell.");
                                 dst.writeAll(header) catch {};
@@ -1180,9 +1174,9 @@ pub fn main() !void {
                 }
             }
             else if (is_void_modal) {
-                
                 if (byte == 'y' or byte == 'Y') {
                     sys_hunter.banishToVoid(void_target_path[0..void_target_len]) catch {};
+                    
                     sys_hunter.mutex.lock();
                     if (void_target_idx) |idx| {
                         if (idx < sys_hunter.lens.links.items.len) {
@@ -1193,6 +1187,7 @@ pub fn main() !void {
                         }
                     }
                     sys_hunter.mutex.unlock();
+                    
                     is_void_modal = false;
                     journal_len = 0;
                 } else if (byte == 'n' or byte == 'N') {
@@ -1207,8 +1202,7 @@ pub fn main() !void {
             }
             else {
                 if (byte 
-           
-                 == '\n' or byte == '\r') {
+                == '\n' or byte == '\r') {
                     const raw_cmd = journal[0..journal_len];
                     const cmd_slice = std.mem.trim(u8, raw_cmd, " ");
                     
@@ -1351,16 +1345,14 @@ pub fn main() !void {
                                  agent.stdin_behavior = .Ignore;
  
                                 agent.stdout_behavior = .Pipe;
-                              
                                 agent.stderr_behavior = .Pipe;
                             
                                 if (agent.spawn()) |_| {
-                                 
-                                   if (std.fs.cwd().createFile("assets/.void/.00", .{}) catch null) |f| {
+                                    if (std.fs.cwd().createFile("assets/.void/.00", .{}) catch null) |f| {
                   
                                          if (agent.stdout) |stdout| {
-                             
                                             const out_data = stdout.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
+      
                                             f.writeAll(out_data) catch {};
                                             void_allocator.free(out_data);
                                         }
@@ -1494,9 +1486,9 @@ pub fn main() !void {
         }
 
         if (dirty) {
-            clear(0x00000000);
+            clear(codex.get("K.S"));
             if (sys_composer.active) {
-                drawHeader(is_high_cycle);
+                drawHeader(is_high_cycle); // Global OS header parity overlay
                 sys_composer.render(&back_buffer, WIDTH, HEIGHT);
                 drawPulseOverlay();
             } else {
@@ -1504,7 +1496,7 @@ pub fn main() !void {
                 sys_hunter.render(&back_buffer, WIDTH, HEIGHT);
                 
                 if (!sys_hunter.isActive()) { 
-                    print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", 0x00555555);
+                    print(20, 50, "TIMELINE Terminal. [NO_FOCUS][ZEN]", codex.get("K.H"));
                 }
                 
                 const bar_y = getUriBarY(journal_len, sys_hunter.url);
@@ -1514,24 +1506,24 @@ pub fn main() !void {
                     const mw = 460;
                     const mh = 160;
                     const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
-                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); 
-                    drawRect(mx, my, mw, mh, 0x00000000);
-                    print(mx + 20, my + 20, "[ TABULA RASA // SOCIUS REQUIRED ]", 0x00DC143C);
-                    drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
-                    print(mx + 20, my + 60, "AWAITING SOCIUS DESIGNATION:", 0x00AAAAAA);
-                    drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
-                    print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
-                    if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00DC143C);
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, codex.get("C.S")); 
+                    drawRect(mx, my, mw, mh, codex.get("K.S"));
+                    print(mx + 20, my + 20, "[ TABULA RASA // SOCIUS REQUIRED ]", codex.get("C.S"));
+                    drawRect(mx + 20, my + 35, mw - 40, 1, codex.get("K.H"));
+                    print(mx + 20, my + 60, "AWAITING SOCIUS DESIGNATION:", codex.get("S.S"));
+                    drawRect(mx + 20, my + 85, mw - 40, 24, codex.get("K.H"));
+                    print(mx + 28, my + 93, journal[0..journal_len], codex.get("S.H"));
+                    if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, codex.get("C.S"));
                 } 
                 else if (is_trail_modal) {
                     const mw = 760;
                     const mh = 400; 
                     const mx = (WIDTH / 2) - (mw / 2);
                     const my = bar_y - mh - 10;
-                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C);
-                    drawRect(mx, my, mw, mh, 0x00000000);
-                    print(mx + 20, my + 20, "[ PREVIOUS CYCLE KERNEL PANIC RECOVERED ]", 0x00DC143C);
-                    drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, codex.get("C.S"));
+                    drawRect(mx, my, mw, mh, codex.get("K.S"));
+                    print(mx + 20, my + 20, "[ PREVIOUS CYCLE KERNEL PANIC RECOVERED ]", codex.get("C.S"));
+                    drawRect(mx + 20, my + 35, mw - 40, 1, codex.get("K.H"));
 
                     var cx: usize = mx + 20;
                     var cy: usize = my + 50;
@@ -1544,7 +1536,7 @@ pub fn main() !void {
                             continue;
                         }
                         if (c >= 32 and c <= 126) {
-                            drawChar(cx, cy, c, 0x00AAAAAA);
+                            drawChar(cx, cy, c, codex.get("S.S"));
                             cx += 8;
                             if (cx > mx + mw - 20) {
                                 cx = mx + 20;
@@ -1554,56 +1546,56 @@ pub fn main() !void {
                         }
                     }
 
-                    print(mx + 20, my + mh - 30, ">> Type 'shed' or empty [ENTER] to clear memory.", 0x00FFBF00);
+                    print(mx + 20, my + mh - 30, ">> Type 'shed' or empty [ENTER] to clear memory.", codex.get("B.S"));
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 }
                 else if (is_memo_modal) {
                     const mw = 460;
                     const mh = 140;
                     const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
-                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00FFBF00); 
-                    drawRect(mx, my, mw, mh, 0x00000000);
-                    print(mx + 20, my + 20, "[ TIMELINE // MEMO DESIGNATION ]", 0x00FFBF00);
-                    drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
-                    print(mx + 20, my + 60, "ENTER ARTIFACT NAME:", 0x00AAAAAA);
-                    drawRect(mx + 20, my + 85, mw - 40, 24, 0x00222222);
-                    print(mx + 28, my + 93, journal[0..journal_len], 0x00FFFFFF);
-                    if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, 0x00FFBF00);
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, codex.get("B.S")); 
+                    drawRect(mx, my, mw, mh, codex.get("K.S"));
+                    print(mx + 20, my + 20, "[ TIMELINE // MEMO DESIGNATION ]", codex.get("B.S"));
+                    drawRect(mx + 20, my + 35, mw - 40, 1, codex.get("K.H"));
+                    print(mx + 20, my + 60, "ENTER ARTIFACT NAME:", codex.get("S.S"));
+                    drawRect(mx + 20, my + 85, mw - 40, 24, codex.get("K.H"));
+                    print(mx + 28, my + 93, journal[0..journal_len], codex.get("S.H"));
+                    if (is_high_cycle) drawChar(mx + 28 + (journal_len * 8), my + 93, 0xDB, codex.get("B.S"));
                 } else if (is_radio_modal) {
                     const mw = 520;
                     const mh = 160;
                     const mx = (WIDTH / 2) - (mw / 2); const my = bar_y - mh;
-                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C);
-                    drawRect(mx, my, mw, mh, 0x00000000);
-                    print(mx + 20, my + 20, "[ PHILOTIC RADIO // FREQ TUNING ]", 0x00DC143C);
-                    drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, codex.get("C.S"));
+                    drawRect(mx, my, mw, mh, codex.get("K.S"));
+                    print(mx + 20, my + 20, "[ PHILOTIC RADIO // FREQ TUNING ]", codex.get("C.S"));
+                    drawRect(mx + 20, my + 35, mw - 40, 1, codex.get("K.H"));
 
                     var radio_buf: [128]u8 = undefined;
-                    const c_f0 = if (radio_sel == 0) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                    const c_f0 = if (radio_sel == 0) codex.get("S.H") else codex.get("S.S");
                     const str_f0 = std.fmt.bufPrint(&radio_buf, "Song (Hz)  : {d:.1}", .{radio_f0}) catch "";
                     print(mx + 20, my + 60, str_f0, c_f0);
-                    if (radio_sel == 0) { drawChar(mx + 8, my + 60, 0x1A, 0x00FFBF00);
+                    if (radio_sel == 0) { drawChar(mx + 8, my + 60, 0x1A, codex.get("B.S"));
                     }
 
-                    const c_dec = if (radio_sel == 1) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                    const c_dec = if (radio_sel == 1) codex.get("S.H") else codex.get("S.S");
                     const str_dec = std.fmt.bufPrint(&radio_buf, "Decay (d)  : {d:.2}", .{radio_decay}) catch "";
                     print(mx + 20, my + 80, str_dec, c_dec);
-                    if (radio_sel == 1) { drawChar(mx + 8, my + 80, 0x1A, 0x00FFBF00);
+                    if (radio_sel == 1) { drawChar(mx + 8, my + 80, 0x1A, codex.get("B.S"));
                     }
 
-                    const c_diss = if (radio_sel == 2) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                    const c_diss = if (radio_sel == 2) codex.get("S.H") else codex.get("S.S");
                     const str_diss = std.fmt.bufPrint(&radio_buf, "Diss. (m)  : {d:.2}", .{radio_diss}) catch "";
                     print(mx + 260, my + 60, str_diss, c_diss);
-                    if (radio_sel == 2) { drawChar(mx + 248, my + 60, 0x1A, 0x00FFBF00);
+                    if (radio_sel == 2) { drawChar(mx + 248, my + 60, 0x1A, codex.get("B.S"));
                     }
 
-                    const c_phi = if (radio_sel == 3) @as(u32, 0x00FFFFFF) else 0x00AAAAAA;
+                    const c_phi = if (radio_sel == 3) codex.get("S.H") else codex.get("S.S");
                     const str_phi = std.fmt.bufPrint(&radio_buf, "\xED\x1E-off (P) : {d:.3}", .{radio_phi}) catch "";
                     print(mx + 260, my + 80, str_phi, c_phi);
-                    if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, 0x00FFBF00);
+                    if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, codex.get("B.S"));
                     }
 
-                    print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", 0x00555555);
+                    print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", codex.get("K.H"));
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else if (is_calc_modal) {
                     const cw = WIDTH - 40;
@@ -1611,20 +1603,20 @@ pub fn main() !void {
                     const cx = 20;
                     const cy = bar_y - ch - 10;
                     
-                    drawRect(cx - 2, cy - 2, cw + 4, ch + 2, 0x00FFBF00);
-                    drawRect(cx, cy, cw, ch, 0x00000000);
+                    drawRect(cx - 2, cy - 2, cw + 4, ch + 2, codex.get("B.S"));
+                    drawRect(cx, cy, cw, ch, codex.get("K.S"));
                     
-                    print(cx + 10, cy + 10, "[ AST ] >", 0x00DC143C);
-                    print(cx + 90, cy + 10, calc_input[0..calc_len], 0x00FFFFFF);
+                    print(cx + 10, cy + 10, "[ AST ] >", codex.get("C.S"));
+                    print(cx + 90, cy + 10, calc_input[0..calc_len], codex.get("S.H"));
                     
                     if (calc_res_len > 0) {
-                        print(cx + cw - 150, cy + 10, calc_result[0..calc_res_len], 0x00FFBF00);
+                        print(cx + cw - 150, cy + 10, calc_result[0..calc_res_len], codex.get("B.S"));
                     }
 
                     if (is_calc_graph) {
-                        drawRect(cx + 10, cy + 30, cw - 20, 1, 0x00444444);
-                        print(cx + 10, cy + 45, "[ GRAPH MODULE : AWAITING PHASE 4 TENSORS ]", 0x00555555);
-                        print(cx + 10, cy + ch - 20, "[TAB] Toggle Graph  [ENTER] Evaluate (Empty to Dismiss)", 0x00AAAAAA);
+                        drawRect(cx + 10, cy + 30, cw - 20, 1, codex.get("K.H"));
+                        print(cx + 10, cy + 45, "[ GRAPH MODULE : AWAITING PHASE 4 TENSORS ]", codex.get("K.H"));
+                        print(cx + 10, cy + ch - 20, "[TAB] Toggle Graph  [ENTER] Evaluate (Empty to Dismiss)", codex.get("S.S"));
                     }
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else if (is_assist_modal) {
@@ -1632,49 +1624,49 @@ pub fn main() !void {
                     const ah = 480; 
                     const ax = (WIDTH / 2) - (aw / 2);
                     const ay = bar_y - ah - 10;
-                    drawRect(ax - 2, ay - 2, aw + 4, ah + 2, 0x00FFBF00);
-                    drawRect(ax, ay, aw, ah, 0x00000000);
+                    drawRect(ax - 2, ay - 2, aw + 4, ah + 2, codex.get("B.S"));
+                    drawRect(ax, ay, aw, ah, codex.get("K.S"));
 
-                    print(ax + 20, ay + 20, "[ @NSIBLE COMMAND BIBLE & MATRIX PROTOCOLS ]", 0x00FFBF00);
-                    drawRect(ax + 20, ay + 35, aw - 40, 1, 0x00444444);
-                    print(ax + 20, ay + 50, "[ CORE MATRIX TRAVERSAL ]", 0x00AAAAAA);
-                    print(ax + 20, ay + 70, "mchn/        : View Local Root Directory", 0x00FFFFFF);
-                    print(ax + 20, ay + 90, "w3.<target>  : Shadow Flight (Web Traversal)", 0x00FFFFFF);
-                    print(ax + 20, ay + 110, "w3?. <query> : Global Matrix Search", 0x00FFFFFF);
-                    print(ax + 20, ay + 130, "<Number>     : MELT Traverse (Follow Link [x])", 0x00DC143C);
-                    print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", 0x00FFBF00);
-                    print(ax + 20, ay + 170, "[<] / [>]    : Navigate Timeline History", 0x00FFFFFF);
-                    print(ax + 20, ay + 190, "v / ^        : Scroll Active Matrix down/up", 0x00FFFFFF);
-                    print(ax + 20, ay + 210, ".!SR-.       : Toggle MELT Sort (Name/Date)", 0x00FFBF00);
-                    print(ax + 20, ay + 230, "[ ARTIFACT FORGE & GZL ]", 0x00AAAAAA);
-                    print(ax + 20, ay + 250, "memo <txt>   : Quick Operator Artifact", 0x00FFFFFF);
-                    print(ax + 20, ay + 270, "<Title> //-. : Title & Save Artifact", 0x00FFFFFF);
-                    print(ax + 20, ay + 290, "| memo       : Pipe active target to timeline", 0x00FFFFFF);
-                    print(ax + 20, ay + 320, ">> GZL Syntax encodes artifacts with module,", 0x00555555);
-                    print(ax + 20, ay + 340, ">> timestamps, and philotic inferences.", 0x00555555);
-                    print(ax + 440, ay + 50, "[ SCOPE & SYSTEM ]", 0x00AAAAAA);
-                    print(ax + 440, ay + 70, "zI / zO      : Shift Banyan Scope Depth", 0x00FFFFFF);
-                    print(ax + 440, ay + 90, "               [0:RAW, 1:ZEN, 2:MTX, 3:ROOT]", 0x00555555);
-                    print(ax + 440, ay + 110, "shed / drop  : Destroy active node", 0x00FFFFFF);
-                    print(ax + 440, ay + 130, "radio / tune : Philotic Resonance Tuning", 0x00FFFFFF);
-                    print(ax + 440, ay + 150, ".!@&-.       : Force Cache Reload", 0x00FFBF00);
-                    print(ax + 440, ay + 170, "cycle        : Print Local Tempus", 0x00FFFFFF);
-                    print(ax + 440, ay + 190, ".!XX-. / exit: Terminate Matrix", 0x00FFFFFF);
-                    drawRect(ax + 20, ay + 370, aw - 40, 1, 0x00444444);
-                    print(ax + 20, ay + 390, "[ AST ARITHMETIC ENGINE ]", 0x00DC143C);
-                    print(ax + 20, ay + 410, ">> STATUS : Native Recursive Descent Operational.", 0x00555555);
-                    print(ax + 20, ay + 430, ">> ACTIVE : Type 'calc' or '@://calc/' to invoke.", 0x00555555);
-                    print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", 0x00FFBF00);
+                    print(ax + 20, ay + 20, "[ @NSIBLE COMMAND BIBLE & MATRIX PROTOCOLS ]", codex.get("B.S"));
+                    drawRect(ax + 20, ay + 35, aw - 40, 1, codex.get("K.H"));
+                    print(ax + 20, ay + 50, "[ CORE MATRIX TRAVERSAL ]", codex.get("S.S"));
+                    print(ax + 20, ay + 70, "mchn/        : View Local Root Directory", codex.get("S.H"));
+                    print(ax + 20, ay + 90, "w3.<target>  : Shadow Flight (Web Traversal)", codex.get("S.H"));
+                    print(ax + 20, ay + 110, "w3?. <query> : Global Matrix Search", codex.get("S.H"));
+                    print(ax + 20, ay + 130, "<Number>     : MELT Traverse (Follow Link [x])", codex.get("C.S"));
+                    print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", codex.get("B.S"));
+                    print(ax + 20, ay + 170, "[<] / [>]    : Navigate Timeline History", codex.get("S.H"));
+                    print(ax + 20, ay + 190, "v / ^        : Scroll Active Matrix down/up", codex.get("S.H"));
+                    print(ax + 20, ay + 210, ".!SR-.       : Toggle MELT Sort (Name/Date)", codex.get("B.S"));
+                    print(ax + 20, ay + 230, "[ ARTIFACT FORGE & GZL ]", codex.get("S.S"));
+                    print(ax + 20, ay + 250, "memo <txt>   : Quick Operator Artifact", codex.get("S.H"));
+                    print(ax + 20, ay + 270, "<Title> //-. : Title & Save Artifact", codex.get("S.H"));
+                    print(ax + 20, ay + 290, "| memo       : Pipe active target to timeline", codex.get("S.H"));
+                    print(ax + 20, ay + 320, ">> GZL Syntax encodes artifacts with module,", codex.get("K.H"));
+                    print(ax + 20, ay + 340, ">> timestamps, and philotic inferences.", codex.get("K.H"));
+                    print(ax + 440, ay + 50, "[ SCOPE & SYSTEM ]", codex.get("S.S"));
+                    print(ax + 440, ay + 70, "zI / zO      : Shift Banyan Scope Depth", codex.get("S.H"));
+                    print(ax + 440, ay + 90, "               [0:RAW, 1:ZEN, 2:MTX, 3:ROOT]", codex.get("K.H"));
+                    print(ax + 440, ay + 110, "shed / drop  : Destroy active node", codex.get("S.H"));
+                    print(ax + 440, ay + 130, "radio / tune : Philotic Resonance Tuning", codex.get("S.H"));
+                    print(ax + 440, ay + 150, ".!@&-.       : Force Cache Reload", codex.get("B.S"));
+                    print(ax + 440, ay + 170, "cycle        : Print Local Tempus", codex.get("S.H"));
+                    print(ax + 440, ay + 190, ".!XX-. / exit: Terminate Matrix", codex.get("S.H"));
+                    drawRect(ax + 20, ay + 370, aw - 40, 1, codex.get("K.H"));
+                    print(ax + 20, ay + 390, "[ AST ARITHMETIC ENGINE ]", codex.get("C.S"));
+                    print(ax + 20, ay + 410, ">> STATUS : Native Recursive Descent Operational.", codex.get("K.H"));
+                    print(ax + 20, ay + 430, ">> ACTIVE : Type 'calc' or '@://calc/' to invoke.", codex.get("K.H"));
+                    print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", codex.get("B.S"));
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else if (is_bash_modal) {
                     const mw = WIDTH - 40;
                     const mh = 300; 
                     const mx = 20; 
                     const my = bar_y - mh - 10;
-                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00FFBF00); 
-                    drawRect(mx, my, mw, mh, 0x00000000);
-                    print(mx + 20, my + 10, "[ SHELL OUTPUT ]", 0x00FFBF00);
-                    drawRect(mx + 20, my + 25, mw - 40, 1, 0x00444444);
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, codex.get("B.S")); 
+                    drawRect(mx, my, mw, mh, codex.get("K.S"));
+                    print(mx + 20, my + 10, "[ SHELL OUTPUT ]", codex.get("B.S"));
+                    drawRect(mx + 20, my + 25, mw - 40, 1, codex.get("K.H"));
 
                     if (std.fs.cwd().openFile("assets/.void/.00", .{})) |file|
                     {
@@ -1691,7 +1683,7 @@ pub fn main() !void {
                                 for (line) |c|
                                 {
                                     if (dx > mx + mw - 20) break;
-                                    drawChar(dx, draw_y, c, 0x00AAAAAA);
+                                    drawChar(dx, draw_y, c, codex.get("S.S"));
                                     dx += 8;
                                 }
                                 draw_y += 10;
@@ -1701,14 +1693,14 @@ pub fn main() !void {
                         file.close();
                     } else |_| {}
                     
-                    drawRect(mx + 20, my + mh - 25, mw - 40, 1, 0x00444444);
-                    print(mx + 20, my + mh - 18, "[ESC] Dismiss   [TAB] Pipe to File   [UP/DOWN] Scroll", 0x00555555);
+                    drawRect(mx + 20, my + mh - 25, mw - 40, 1, codex.get("K.H"));
+                    print(mx + 20, my + mh - 18, "[ESC] Dismiss   [TAB] Pipe to File   [UP/DOWN] Scroll", codex.get("K.H"));
                     if (is_bash_pipe) {
                         const p_y = getUriBarY(journal_len + 14, "");
-                        drawRect(0, p_y, WIDTH, HEIGHT - p_y, 0x00FFBF00);
-                        print(10, p_y + 6, "DESTINATION > ", 0x00000000);
-                        print(122, p_y + 6, journal[0..journal_len], 0x00000000);
-                        if (is_high_cycle) drawChar(122 + (journal_len * 8), p_y + 6, 0xDB, 0x00000000);
+                        drawRect(0, p_y, WIDTH, HEIGHT - p_y, codex.get("B.S"));
+                        print(10, p_y + 6, "DESTINATION > ", codex.get("K.S"));
+                        print(122, p_y + 6, journal[0..journal_len], codex.get("K.S"));
+                        if (is_high_cycle) drawChar(122 + (journal_len * 8), p_y + 6, 0xDB, codex.get("K.S"));
                     } else {
                         drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                     }
@@ -1718,20 +1710,20 @@ pub fn main() !void {
                     const mx = (WIDTH / 2) - (mw / 2);
                     const my = bar_y - mh - 10;
                     
-                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, 0x00DC143C); 
-                    drawRect(mx, my, mw, mh, 0x00222222); 
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, codex.get("C.S")); 
+                    drawRect(mx, my, mw, mh, codex.get("K.H")); 
                     
-                    print(mx + 20, my + 20, "[ TEMPORAL DECAY VOID :: VERITY LOCK ]", 0x00DC143C);
-                    drawRect(mx + 20, my + 35, mw - 40, 1, 0x00444444);
+                    print(mx + 20, my + 20, "[ TEMPORAL DECAY VOID :: VERITY LOCK ]", codex.get("C.S"));
+                    drawRect(mx + 20, my + 35, mw - 40, 1, codex.get("K.H"));
                     
-                    print(mx + 20, my + 50, "TARGET ARTIFACT:", 0x00AAAAAA);
+                    print(mx + 20, my + 50, "TARGET ARTIFACT:", codex.get("S.S"));
                     
                     var display_target: []const u8 = void_target_path[0..void_target_len];
                     if (display_target.len > 70) display_target = display_target[0..70];
-                    print(mx + 20, my + 70, display_target, 0x00FFFFFF);
+                    print(mx + 20, my + 70, display_target, codex.get("S.H"));
                     
-                    drawRect(mx + 20, my + 95, mw - 40, 1, 0x00444444);
-                    print(mx + 20, my + 110, "EXECUTE BANISHMENT? [Y] CONFIRM  /  [N] CANCEL", 0x00FFBF00);
+                    drawRect(mx + 20, my + 95, mw - 40, 1, codex.get("K.H"));
+                    print(mx + 20, my + 110, "EXECUTE BANISHMENT? [Y] CONFIRM  /  [N] CANCEL", codex.get("B.S"));
                     
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else {
