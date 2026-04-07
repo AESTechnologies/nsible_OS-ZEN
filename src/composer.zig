@@ -1,12 +1,14 @@
 // [@://nsible_os/src/composer.zig/.-={
 //   module: "The Composer IDE",
-//   version: "0.10.25-apex // Banysang",
-//   description: "Native, full-screen IDE  operating in a dedicated 50MB BSS matrix.",
-//   changes: "Refracted syntax engine for multi-standard comment support (// and #); implemented string-literal isolation to prevent false amber triggers in hex or strings.",
+//   version: "0.10.26-apex // Banysang",
+//   description: "Native, full-screen IDE operating in a dedicated 50MB BSS matrix.",
+//   changes: "Linked to Universal Syntax Router (root.zig) for dynamic multi-standard syntax highlighting and GZL buffer instantiation.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
+// }-.]
 
 const std = @import("std");
 const font = @import("glyphs.zig");
+const sys_root = @import("root.zig");
 
 const COMPOSER_CAPACITY = 52_428_800; // 50MB Maximum Capacity
 var composer_global_buffer: [COMPOSER_CAPACITY]u8 = undefined;
@@ -26,6 +28,12 @@ pub const Composer = struct {
     dirty: bool,
     edits_since_save: usize, 
     last_xx_ms: i64,
+    
+    // Syntax Router States
+    comment_pre: [8]u8,
+    comment_pre_len: usize,
+    comment_suf: [8]u8,
+    comment_suf_len: usize,
     
     // Modals & Autonomous Reflexes
     mode: Mode,
@@ -52,6 +60,10 @@ pub const Composer = struct {
             .dirty = false,
             .edits_since_save = 0,
             .last_xx_ms = 0,
+            .comment_pre = .{0} ** 8,
+            .comment_pre_len = 0,
+            .comment_suf = .{0} ** 8,
+            .comment_suf_len = 0,
             .mode = .EDIT,
             .input_buf = .{0} ** 256,
             .input_len = 0,
@@ -112,6 +124,16 @@ pub const Composer = struct {
             clean_path = "jour.nal";
         }
         
+        var ext: []const u8 = "";
+        if (std.mem.lastIndexOfScalar(u8, clean_path, '.')) |dot_idx| {
+            ext = clean_path[dot_idx..];
+        }
+        const syn = sys_root.resolveGzlSyntax(ext);
+        self.comment_pre = syn.pre;
+        self.comment_pre_len = syn.pre_len;
+        self.comment_suf = syn.suf;
+        self.comment_suf_len = syn.suf_len;
+
         const is_abs = std.mem.startsWith(u8, clean_path, "/");
         const file_opt = if (is_abs) std.fs.openFileAbsolute(clean_path, .{}) else std.fs.cwd().openFile(clean_path, .{});
 
@@ -120,7 +142,20 @@ pub const Composer = struct {
             file.close();
             self.setStatus("FILE LOADED");
         } else |_| {
-            self.setStatus("NEW BUFFER");
+            var header_buf: [1024]u8 = undefined;
+            const header = sys_root.buildHeader(&header_buf, syn, clean_path, "Composer Artifact", null, "Unsealed matrix composition.");
+            
+            var footer_buf: [128]u8 = undefined;
+            const footer = sys_root.buildFooter(&footer_buf, syn);
+            
+            @memcpy(self.buffer[0..header.len], header);
+            @memcpy(self.buffer[header.len..header.len + 2], "\n\n");
+            @memcpy(self.buffer[header.len + 2..header.len + 2 + footer.len], footer);
+            
+            self.len = header.len + 2 + footer.len;
+            self.cursor_idx = header.len + 1; 
+            
+            self.setStatus("NEW BUFFER (GZL ENCAPSULATED)");
         }
     }
 
@@ -433,7 +468,6 @@ pub const Composer = struct {
         const start_y: usize = 46; 
         const char_w: usize = 8;
         const line_h: usize = 10;
-
         // Exclusively clear the Composer's workspace, leaving the global OS Header intact
         drawRect(buffer, width, height, 0, 20, width, height - 20, 0x00000000);
         drawRect(buffer, width, height, 0, 20, width, 20, 0x00DC143C); // @NSIBLE-RED Title Bar
@@ -507,11 +541,30 @@ pub const Composer = struct {
                 cx += char_w * 4;
                 if (cx >= width - 20) { cx = start_x; cy += line_h; }
             } else {
-                // IDENTIFY COMMENTS: '//' and/or '#' outside of active strings
-                if (!in_string and ((c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') or (c == '#'))) {
+                // IDENTIFY COMMENTS: Dynamically based on syntax router
+                var is_comment_start = false;
+                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len) {
+                    if (std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
+                        is_comment_start = true;
+                    }
+                }
+                
+                if (!in_string and is_comment_start) {
                     in_comment = true;
                 } else if (c == '"' and !in_comment) {
                     in_string = !in_string;
+                }
+                
+                if (in_comment) {
+                    if (self.comment_suf_len > 0) {
+                        if (i >= self.comment_suf_len) {
+                            if (std.mem.eql(u8, self.buffer[i - self.comment_suf_len .. i], self.comment_suf[0..self.comment_suf_len])) {
+                                in_comment = false;
+                            }
+                        }
+                    } else if (c == '\n') {
+                        in_comment = false;
+                    }
                 }
                 
                 cx += char_w;
@@ -525,6 +578,7 @@ pub const Composer = struct {
         var is_start_of_line = (cx == start_x);
 
         i = draw_start_idx;
+        
         while (i <= self.len) : (i += 1) {
             if (cy > visible_bottom) { break; } 
             
@@ -544,13 +598,27 @@ pub const Composer = struct {
             
             if (in_comment) {
                 current_color = 0x00FFBF00; // Amber
-                if (c == '\n') { in_comment = false; }
+                if (self.comment_suf_len > 0) {
+                    if (i >= self.comment_suf_len) {
+                        if (std.mem.eql(u8, self.buffer[i - self.comment_suf_len .. i], self.comment_suf[0..self.comment_suf_len])) {
+                            in_comment = false;
+                        }
+                    }
+                } else if (c == '\n') { 
+                    in_comment = false; 
+                }
             } else if (in_string) {
                 current_color = 0x00FFFFFF; // Silver
                 if (c == '"') { in_string = false; }
             } else {
-                // Refactored Detection: Handle both '//' and '#' comments
-                if (!in_string and ((c == '/' and i + 1 < self.len and self.buffer[i+1] == '/') or (c == '#'))) {
+                var is_comment_start = false;
+                if (self.comment_pre_len > 0 and i + self.comment_pre_len <= self.len) {
+                    if (std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
+                        is_comment_start = true;
+                    }
+                }
+                
+                if (!in_string and is_comment_start) {
                     in_comment = true;
                     current_color = 0x00FFBF00;
                 } else if (c == '"') {
@@ -652,7 +720,8 @@ fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8,
             if ((bitmap[y] & (@as(u8, 1) << @intCast(7 - x))) != 0) {
                 const screen_x = px + x;
                 const screen_y = py + y;
-                if (screen_x < w and screen_y < h) { buf[screen_y * w + screen_x] = color; }
+                if (screen_x < w and screen_y < h) { buf[screen_y * w + screen_x] = color;
+                }
             }
         }
     }
@@ -665,7 +734,8 @@ fn drawRect(buf: []u32, bw: usize, bh: usize, x: usize, y: usize, w: usize, h: u
         while (dx < w) : (dx += 1) {
             const sx = x + dx;
             const sy = y + dy;
-            if (sx < bw and sy < bh) { buf[sy * bw + sx] = color; }
+            if (sx < bw and sy < bh) { buf[sy * bw + sx] = color;
+            }
         }
     }
 }
