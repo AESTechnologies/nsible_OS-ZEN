@@ -4,7 +4,6 @@
 //   description: "Native, full-screen IDE operating in a dedicated 50MB BSS matrix.",
 //   changes: "Linked to Universal Syntax Router (root.zig) for dynamic multi-standard syntax highlighting and GZL buffer instantiation.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
-// }-.]
 
 const std = @import("std");
 const font = @import("glyphs.zig");
