@@ -1,12 +1,14 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
-//   version: "0.10.27-apex // Banysang",
+//   version: "0.10.28-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Folded dynamic GZL Syntax Router internally to read .syntaxer.gzl without expanding the .zig module stack.",
+//   changes: "Linked to Universal Syntax Router (root.zig) for dynamic GZL buffer instantiation, purging internal logic bloat.",
 //   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
+
 const std = @import("std");
 const font = @import("glyphs.zig");
 const banyan = @import("banyan.zig");
+const sys_root = @import("root.zig");
 
 const StringList = std.ArrayListUnmanaged([]u8);
 const PhiloteMap = std.StringHashMapUnmanaged(u32);
@@ -23,51 +25,6 @@ const FlightVector = struct {
     success: bool,
     is_pipe: bool, 
 };
-
-// --- GZL UNIVERSAL SYNTAX ROUTER (INTERNAL) ---
-const GzlSyntax = struct {
-    pre: [8]u8,
-    pre_len: usize,
-    suf: [8]u8,
-    suf_len: usize,
-};
-
-fn resolveGzlSyntax(ext: []const u8) GzlSyntax {
-    var default_syn = GzlSyntax{ 
-        .pre = .{ '/', '/', 0, 0, 0, 0, 0, 0 }, .pre_len = 2, 
-        .suf = .{ 0, 0, 0, 0, 0, 0, 0, 0 }, .suf_len = 0 
-    };
-    if (ext.len == 0) return default_syn;
-    
-    const file = std.fs.cwd().openFile("assets/.gzl/.syntaxer.gzl", .{}) catch return default_syn;
-    defer file.close();
-    
-    var buf: [1024]u8 = undefined;
-    const bytes_read = file.readAll(&buf) catch return default_syn;
-    
-    var line_iter = std.mem.splitScalar(u8, buf[0..bytes_read], '\n');
-    while (line_iter.next()) |line| {
-        if (std.mem.startsWith(u8, line, "//") or line.len == 0) continue;
-        
-        if (std.mem.indexOfScalar(u8, line, ':')) |colon_idx| {
-            const syntax_part = std.mem.trim(u8, line[0..colon_idx], " \r\t");
-            const ext_part = std.mem.trim(u8, line[colon_idx + 1 ..], " \r\t");
-            
-            if (std.mem.indexOf(u8, ext_part, ext) != null) {
-                if (std.mem.indexOfScalar(u8, syntax_part, '|')) |pipe_idx| {
-                    const pre_str = std.mem.trim(u8, syntax_part[0..pipe_idx], " ");
-                    const suf_str = std.mem.trim(u8, syntax_part[pipe_idx + 1 ..], " ");
-                    
-                    var result = GzlSyntax{ .pre = .{0}**8, .pre_len = pre_str.len, .suf = .{0}**8, .suf_len = suf_str.len };
-                    if (pre_str.len > 0) @memcpy(result.pre[0..pre_str.len], pre_str);
-                    if (suf_str.len > 0) @memcpy(result.suf[0..suf_str.len], suf_str);
-                    return result;
-                }
-            }
-        }
-    }
-    return default_syn;
-}
 
 pub const Hunter = struct {
     allocator: std.mem.Allocator, 
@@ -294,27 +251,17 @@ pub const Hunter = struct {
                                     {
                                         if (std.fs.cwd().createFile(filename, .{})) |file|
                                         {
-                                            const syn = resolveGzlSyntax(parsed_ext);
-                                            const pre = syn.pre[0..syn.pre_len];
-                                            const suf = syn.suf[0..syn.suf_len];
+                                            const syn = sys_root.resolveGzlSyntax(parsed_ext);
                                             const safe_url = if (vector.url.len > 256) vector.url[0..256] else vector.url;
                                             
                                             var header_buf: [1024]u8 = undefined;
-                                            const header = std.fmt.bufPrint(&header_buf,
-                                                "{s} [@://nsible_os/{s}/.-={{{s}\n" ++
-                                                "{s}   module: \"Operator Artifact (Pipe)\",{s}\n" ++
-                                                "{s}   timestamp: \"{d}\",{s}\n" ++
-                                                "{s}   source_url: \"{s}\",{s}\n" ++
-                                                "{s}   philotic_inferences: \"Automatically extracted via True Pipe routing.\"{s}\n" ++
-                                                "{s} }}-.]{s}\n\n",
-                                                .{ pre, filename, suf, pre, suf, pre, ts, suf, pre, safe_url, suf, pre, suf, pre, suf }
-                                            ) catch "";
+                                            const header = sys_root.buildHeader(&header_buf, syn, filename, "Operator Artifact (Pipe)", safe_url, "Automatically extracted via True Pipe routing.");
                                             
                                             file.writeAll(header) catch {};
                                             file.writeAll(body) catch {};
                                             
                                             var footer_buf: [128]u8 = undefined;
-                                            const footer = std.fmt.bufPrint(&footer_buf, "\n\n{s} }}-.]{s}\n", .{pre, suf}) catch "";
+                                            const footer = sys_root.buildFooter(&footer_buf, syn);
                                             file.writeAll(footer) catch {};
                                             
                                             file.close();
@@ -378,9 +325,7 @@ pub const Hunter = struct {
             final_title = std.fmt.bufPrint(&title_format_buf, "manual.{s}.memo", .{fallback_title}) catch "manual.undesignated.memo";
         }
         
-        const syn = resolveGzlSyntax(parsed_ext);
-        const pre = syn.pre[0..syn.pre_len];
-        const suf = syn.suf[0..syn.suf_len];
+        const syn = sys_root.resolveGzlSyntax(parsed_ext);
 
         var uri_buf: [256]u8 = undefined;
         const full_uri = try std.fmt.bufPrint(&uri_buf, "memo://{s}", .{final_title});
@@ -400,22 +345,14 @@ pub const Hunter = struct {
         
         if (std.fs.cwd().createFile(filename, .{})) |file|
         {
-            const ts = std.time.timestamp();
-            var header_buf: [512]u8 = undefined;
-            const header = std.fmt.bufPrint(&header_buf,
-                "{s} [@://nsible_os/{s}/.-={{{s}\n" ++
-                "{s}   module: \"Operator Artifact\",{s}\n" ++
-                "{s}   timestamp: \"{d}\",{s}\n" ++
-                "{s}   philotic_inferences: \"Manually designated matrix extraction.\"{s}\n" ++
-                "{s} }}-.]{s}\n\n",
-                .{ pre, filename, suf, pre, suf, pre, ts, suf, pre, suf, pre, suf }
-            ) catch "";
+            var header_buf: [1024]u8 = undefined;
+            const header = sys_root.buildHeader(&header_buf, syn, filename, "Operator Artifact", null, "Manually designated matrix extraction.");
             
             try file.writeAll(header);
             try file.writeAll(final_content);
             
             var footer_buf: [128]u8 = undefined;
-            const footer = std.fmt.bufPrint(&footer_buf, "\n\n{s} }}-.]{s}\n", .{pre, suf}) catch "";
+            const footer = sys_root.buildFooter(&footer_buf, syn);
             try file.writeAll(footer);
             
             file.close();
