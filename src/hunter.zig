@@ -1,8 +1,8 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Module",
-//   version: "0.10.36-apex // Banysang",
+//   version: "0.10.37-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Purged UI-layer GZL keystroke sequences (.!SR-.) from the data model. Isolated sort toggling into a dedicated method.",
+//   changes: "Restored amputated navigateHistory function. Completely purged UI-layer GZL keystroke sequences (.!SR-.) from the hunt method.",
 //   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
 
 const std = @import("std");
@@ -704,7 +704,6 @@ pub const Hunter = struct {
                 try entries.append(self.allocator, .{ .name = name_dupe, .kind = entry.kind, .mtime = mtime });
             }
 
-            // O(N^2) Kernel-Safe Insertion Sort mapped to self.sort_mode
             var idx_i: usize = 1;
             while (idx_i < entries.items.len) : (idx_i += 1) {
                 var idx_j: usize = idx_i;
@@ -882,6 +881,18 @@ pub const Hunter = struct {
         vector.is_complete = true;
     }
 
+    pub fn navigateHistory(self: *Hunter, direction: i32) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.history.items.len == 0) return;
+        if (direction < 0) { 
+            if (self.history_index > 0) self.history_index -= 1;
+        } else if (direction > 0) { 
+            if (self.history_index < self.history.items.len - 1) self.history_index += 1;
+        }
+        self.saveHistory() catch {}; try self.executeFetch(self.history.items[self.history_index], false);
+    }
+    
     pub fn hunt(self: *Hunter, target: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
