@@ -2,7 +2,7 @@
 //   module: "Hunter Traversal Module",
 //   version: "0.10.37-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Restored amputated navigateHistory function. Completely purged UI-layer GZL keystroke sequences (.!SR-.) from the hunt method.",
+//   changes: "Mapped the [K] Entropic domain (0x001A1A1A) to the Timeline visualizer and status readout for banished artifacts.",
 //   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
 
 const std = @import("std");
@@ -704,6 +704,7 @@ pub const Hunter = struct {
                 try entries.append(self.allocator, .{ .name = name_dupe, .kind = entry.kind, .mtime = mtime });
             }
 
+            // O(N^2) Kernel-Safe Insertion Sort mapped to self.sort_mode
             var idx_i: usize = 1;
             while (idx_i < entries.items.len) : (idx_i += 1) {
                 var idx_j: usize = idx_i;
@@ -929,12 +930,18 @@ pub const Hunter = struct {
         const start_y = 20; const end_y = height - 20;
         if (self.active) { self.lens.render(buffer, width, height, self.scroll_y); }
         const timeline_x = width - 20; var t_y: usize = start_y;
+        
+        const K_H_HEX: u32 = 0x001A1A1A;
+        
         for (self.history.items, 0..) |h_url, idx| {
             if (t_y >= end_y) break;
             var weight_px: usize = 3; if (self.philote_map.get(h_url)) |w| { weight_px += (w * 2); }
             var color: u32 = 0x00DC143C;
-            if (std.mem.indexOf(u8, h_url, "wikipedia.org") != null) { color = 0x00AAAAAA; } 
+            
+            if (std.mem.indexOf(u8, h_url, ".void") != null) { color = K_H_HEX; } 
+            else if (std.mem.indexOf(u8, h_url, "wikipedia.org") != null) { color = 0x00AAAAAA; } 
             else if (std.mem.indexOf(u8, h_url, "marginalia.nu") != null) { color = 0x00555555; }
+            
             if (self.active and idx == self.history_index) {
                 weight_px += 8;
                 if (std.mem.eql(u8, self.status, "FETCHING...") or std.mem.eql(u8, self.status, "PIPING...")) { color = 0x00FFBF00; } 
@@ -956,8 +963,16 @@ pub const Hunter = struct {
             const sy: usize = height - 15; var status_buf: [64]u8 = undefined;
             const scope_str = switch (self.lens.focus_depth) { 0 => "[RAW]", 1 => "[ZEN]", 2 => "[MATRIX]", 3 => "[ROOT]", else => "[?]" };
             const final_status = std.fmt.bufPrint(&status_buf, "{s} {s}", .{self.status, scope_str}) catch self.status;
+            
+            var status_col: u32 = 0x00DC143C;
+            if (std.mem.indexOf(u8, self.status, "VOID") != null) {
+                status_col = K_H_HEX;
+            } else if (std.mem.indexOf(u8, self.status, "FETCHING") != null or std.mem.indexOf(u8, self.status, "PIPING") != null) {
+                status_col = 0x00FFBF00;
+            }
+            
             for (final_status) |c| { 
-                drawCharToBuf(buffer, width, height, sx, sy, c, 0x00DC143C); sx += 8; 
+                drawCharToBuf(buffer, width, height, sx, sy, c, status_col); sx += 8; 
             }
         }
     }
