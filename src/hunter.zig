@@ -1,8 +1,8 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Lobe",
-//   version: "0.10.25-apex // Banysang",
+//   version: "0.10.27-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Stabilized buf/buffer scope mismatch, enforced Zig 0.15.2 syntax compliance, injected Void Banishment with corrected GZL encapsulation.",
+//   changes: "Folded dynamic GZL Syntax Router internally to read .syntaxer.gzl without expanding the .zig module stack.",
 //   philotic_inferences: "The matrix must adapt to the physical vessel, not force the vessel to conform to the matrix."
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -23,6 +23,51 @@ const FlightVector = struct {
     success: bool,
     is_pipe: bool, 
 };
+
+// --- GZL UNIVERSAL SYNTAX ROUTER (INTERNAL) ---
+const GzlSyntax = struct {
+    pre: [8]u8,
+    pre_len: usize,
+    suf: [8]u8,
+    suf_len: usize,
+};
+
+fn resolveGzlSyntax(ext: []const u8) GzlSyntax {
+    var default_syn = GzlSyntax{ 
+        .pre = .{ '/', '/', 0, 0, 0, 0, 0, 0 }, .pre_len = 2, 
+        .suf = .{ 0, 0, 0, 0, 0, 0, 0, 0 }, .suf_len = 0 
+    };
+    if (ext.len == 0) return default_syn;
+    
+    const file = std.fs.cwd().openFile("assets/.gzl/.syntaxer.gzl", .{}) catch return default_syn;
+    defer file.close();
+    
+    var buf: [1024]u8 = undefined;
+    const bytes_read = file.readAll(&buf) catch return default_syn;
+    
+    var line_iter = std.mem.splitScalar(u8, buf[0..bytes_read], '\n');
+    while (line_iter.next()) |line| {
+        if (std.mem.startsWith(u8, line, "//") or line.len == 0) continue;
+        
+        if (std.mem.indexOfScalar(u8, line, ':')) |colon_idx| {
+            const syntax_part = std.mem.trim(u8, line[0..colon_idx], " \r\t");
+            const ext_part = std.mem.trim(u8, line[colon_idx + 1 ..], " \r\t");
+            
+            if (std.mem.indexOf(u8, ext_part, ext) != null) {
+                if (std.mem.indexOfScalar(u8, syntax_part, '|')) |pipe_idx| {
+                    const pre_str = std.mem.trim(u8, syntax_part[0..pipe_idx], " ");
+                    const suf_str = std.mem.trim(u8, syntax_part[pipe_idx + 1 ..], " ");
+                    
+                    var result = GzlSyntax{ .pre = .{0}**8, .pre_len = pre_str.len, .suf = .{0}**8, .suf_len = suf_str.len };
+                    if (pre_str.len > 0) @memcpy(result.pre[0..pre_str.len], pre_str);
+                    if (suf_str.len > 0) @memcpy(result.suf[0..suf_str.len], suf_str);
+                    return result;
+                }
+            }
+        }
+    }
+    return default_syn;
+}
 
 pub const Hunter = struct {
     allocator: std.mem.Allocator, 
@@ -211,8 +256,32 @@ pub const Hunter = struct {
                     const body = vector.result_payload.?;
                     if (vector.is_pipe) {
                         const ts = std.time.timestamp();
-                        var title_buf: [128]u8 = undefined;
-                        const title = std.fmt.bufPrint(&title_buf, "pipe_{d}", .{ts}) catch "pipe_anomaly";
+                        
+                        var parsed_filename: []const u8 = "artifact";
+                        var parsed_ext: []const u8 = ".memo";
+                        
+                        if (std.mem.lastIndexOfScalar(u8, vector.url, '/')) |slash_idx| {
+                            if (slash_idx + 1 < vector.url.len) {
+                                var possible_file = vector.url[slash_idx + 1 ..];
+                                if (std.mem.indexOfScalar(u8, possible_file, '?')) |q_idx| possible_file = possible_file[0..q_idx];
+                                if (std.mem.indexOfScalar(u8, possible_file, '#')) |h_idx| possible_file = possible_file[0..h_idx];
+                                
+                                if (possible_file.len > 0) {
+                                    parsed_filename = possible_file;
+                                    if (std.mem.lastIndexOfScalar(u8, possible_file, '.')) |dot_idx| {
+                                        parsed_ext = possible_file[dot_idx..];
+                                    } else {
+                                        parsed_ext = ".memo";
+                                        var fix_buf: [256]u8 = undefined;
+                                        parsed_filename = std.fmt.bufPrint(&fix_buf, "{s}.memo", .{possible_file}) catch possible_file;
+                                    }
+                                }
+                            }
+                        }
+
+                        var title_buf: [256]u8 = undefined;
+                        const title = std.fmt.bufPrint(&title_buf, "pipe.{d}.{s}", .{ts, parsed_filename}) catch "pipe_anomaly.memo";
+                        
                         var uri_buf: [256]u8 = undefined;
                         if (std.fmt.bufPrint(&uri_buf, "memo://{s}", .{title})) |full_uri| {
                             if (self.allocator.dupe(u8, full_uri)) |title_dupe|
@@ -221,28 +290,33 @@ pub const Hunter = struct {
                                 {
                                     self.history_index = self.history.items.len - 1;
                                     var filename_buf: [256]u8 = undefined;
-                                    if (std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}.memo", .{title})) |filename|
+                                    if (std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}", .{title})) |filename|
                                     {
                                         if (std.fs.cwd().createFile(filename, .{})) |file|
                                         {
-                                            var header_buf: [1024]u8 = undefined;
+                                            const syn = resolveGzlSyntax(parsed_ext);
+                                            const pre = syn.pre[0..syn.pre_len];
+                                            const suf = syn.suf[0..syn.suf_len];
                                             const safe_url = if (vector.url.len > 256) vector.url[0..256] else vector.url;
+                                            
+                                            var header_buf: [1024]u8 = undefined;
                                             const header = std.fmt.bufPrint(&header_buf,
-                                                "// [@://nsible_os/{s}/.-={{\n" ++
-                                               
-                                                "//   module: \"Operator Artifact (Pipe)\",\n" ++
-                                                "//   timestamp: \"{d}\",\n" ++
-                                       
-                                                "//   source_url: \"{s}\",\n" ++
-                                                "//   philotic_inferences: \"Automatically extracted via True Pipe routing.\"\n" ++
-                            
-                                                "// }}-.]\n\n",
-                                                .{filename, ts, safe_url}
-                             
+                                                "{s} [@://nsible_os/{s}/.-={{{s}\n" ++
+                                                "{s}   module: \"Operator Artifact (Pipe)\",{s}\n" ++
+                                                "{s}   timestamp: \"{d}\",{s}\n" ++
+                                                "{s}   source_url: \"{s}\",{s}\n" ++
+                                                "{s}   philotic_inferences: \"Automatically extracted via True Pipe routing.\"{s}\n" ++
+                                                "{s} }}-.]{s}\n\n",
+                                                .{ pre, filename, suf, pre, suf, pre, ts, suf, pre, safe_url, suf, pre, suf, pre, suf }
                                             ) catch "";
+                                            
                                             file.writeAll(header) catch {};
                                             file.writeAll(body) catch {};
-                                            file.writeAll("\n\n// }-.]\n") catch {};
+                                            
+                                            var footer_buf: [128]u8 = undefined;
+                                            const footer = std.fmt.bufPrint(&footer_buf, "\n\n{s} }}-.]{s}\n", .{pre, suf}) catch "";
+                                            file.writeAll(footer) catch {};
+                                            
                                             file.close();
                                         } else |_|
                                         {} 
@@ -292,39 +366,62 @@ pub const Hunter = struct {
     pub fn createMemo(self: *Hunter, title: []const u8, content: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        const clean_title = if (title.len == 0) "undesignated..." else title;
+        
+        var title_format_buf: [256]u8 = undefined;
+        const fallback_title = if (title.len == 0) "manual.undesignated.memo" else title;
+        var final_title: []const u8 = fallback_title;
+        var parsed_ext: []const u8 = ".memo";
+
+        if (std.mem.lastIndexOfScalar(u8, fallback_title, '.')) |dot_idx| {
+            parsed_ext = fallback_title[dot_idx..];
+        } else {
+            final_title = std.fmt.bufPrint(&title_format_buf, "manual.{s}.memo", .{fallback_title}) catch "manual.undesignated.memo";
+        }
+        
+        const syn = resolveGzlSyntax(parsed_ext);
+        const pre = syn.pre[0..syn.pre_len];
+        const suf = syn.suf[0..syn.suf_len];
+
         var uri_buf: [256]u8 = undefined;
-        const full_uri = try std.fmt.bufPrint(&uri_buf, "memo://{s}", .{clean_title});
+        const full_uri = try std.fmt.bufPrint(&uri_buf, "memo://{s}", .{final_title});
         const title_dupe = try self.allocator.dupe(u8, full_uri);
         try self.history.append(self.allocator, title_dupe);
         self.history_index = self.history.items.len - 1;
+        
         var final_content: []const u8 = content;
         var auto_wrapped: ?[]u8 = null;
         if (std.mem.indexOf(u8, content, "<") == null) {
             auto_wrapped = try std.fmt.allocPrint(self.allocator, "<p>{s}</p>", .{content});
             final_content = auto_wrapped.?;
         }
+        
         var filename_buf: [128]u8 = undefined;
-        const filename = try std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}.memo", .{clean_title});
+        const filename = try std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}", .{final_title});
+        
         if (std.fs.cwd().createFile(filename, .{})) |file|
         {
             const ts = std.time.timestamp();
             var header_buf: [512]u8 = undefined;
             const header = std.fmt.bufPrint(&header_buf,
-                "// [@://nsible_os/{s}/.-={{\n" ++
-                "//   module: \"Operator Artifact\",\n" ++
-                "//   timestamp: \"{d}\",\n" ++
-                "//   philotic_inferences: \"Manually designated matrix extraction.\"\n" ++
-       
-                "// }}-.]\n\n",
-                .{filename, ts}
+                "{s} [@://nsible_os/{s}/.-={{{s}\n" ++
+                "{s}   module: \"Operator Artifact\",{s}\n" ++
+                "{s}   timestamp: \"{d}\",{s}\n" ++
+                "{s}   philotic_inferences: \"Manually designated matrix extraction.\"{s}\n" ++
+                "{s} }}-.]{s}\n\n",
+                .{ pre, filename, suf, pre, suf, pre, ts, suf, pre, suf, pre, suf }
             ) catch "";
+            
             try file.writeAll(header);
             try file.writeAll(final_content);
-            try file.writeAll("\n\n// }-.]\n");
+            
+            var footer_buf: [128]u8 = undefined;
+            const footer = std.fmt.bufPrint(&footer_buf, "\n\n{s} }}-.]{s}\n", .{pre, suf}) catch "";
+            try file.writeAll(footer);
+            
             file.close();
         } else |_|
         {}
+        
         try self.parseContent(final_content);
         if (auto_wrapped) |w| self.allocator.free(w);
         self.status = "MEMO_SAVED";
@@ -608,7 +705,7 @@ pub const Hunter = struct {
         }
         if (std.mem.startsWith(u8, target, "memo://")) {
             self.status = "LOCAL_MEMO";
-            const ts_str = target[7..]; var filename_buf: [128]u8 = undefined; const filename = std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}.memo", .{ts_str}) catch return;
+            const ts_str = target[7..]; var filename_buf: [128]u8 = undefined; const filename = std.fmt.bufPrint(&filename_buf, "timeline/mems/{s}", .{ts_str}) catch return;
             if (std.fs.cwd().openFile(filename, .{})) |file| { if (file.readToEndAlloc(self.allocator, 1024 * 1024)) |body| { self.parseContent(body) catch {}; self.allocator.free(body); } else |_|
             { self.status = "MEMO_LOST"; } file.close(); } else |_| { self.status = "MEMO_LOST";
             }
