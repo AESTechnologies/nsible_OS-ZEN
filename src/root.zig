@@ -20,7 +20,7 @@ pub const GzlSyntax = struct {
 };
 
 pub fn resolveGzlSyntax(ext: []const u8) GzlSyntax {
-    var default_syn = GzlSyntax{ 
+    const default_syn = GzlSyntax{ 
         .pre = .{ '/', '/', 0, 0, 0, 0, 0, 0 }, .pre_len = 2, 
         .suf = .{ 0, 0, 0, 0, 0, 0, 0, 0 }, .suf_len = 0 
     };
@@ -45,9 +45,15 @@ pub fn resolveGzlSyntax(ext: []const u8) GzlSyntax {
                     const pre_str = std.mem.trim(u8, syntax_part[0..pipe_idx], " ");
                     const suf_str = std.mem.trim(u8, syntax_part[pipe_idx + 1 ..], " ");
                     
-                    var result = GzlSyntax{ .pre = .{0}**8, .pre_len = pre_str.len, .suf = .{0}**8, .suf_len = suf_str.len };
+                    var result: GzlSyntax = undefined;
+                    result.pre = .{0}**8;
+                    result.suf = .{0}**8;
+                    result.pre_len = pre_str.len;
+                    result.suf_len = suf_str.len;
+                    
                     if (pre_str.len > 0) @memcpy(result.pre[0..pre_str.len], pre_str);
                     if (suf_str.len > 0) @memcpy(result.suf[0..suf_str.len], suf_str);
+                    
                     return result;
                 }
             }
