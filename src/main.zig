@@ -1,9 +1,10 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.10.25-apex // Banysang",
+//   version: "v0.10.36-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Migrated trail.tome to void asset & aiua.tome to timeline. Injected Void reflex with Verity Lock UI, seamless Composer OS command fall-through, and kernel-level SIGINT/SIGTSTP Blast Doors (corrected calling convention).",
+//   changes: "Injected native .!SR-. interception logic. Aligned bash pipeline with Universal Syntax Router. Corrected GZL encapsulation to strictly seal at EOF.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
+
 const std = @import("std");
 const linux = std.os.linux;
 const font = @import("glyphs.zig");
@@ -15,6 +16,7 @@ const hunter = @import("hunter.zig");
 const composer = @import("composer.zig");
 const v_core = @import("version.zig");
 const synapse = @import("synapse_calc.zig");
+const sys_root = @import("root.zig");
 
 const SYSTEM_NAME = "@NSIBLE OS";
 const VERSION     = v_core.VERSION;
@@ -534,7 +536,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 pub fn main() !void {
     //^:: BLAST DOORS - THE SIGINT/SIGTSTP KERNEL TRAP<<dev:archx m_txr.Gem3P>>\.
     var sa = std.mem.zeroes(linux.Sigaction);
-    // Properly cast the absolute constant 1 (SIG_IGN) to the expected C function pointer type
     sa.handler = .{ .handler = @as(?*const fn (i32) callconv(.c) void, @ptrFromInt(1)) }; 
     _ = linux.sigaction(2, &sa, null);  // Lock SIGINT  (^C)
     _ = linux.sigaction(3, &sa, null);  // Lock SIGQUIT (^\)
@@ -550,7 +551,7 @@ pub fn main() !void {
     fs.makeDir("assets/aud.io") catch |err|
     { if (err != error.PathAlreadyExists) {} };
 
-	// <<dev:archx-MMXXVINIVNII:IVNXLIV>>: Refactor to anchor timeline/.aiua.tome in the timeline dir. (3 instances chg'd)
+	// <<dev:archx-MMXXVINIVNII:IVNXLIV>>: Refactor to anchor timeline/.aiua.tome in the timeline dir.
     if (fs.access("timeline/.aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("timeline/.aiua.tome", .{})) |f|
     { f.close(); } else |_|
     {} }
@@ -990,6 +991,11 @@ pub fn main() !void {
                     reflex_triggered = true;
                 }
             }
+            else if (std.mem.endsWith(u8, &seq_buf, ".!SR-.")) {
+                sys_hunter.hunt(".!SR-.") catch {};
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                reflex_triggered = true;
+            }
             else if (std.mem.endsWith(u8, &seq_buf, "//-.")) {
                 if (journal_len >= 4) journal_len -= 4;
                 const clean_slice = std.mem.trimRight(u8, journal[0..journal_len], " ");
@@ -1012,7 +1018,6 @@ pub fn main() !void {
                     sys_composer.has_pending_cmd = false;
                     @memcpy(journal[0..sys_composer.pending_cmd_len], sys_composer.pending_cmd[0..sys_composer.pending_cmd_len]);
                     journal_len = sys_composer.pending_cmd_len;
-                    // Intentionally fall through to global OS execution below. Matrix stays open.
                 } else {
                     continue;
                 }
@@ -1117,11 +1122,33 @@ pub fn main() !void {
                     if (journal_len > 0) {
       
                         const dest = std.mem.trim(u8, journal[0..journal_len], " ");
+                        
+                        if (std.mem.lastIndexOfScalar(u8, dest, '/')) |last_slash| {
+                            const dir_path = dest[0..last_slash];
+                            std.fs.cwd().makePath(dir_path) catch {};
+                        }
+                        
                         if (std.fs.cwd().openFile("assets/.void/.00", .{})) |src| {
                             if (std.fs.cwd().createFile(dest, .{})) |dst|
                             {
                                 const data = src.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
+                                
+                                var parsed_ext: []const u8 = "";
+                                if (std.mem.lastIndexOfScalar(u8, dest, '.')) |dot_idx| {
+                                    parsed_ext = dest[dot_idx..];
+                                }
+                                const syn = sys_root.resolveGzlSyntax(parsed_ext);
+                                
+                                var header_buf: [1024]u8 = undefined;
+                                const header = sys_root.buildHeader(header_buf[0..], syn, dest, "Operator Artifact (Bash Pipe)", null, "Extracted via autonomous matrix sub-shell.");
+                                dst.writeAll(header) catch {};
+                                
                                 dst.writeAll(data) catch {};
+                                
+                                var footer_buf: [128]u8 = undefined;
+                                const footer = sys_root.buildFooter(footer_buf[0..], syn);
+                                dst.writeAll(footer) catch {};
+                                
                                 void_allocator.free(data);
                                 dst.close();
                             } else |_| {}
@@ -1460,7 +1487,7 @@ pub fn main() !void {
         if (dirty) {
             clear(0x00000000);
             if (sys_composer.active) {
-                drawHeader(is_high_cycle); // Global OS header parity overlay
+                drawHeader(is_high_cycle);
                 sys_composer.render(&back_buffer, WIDTH, HEIGHT);
                 drawPulseOverlay();
             } else {
@@ -1609,6 +1636,7 @@ pub fn main() !void {
                     print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", 0x00FFBF00);
                     print(ax + 20, ay + 170, "[<] / [>]    : Navigate Timeline History", 0x00FFFFFF);
                     print(ax + 20, ay + 190, "v / ^        : Scroll Active Matrix down/up", 0x00FFFFFF);
+                    print(ax + 20, ay + 210, ".!SR-.       : Toggle MELT Sort (Name/Date)", 0x00FFBF00);
                     print(ax + 20, ay + 230, "[ ARTIFACT FORGE & GZL ]", 0x00AAAAAA);
                     print(ax + 20, ay + 250, "memo <txt>   : Quick Operator Artifact", 0x00FFFFFF);
                     print(ax + 20, ay + 270, "<Title> //-. : Title & Save Artifact", 0x00FFFFFF);
