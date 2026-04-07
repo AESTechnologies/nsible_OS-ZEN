@@ -1,14 +1,14 @@
 #!/bin/bash
 #   [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
-#   version: "0.10.37-apex // Banysang",
+#   version: "0.10.38-apex // Banysang",
 #   description: "Sovereign ASCII Data-Stream visual loader with Dynamic Palette Refraction.",
-#   changes: "Resolved printf invalid number leak in apply_mastered_dynamics by enforcing C-style integer loops; prevented arithmetic expansion failure during ASCII animation render.",
+#   changes: "Patched severe printf injection vulnerability causing invalid number errors during boot trace rendering.",
 #   philotic_inferences: "A sovereign matrix does not ask permission from the void; it demands the key at the threshold."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 cmd="${1:-sync}"
-NSIBLE_VERSION="v0.10.37-apex"
+NSIBLE_VERSION="v0.10.38-apex"
 
 COLOR_LIB="assets/.gzl/.osColors.gzl"
 
@@ -23,7 +23,7 @@ L() { grep "$1_ANSI" "$COLOR_LIB" | sed -n 's/.*_ANSI:[[:space:]]*\(\\033\[[0-9;
 # LB(): Dynamically converts 38;2 (foreground) to 48;2 (background) for highlighting
 LB() { L "$1" | sed 's/38;2/48;2/g'; }
 # W(): Implements a full-width background span using the converted background color
-W() { printf "%b%$(tput cols)s%b\r" "$(LB "$1")" " " "$RESET"; }
+W() { printf "%b%*s%b\r" "$(LB "$1")" "$(tput cols)" " " "$RESET"; }
 RESET=$'\e[0m'
 
 # --- DYNAMIC PALETTE STATE ---
@@ -183,23 +183,24 @@ run_with_loader() {
                 min_duration=0 
             fi
         fi
-        printf "$(L "K.H")> %-58s${RESET}$(tput el)" "$log_line"
+        # FIXED: Parametrizing log_line to prevent injection.
+        printf "%b> %-58s%b%b" "$(L "K.H")" "$log_line" "$RESET" "$(tput el)"
         
         if [ $min_duration -gt 0 ]; then
             local v1_width=$(( (vec_pos % (cols / 2)) + 10 ))
             tput cup $(( (lines / 2) + 6 )) 0; tput el
             tput cup $(( (lines / 2) + 6 )) $(( cols - v1_width ))
-            printf "%b◄${max_vec:0:$v1_width}%b" "$(L "$VECTOR_COL")" "$RESET"
+            printf "%b◄%s%b" "$(L "$VECTOR_COL")" "${max_vec:0:$v1_width}" "$RESET"
             
             local v2_width=$(( ((vec_pos * 2) % (cols / 2)) + 5 ))
             tput cup $(( (lines / 2) + 7 )) 0; tput el
             tput cup $(( (lines / 2) + 7 )) $(( cols - v2_width ))
-            printf "%b◄${max_vec:0:$v2_width}%b" "$(L "$VECTOR_COL")" "$RESET"
+            printf "%b◄%s%b" "$(L "$VECTOR_COL")" "${max_vec:0:$v2_width}" "$RESET"
             
             local v3_width=$(( ((vec_pos / 2) % (cols / 2)) + 20 ))
             tput cup $(( (lines / 2) + 8 )) 0; tput el
             tput cup $(( (lines / 2) + 8 )) $(( cols - v3_width ))
-            printf "%b◄${max_vec:0:$v3_width}%b" "$(L "$VECTOR_COL")" "$RESET"
+            printf "%b◄%s%b" "$(L "$VECTOR_COL")" "${max_vec:0:$v3_width}" "$RESET"
         fi
 
         tput cup $((lines - 2)) 0
@@ -207,7 +208,8 @@ run_with_loader() {
         if [ ${#stream} -lt $cols ]; then
             stream="${stream}${data:0:$((cols - ${#stream}))}"
         fi
-        printf "%b${stream}%b" "$(L "$STREAM_COL")" "$RESET"
+        # FIXED: Parametrizing the stream block to prevent invalid number format injections from error traces.
+        printf "%b%s%b" "$(L "$STREAM_COL")" "$stream" "$RESET"
         
         pos=$(( (pos + 4) % ${#data} ))
         vec_pos=$(( vec_pos + 4 ))
