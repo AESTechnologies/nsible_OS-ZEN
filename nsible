@@ -10,7 +10,7 @@
 cmd="${1:-sync}"
 NSIBLE_VERSION="v0.10.37-apex"
 
-COLOR_LIB="assets/.gzl/osColors.gzl"
+COLOR_LIB="assets/.gzl/.osColors.gzl"
 
 if [ ! -f "$COLOR_LIB" ]; then
     echo "[ ! ] FATAL: Sovereign Color Library not found at $COLOR_LIB"
