@@ -1,12 +1,13 @@
 // [@://nsible_os/src/composer.zig/.-={
 //   module: "The Composer IDE",
-//   version: "0.11.2-apex // Banysang",
+//   version: "0.11.4-apex // Banysang",
 //   description: "Native, full-screen IDE operating in a dedicated 50MB BSS matrix.",
-//   changes: "Restored full operator syntax highlighting logic. Adjusted view matrix to effective_width to protect the Timeline rail.",
+//   changes: "Corrected UI truncation. Header is padded by 20px on the right. Status bars natively span the full WIDTH.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
+const codex = @import("codex.zig");
 const sys_root = @import("root.zig");
 
 const COMPOSER_CAPACITY = 52_428_800; // 50MB Maximum Capacity
@@ -472,11 +473,14 @@ pub const Composer = struct {
         const start_y: usize = 46; 
         const char_w: usize = 8;
         const line_h: usize = 10;
-        const effective_width = width - 200;
+        const effective_width = width - 200; // Workspace text restriction
 
-        // Exclusively clear the Composer's workspace, leaving the global OS Header intact
-        drawRect(buffer, width, height, 0, 20, effective_width, height - 20, 0x00000000);
-        drawRect(buffer, width, height, 0, 20, effective_width, 20, 0x00DC143C); // @NSIBLE-RED Title Bar
+        // Clear the Composer's text workspace, protecting the Timeline Rail
+        drawRect(buffer, width, height, 0, 20, effective_width, height - 20, codex.get("K.S"));
+        
+        // Header: Spans across, padding exactly 20px from the right edge
+        drawRect(buffer, width, height, 0, 20, width - 20, 20, codex.get("C.S")); 
+        
         var title_buf: [128]u8 = undefined;
         const header = std.fmt.bufPrint(&title_buf, "[ THE COMPOSER ] // {s} {s}", .{
             self.filepath[0..self.filepath_len], 
@@ -484,11 +488,10 @@ pub const Composer = struct {
         }) catch "COMPOSER";
         var head_cx: usize = 10;
         for (header) |c| { 
-            drawCharToBuf(buffer, width, height, head_cx, 26, c, 0x00000000);
+            drawCharToBuf(buffer, width, height, head_cx, 26, c, codex.get("K.S"));
             head_cx += char_w; 
         }
 
-        // 1. O(N) PURE MATH SCAN: Establish Cursor Coordinates
         var cx: usize = start_x;
         var cy: usize = start_y;
         var line_no: usize = 1;
@@ -514,7 +517,6 @@ pub const Composer = struct {
         cursor_py = cy;
         cursor_line = line_no;
 
-        // 2. ADJUST SCROLL STATE
         if (cursor_py < start_y + (self.scroll_y * line_h)) {
             self.scroll_y = (cursor_py - start_y) / line_h;
         } else if (cursor_py > start_y + (self.scroll_y * line_h) + (height - 80)) {
@@ -524,7 +526,6 @@ pub const Composer = struct {
         const visible_top = start_y + pixel_scroll_y;
         const visible_bottom = visible_top + height;
 
-        // 3. O(N) FAST-FORWARD: Find Render Start Index & Syntax State
         cx = start_x;
         cy = start_y;
         line_no = 1;
@@ -594,7 +595,6 @@ pub const Composer = struct {
             }
         }
 
-        // 4. O(VISIBLE) FINAL RENDER LOOP: Instantly terminates off-screen
         var keyword_countdown: usize = 0;
         var current_color: u32 = 0x00AAAAAA;
         var is_start_of_line = (cx == start_x);
@@ -645,7 +645,7 @@ pub const Composer = struct {
             } else if (in_string) {
                 current_color = 0x00FFFFFF; // Silver
             } else if (keyword_countdown > 0) {
-                current_color = 0x00DC143C; // Red
+                current_color = codex.get("C.S"); // Red
                 keyword_countdown -= 1;
             } else {
                 current_color = 0x00AAAAAA; // Grey
@@ -653,7 +653,7 @@ pub const Composer = struct {
                     var w_len: usize = 0;
                     while (i + w_len < self.len and isAlphanumeric(self.buffer[i + w_len])) { w_len += 1; }
                     if (w_len > 0 and isKeyword(self.buffer[i .. i+w_len])) {
-                        current_color = 0x00DC143C;
+                        current_color = codex.get("C.S");
                         keyword_countdown = w_len - 1;
                     }
                 }
@@ -692,14 +692,15 @@ pub const Composer = struct {
         
         if (cursor_py >= visible_top and cursor_py < visible_bottom - 40) {
             const draw_cy = cursor_py - pixel_scroll_y;
-            drawCharToBuf(buffer, width, height, cursor_px, draw_cy, 0xDB, 0x00FFBF00); 
+            drawCharToBuf(buffer, width, height, cursor_px, draw_cy, 0xDB, codex.get("B.S")); 
             if (self.cursor_idx < self.len and self.buffer[self.cursor_idx] != '\n' and self.buffer[self.cursor_idx] != '\t') {
-                 drawCharToBuf(buffer, width, height, cursor_px, draw_cy, self.buffer[self.cursor_idx], 0x00000000);
+                 drawCharToBuf(buffer, width, height, cursor_px, draw_cy, self.buffer[self.cursor_idx], codex.get("K.S"));
             }
         }
         
         if (self.mode != .EDIT) {
-            drawRect(buffer, width, height, 0, height - 40, effective_width, 20, 0x00DC143C);
+            // Command Bar spans full width
+            drawRect(buffer, width, height, 0, height - 40, width, 20, codex.get("C.S"));
             const prefix = switch(self.mode) {
                 .SEEK => "[ SEEK ] > ",
                 .SWITCH_FIND => "[ SWITCH: FIND ] > ",
@@ -710,21 +711,22 @@ pub const Composer = struct {
             };
             var mx: usize = 10;
             for (prefix) |c| { 
-                drawCharToBuf(buffer, width, height, mx, height - 34, c, 0x00000000);
+                drawCharToBuf(buffer, width, height, mx, height - 34, c, codex.get("K.S"));
                 mx += 8; 
             }
             for (self.input_buf[0..self.input_len]) |c| { 
-                drawCharToBuf(buffer, width, height, mx, height - 34, c, 0x00FFFFFF);
+                drawCharToBuf(buffer, width, height, mx, height - 34, c, codex.get("S.H"));
                 mx += 8; 
             }
-            drawCharToBuf(buffer, width, height, mx, height - 34, 0xDB, 0x00FFBF00);
+            drawCharToBuf(buffer, width, height, mx, height - 34, 0xDB, codex.get("B.S"));
         }
 
-        drawRect(buffer, width, height, 0, height - 20, effective_width, 20, 0x00222222);
+        // Bottom Status Bar spans full width
+        drawRect(buffer, width, height, 0, height - 20, width, 20, codex.get("K.H"));
         var b_cx: usize = 10;
         
         const now = std.time.milliTimestamp();
-        const status_color: u32 = if (now - self.last_xx_ms < 3000) 0x00DC143C else 0x00FFFFFF;
+        const status_color: u32 = if (now - self.last_xx_ms < 3000) codex.get("C.S") else codex.get("S.H");
         for (self.status[0..self.status_len]) |c| {
             drawCharToBuf(buffer, width, height, b_cx, height - 14, c, status_color);
             b_cx += 8;
@@ -734,14 +736,14 @@ pub const Composer = struct {
         var byte_buf: [64]u8 = undefined;
         const byte_str = std.fmt.bufPrint(&byte_buf, "L:{d} | B:{d}/{d}", .{cursor_line, self.cursor_idx, self.len}) catch "";
         for (byte_str) |c| { 
-            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00FFBF00);
+            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, codex.get("B.S"));
             b_cx += 8; 
         }
         
         const help_str = ".!XX-. Discard   .!SV-. Save to Disk";
-        b_cx = effective_width - (help_str.len * 8) - 10;
+        b_cx = width - (help_str.len * 8) - 10;
         for (help_str) |c| { 
-            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, 0x00555555);
+            drawCharToBuf(buffer, width, height, b_cx, height - 14, c, codex.get("S.S"));
             b_cx += 8; 
         }
     }
