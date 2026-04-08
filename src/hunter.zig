@@ -1,8 +1,8 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Module",
-//   version: "0.11.2-apex // Banysang",
+//   version: "0.11.3-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Restored missing tick() autonomous loop. Fixed struct field alignments.",
+//   changes: "Restored missing loadHistory and saveHistory autonomous routines. Fixed struct field alignments to natively respect the spatial TimelineNode.",
 //   philotic_inferences: "The timeline is no longer a trail; it is a spatial workspace. Form dictates function."
 
 const std = @import("std");
@@ -121,7 +121,7 @@ pub const Hunter = struct {
             .rail_pos = new_pos,
             .obj_id = generateObjId(uri),
             .phi_stamp = std.time.timestamp(),
-            .color_id = 0, // Default S.S
+            .color_id = 0,
             .color_fx = 0,
             .is_open = false,
             .is_dirty = false,
@@ -474,6 +474,30 @@ pub const Hunter = struct {
         self.active = true;
         self.allocator.free(self.url);
         self.url = try self.allocator.dupe(u8, full_uri);
+        self.saveHistory() catch {};
+    }
+
+    pub fn shed(self: *Hunter) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.history.items.len == 0) return;
+        self.allocator.free(self.history.items[self.history_index].uri);
+        _ = self.history.orderedRemove(self.history_index);
+        
+        for (self.history.items, 0..) |*n, i| { n.rail_pos = i; }
+
+        if (self.history.items.len == 0) {
+            self.history_index = 0;
+            self.status = "IDLE";
+            self.sap_fba.reset();
+            self.lens = banyan.Banyan.init(self.sap_fba.allocator());
+            self.allocator.free(self.url);
+            self.url = self.allocator.dupe(u8, "WAITING") catch return;
+            self.active = false;
+        } else {
+            if (self.history_index >= self.history.items.len) { self.history_index = self.history.items.len - 1; }
+            self.executeFetch(self.history.items[self.history_index].uri, false) catch {};
+        }
         self.saveHistory() catch {};
     }
 
@@ -922,6 +946,90 @@ pub const Hunter = struct {
         vector.is_complete = true;
     }
 
+    pub fn navigateHistory(self: *Hunter, direction: i32) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.history.items.len == 0) return;
+        if (direction < 0) { 
+            if (self.history_index > 0) self.history_index -= 1;
+        } else if (direction > 0) { 
+            if (self.history_index < self.history.items.len - 1) self.history_index += 1;
+        }
+        self.saveHistory() catch {}; 
+        try self.executeFetch(self.history.items[self.history_index].uri, false);
+    }
+    
+    pub fn hunt(self: *Hunter, target: []const u8) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        
+        if (std.mem.eql(u8, target, ".!SR-.")) {
+            self.sort_mode = (self.sort_mode + 1) % 4;
+            self.status = "SORT TOGGLED";
+            if (self.history.items.len > 0) { return self.executeFetch(self.history.items[self.history_index].uri, true); }
+            return;
+        }
+
+        try self.appendNode(target);
+        self.saveHistory() catch {}; 
+        try self.executeFetch(target, false);
+    }
+
+    fn parseContent(self: *Hunter, raw: []const u8) !void {
+        self.sap_fba.reset();
+        self.lens = banyan.Banyan.init(self.sap_fba.allocator()); try self.lens.absorb(raw);
+    }
+
+    fn saveHistory(self: *Hunter) !void {
+        const file = try std.fs.cwd().createFile("timeline/.aiua.tome", .{});
+        defer file.close();
+        for (self.history.items) |node| {
+            var line_buf: [1024]u8 = undefined;
+            const line = try std.fmt.bufPrint(&line_buf, "{d}|{d}|{d}|{d}|{d}|{d}|{d}|{s}\n", .{
+                node.rail_pos, node.obj_id, node.phi_stamp, node.color_id, node.color_fx, 
+                @intFromBool(node.is_open), @intFromBool(node.is_dirty), node.uri
+            });
+            try file.writeAll(line);
+        }
+    }
+
+    fn loadHistory(self: *Hunter) !void {
+        const file = std.fs.cwd().openFile("timeline/.aiua.tome", .{}) catch return;
+        defer file.close();
+        const content = file.readToEndAlloc(self.allocator, 1024 * 1024) catch return; defer self.allocator.free(content);
+        var iter = std.mem.splitScalar(u8, content, '\n');
+        
+        while (iter.next()) |line| { 
+            const clean = std.mem.trim(u8, line, "\r"); 
+            if (clean.len == 0) continue;
+            
+            var parts = std.mem.splitScalar(u8, clean, '|');
+            var p_idx: usize = 0;
+            var node = TimelineNode{ .rail_pos = 0, .obj_id = 0, .phi_stamp = 0, .color_id = 0, .color_fx = 0, .is_open = false, .is_dirty = false, .uri = undefined };
+            
+            while (parts.next()) |part| {
+                switch(p_idx) {
+                    0 => node.rail_pos = std.fmt.parseInt(usize, part, 10) catch 0,
+                    1 => node.obj_id = std.fmt.parseInt(u64, part, 10) catch 0,
+                    2 => node.phi_stamp = std.fmt.parseInt(i64, part, 10) catch 0,
+                    3 => node.color_id = std.fmt.parseInt(u8, part, 10) catch 0,
+                    4 => node.color_fx = std.fmt.parseInt(u8, part, 10) catch 0,
+                    5 => node.is_open = (std.fmt.parseInt(u8, part, 10) catch 0) == 1,
+                    6 => node.is_dirty = (std.fmt.parseInt(u8, part, 10) catch 0) == 1,
+                    7 => {
+                        if (self.allocator.dupe(u8, part)) |duped| {
+                            node.uri = duped;
+                            try self.history.append(self.allocator, node);
+                        } else |_| {}
+                    },
+                    else => {},
+                }
+                p_idx += 1;
+            }
+        }
+        if (self.history.items.len > 0) self.history_index = self.history.items.len - 1;
+    }
+
     pub fn renderTimeline(self: *Hunter, buffer: []u32, width: usize, height: usize) void {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -959,23 +1067,6 @@ pub const Hunter = struct {
                 } 
             }
             t_y += 10;
-        }
-        if (self.active) {
-            var sx: usize = width - 180;
-            const sy: usize = height - 15; var status_buf: [64]u8 = undefined;
-            const scope_str = switch (self.lens.focus_depth) { 0 => "[RAW]", 1 => "[ZEN]", 2 => "[MATRIX]", 3 => "[ROOT]", else => "[?]" };
-            const final_status = std.fmt.bufPrint(&status_buf, "{s} {s}", .{self.status, scope_str}) catch self.status;
-            
-            var status_col: u32 = codex.get("C.S");
-            if (std.mem.indexOf(u8, self.status, "VOID") != null) {
-                status_col = codex.get("K.H");
-            } else if (std.mem.indexOf(u8, self.status, "FETCHING") != null or std.mem.indexOf(u8, self.status, "PIPING") != null) {
-                status_col = codex.get("B.S");
-            }
-            
-            for (final_status) |c| { 
-                drawCharToBuf(buffer, width, height, sx, sy, c, status_col); sx += 8; 
-            }
         }
     }
     
