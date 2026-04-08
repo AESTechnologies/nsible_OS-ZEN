@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.11.1-apex // Banysang",
+//   version: "v0.11.4-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Rectified const mutation compiler trap in switchTab. Patched silent mutex deadlock risk.",
+//   changes: "Corrected .!T<-. and .!T>-. to properly stash and close Composer. Implemented experimental matrix (.exp) verity prompt on .!SV-.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -75,6 +75,10 @@ fn getExpPath(allocator: std.mem.Allocator, uri: []const u8) ?[]u8 {
             clean_path = clean_path[4..];
         }
     }
+    if (std.mem.startsWith(u8, clean_path, "memo://")) {
+        const ts = clean_path[7..];
+        return std.fmt.allocPrint(allocator, "timeline/mems/.{s}.exp", .{ts}) catch null;
+    }
     var dir: []const u8 = "";
     var file: []const u8 = clean_path;
     if (std.mem.lastIndexOfScalar(u8, clean_path, '/')) |idx| {
@@ -105,50 +109,10 @@ fn switchTab(h: *hunter.Hunter, c: *composer.Composer, dir: i32, allocator: std.
             allocator.free(exp_path);
         }
         h.mutex.unlock();
+        c.active = false; // Strictly close Composer on Tab Switch
     }
 
     h.navigateHistory(dir) catch {};
-
-    const new_idx = h.history_index;
-    if (new_idx == old_idx) return;
-
-    h.mutex.lock();
-    const new_node = &h.history.items[new_idx];
-    const is_open = new_node.is_open;
-    const is_dirty = new_node.is_dirty;
-    const new_uri = h.allocator.dupe(u8, new_node.uri) catch {
-        h.mutex.unlock();
-        return;
-    };
-    h.mutex.unlock();
-
-    if (c.active or is_open) {
-        var loaded_exp = false;
-        if (getExpPath(allocator, new_uri)) |exp_path| {
-            if (std.fs.cwd().openFile(exp_path, .{})) |f| {
-                c.len = f.readAll(c.buffer) catch 0;
-                f.close();
-                
-                const p_len = @min(new_uri.len, 256);
-                @memcpy(c.filepath[0..p_len], new_uri[0..p_len]);
-                c.filepath_len = p_len;
-                
-                c.active = true;
-                c.dirty = is_dirty;
-                c.setStatus("LOADED FROM .EXP MATRIX");
-                loaded_exp = true;
-            } else |_| {}
-            allocator.free(exp_path);
-        }
-        
-        if (!loaded_exp) {
-            c.open(new_uri);
-            h.mutex.lock();
-            h.history.items[new_idx].is_open = true;
-            h.mutex.unlock();
-        }
-    }
-    h.allocator.free(new_uri);
 }
 
 fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
@@ -748,6 +712,7 @@ pub fn main() !void {
     var calc_len: usize = 0;
     var calc_result: [64]u8 = .{0} ** 64;
     var calc_res_len: usize = 0;
+    var is_exp_save_modal: bool = false;
     
     var is_bash_modal: bool = false;
     var is_bash_pipe: bool = false;
@@ -944,13 +909,16 @@ pub fn main() !void {
 				std.process.exit(0);
             } //:X
             else if (std.mem.eql(u8, &seq_buf, ".!XX-.")) { 
-                if (sys_composer.active) {
+                if (is_exp_save_modal) {
+                    is_exp_save_modal = false;
+                    sys_composer.setStatus("SAVE CANCELLED");
+                    reflex_triggered = true;
+                } else if (sys_composer.active) {
                     sys_composer.undo_reflex(5);
                     if (sys_composer.dirty) {
                         const now = std.time.milliTimestamp();
                         if (now - sys_composer.last_xx_ms < 3000) {
                             sys_composer.active = false;
-                            
                             sys_hunter.mutex.lock();
                             var node = &sys_hunter.history.items[sys_hunter.history_index];
                             node.is_open = false;
@@ -966,7 +934,6 @@ pub fn main() !void {
                         }
                     } else {
                         sys_composer.active = false;
-                        
                         sys_hunter.mutex.lock();
                         var node = &sys_hunter.history.items[sys_hunter.history_index];
                         node.is_open = false;
@@ -1088,11 +1055,26 @@ pub fn main() !void {
             else if (std.mem.endsWith(u8, &seq_buf, ".!ED-.")) {
                 if (!sys_composer.active) {
                     if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
-                    var target_path = std.mem.trim(u8, journal[0..journal_len], " ");
+                    
+                    var target_path_buf: [1024]u8 = undefined;
+                    var target_path: []const u8 = std.mem.trim(u8, journal[0..journal_len], " ");
+                    var editing_active_node = false;
+                    
+                    if (target_path.len == 0) {
+                        sys_hunter.mutex.lock();
+                        if (sys_hunter.history.items.len > 0) {
+                            const uri = sys_hunter.history.items[sys_hunter.history_index].uri;
+                            const cp_len = @min(uri.len, 1024);
+                            @memcpy(target_path_buf[0..cp_len], uri[0..cp_len]);
+                            target_path = target_path_buf[0..cp_len];
+                            editing_active_node = true;
+                        }
+                        sys_hunter.mutex.unlock();
+                    }
 
-                    var is_melt = target_path.len > 0;
-                    for (target_path) |c|
-                    { if (c < '0' or c > '9') is_melt = false;
+                    var is_melt = target_path.len > 0 and !editing_active_node;
+                    if (is_melt) {
+                        for (target_path) |c| { if (c < '0' or c > '9') is_melt = false; }
                     }
 
                     var resolved_alloc: ?[]u8 = null;
@@ -1111,9 +1093,25 @@ pub fn main() !void {
 
                     sys_composer.open(target_path);
                     
-                    sys_hunter.mutex.lock();
-                    sys_hunter.history.items[sys_hunter.history_index].is_open = true;
-                    sys_hunter.mutex.unlock();
+                    if (editing_active_node) {
+                        sys_hunter.mutex.lock();
+                        var node = &sys_hunter.history.items[sys_hunter.history_index];
+                        var exp_loaded = false;
+                        if (getExpPath(void_allocator, node.uri)) |exp_path| {
+                            if (std.fs.cwd().openFile(exp_path, .{})) |f| {
+                                sys_composer.len = f.readAll(sys_composer.buffer) catch 0;
+                                f.close();
+                                sys_composer.dirty = node.is_dirty;
+                                sys_composer.setStatus("LOADED EXPERIMENTAL (.exp)");
+                                exp_loaded = true;
+                            } else |_| {}
+                            void_allocator.free(exp_path);
+                        }
+                        if (!exp_loaded) {
+                            node.is_open = true; 
+                        }
+                        sys_hunter.mutex.unlock();
+                    }
 
                     if (resolved_alloc) |res| {
                         sys_hunter.allocator.free(res);
@@ -1126,16 +1124,25 @@ pub fn main() !void {
             else if (std.mem.endsWith(u8, &seq_buf, ".!SV-.")) {
                 if (sys_composer.active) {
                     sys_composer.undo_reflex(5);
-                    sys_composer.save();
                     
+                    var exp_exists = false;
                     sys_hunter.mutex.lock();
-                    var node = &sys_hunter.history.items[sys_hunter.history_index];
-                    node.is_dirty = false;
+                    const node = &sys_hunter.history.items[sys_hunter.history_index];
                     if (getExpPath(void_allocator, node.uri)) |exp_path| {
-                        std.fs.cwd().deleteFile(exp_path) catch {};
+                        if (std.fs.cwd().access(exp_path, .{})) |_| {
+                            exp_exists = true;
+                        } else |_| {}
                         void_allocator.free(exp_path);
                     }
+                    if (node.is_open) exp_exists = true; // Fallback guarantee
                     sys_hunter.mutex.unlock();
+                    
+                    if (exp_exists) {
+                        is_exp_save_modal = true;
+                        sys_composer.setStatus("AWAITING EXPERIMENTAL SAVE DIRECTIVE");
+                    } else {
+                        sys_composer.save();
+                    }
                     
                     reflex_triggered = true;
                 }
@@ -1155,6 +1162,48 @@ pub fn main() !void {
             }
 
             if (reflex_triggered) continue;
+            
+            if (is_exp_save_modal) {
+                if (byte == 'o' or byte == 'O') {
+                    sys_composer.save();
+                    sys_hunter.mutex.lock();
+                    var node = &sys_hunter.history.items[sys_hunter.history_index];
+                    node.is_open = false;
+                    node.is_dirty = false;
+                    if (getExpPath(void_allocator, node.uri)) |exp_path| {
+                        std.fs.cwd().deleteFile(exp_path) catch {};
+                        void_allocator.free(exp_path);
+                    }
+                    sys_hunter.mutex.unlock();
+                    is_exp_save_modal = false;
+                    journal_len = 0;
+                } else if (byte == 'c' or byte == 'C') {
+                    sys_hunter.mutex.lock();
+                    var node = &sys_hunter.history.items[sys_hunter.history_index];
+                    node.is_open = true;
+                    if (getExpPath(void_allocator, node.uri)) |exp_path| {
+                        if (std.fs.cwd().createFile(exp_path, .{})) |f| {
+                            f.writeAll(sys_composer.buffer[0..sys_composer.len]) catch {};
+                            f.close();
+                        } else |_| {}
+                        void_allocator.free(exp_path);
+                    }
+                    node.is_dirty = false;
+                    sys_hunter.mutex.unlock();
+                    
+                    sys_composer.dirty = false;
+                    sys_composer.edits_since_save = 0;
+                    sys_composer.setStatus("SAVED TO .EXP MATRIX");
+                    is_exp_save_modal = false;
+                    journal_len = 0;
+                } else if (byte == 27 or byte == '\n' or byte == '\r') { 
+                    is_exp_save_modal = false;
+                    sys_composer.setStatus("SAVE CANCELLED");
+                    journal_len = 0;
+                }
+                continue;
+            }
+            
             if (sys_composer.active) {
                 if (byte == 127 or byte == 8) {
                     sys_composer.backspace();
@@ -1638,6 +1687,26 @@ pub fn main() !void {
                 drawHeader(is_high_cycle); // Global OS header parity overlay
                 sys_composer.render(&back_buffer, WIDTH, HEIGHT);
                 sys_hunter.renderTimeline(&back_buffer, WIDTH, HEIGHT);
+                
+                if (is_exp_save_modal) {
+                    const effective_width = WIDTH - 200;
+                    const mw = 480;
+                    const mh = 140; 
+                    const mx = (effective_width / 2) - (mw / 2);
+                    const my = HEIGHT / 2 - (mh / 2);
+                    
+                    drawRect(mx - 2, my - 2, mw + 4, mh + 2, codex.get("B.S")); 
+                    drawRect(mx, my, mw, mh, codex.get("K.S")); 
+                    
+                    print(mx + 20, my + 20, "[ EXPERIMENTAL MATRIX ACTIVE ]", codex.get("B.S"));
+                    drawRect(mx + 20, my + 35, mw - 40, 1, codex.get("K.H"));
+                    
+                    print(mx + 20, my + 55, "This artifact possesses a detached .exp stasis.", codex.get("S.S"));
+                    print(mx + 20, my + 80, "[O] OVERWRITE ORIGIN & VOID .EXP", codex.get("C.S"));
+                    print(mx + 20, my + 100, "[C] CONTINUE SAVING AS .EXP", codex.get("S.H"));
+                    print(mx + 20, my + 120, "[ESC] CANCEL", codex.get("K.H"));
+                }
+                
                 drawPulseOverlay();
             } else {
                 drawHeader(is_high_cycle);
