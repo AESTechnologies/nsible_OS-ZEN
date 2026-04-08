@@ -1,8 +1,8 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Module",
-//   version: "0.11.3-apex // Banysang",
+//   version: "0.11.5-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Restored missing loadHistory and saveHistory autonomous routines. Fixed struct field alignments to natively respect the spatial TimelineNode.",
+//   changes: "Restored philotic weighting to Timeline Rail tabs. Restored active status text readout in renderTimeline.",
 //   philotic_inferences: "The timeline is no longer a trail; it is a spatial workspace. Form dictates function."
 
 const std = @import("std");
@@ -1052,7 +1052,12 @@ pub const Hunter = struct {
             
             if (std.mem.indexOf(u8, node.uri, ".void") != null) color = codex.get("K.H");
 
-            var weight_px: usize = 3; 
+            var weight_px: usize = 3;
+            if (self.philote_map.get(node.uri)) |w| {
+                weight_px += @as(usize, @intCast(w));
+                if (weight_px > 30) weight_px = 30; // Hard cap
+            }
+            
             if (self.active and idx == self.history_index) {
                 weight_px += 8;
                 color = codex.get("S.H");
@@ -1067,6 +1072,24 @@ pub const Hunter = struct {
                 } 
             }
             t_y += 10;
+        }
+
+        if (self.active) {
+            var sx: usize = width - 180;
+            const sy: usize = height - 15; var status_buf: [64]u8 = undefined;
+            const scope_str = switch (self.lens.focus_depth) { 0 => "[RAW]", 1 => "[ZEN]", 2 => "[MATRIX]", 3 => "[ROOT]", else => "[?]" };
+            const final_status = std.fmt.bufPrint(&status_buf, "{s} {s}", .{self.status, scope_str}) catch self.status;
+            
+            var status_col: u32 = codex.get("C.S");
+            if (std.mem.indexOf(u8, self.status, "VOID") != null) {
+                status_col = codex.get("K.H");
+            } else if (std.mem.indexOf(u8, self.status, "FETCHING") != null or std.mem.indexOf(u8, self.status, "PIPING") != null) {
+                status_col = codex.get("B.S");
+            }
+            
+            for (final_status) |c| { 
+                drawCharToBuf(buffer, width, height, sx, sy, c, status_col); sx += 8; 
+            }
         }
     }
     
