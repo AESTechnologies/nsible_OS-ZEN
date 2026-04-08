@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.11.4-apex // Banysang",
+//   version: "v0.11.5-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Corrected .!T<-. and .!T>-. to properly stash and close Composer. Implemented experimental matrix (.exp) verity prompt on .!SV-.",
+//   changes: "Fixed getExpPath to exactly swap the artifact's extension for .exp, eliminating double-dot anomalies.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -75,20 +75,34 @@ fn getExpPath(allocator: std.mem.Allocator, uri: []const u8) ?[]u8 {
             clean_path = clean_path[4..];
         }
     }
+    
     if (std.mem.startsWith(u8, clean_path, "memo://")) {
         const ts = clean_path[7..];
-        return std.fmt.allocPrint(allocator, "timeline/mems/.{s}.exp", .{ts}) catch null;
+        var base_ts: []const u8 = ts;
+        if (std.mem.lastIndexOfScalar(u8, ts, '.')) |dot_idx| {
+            if (dot_idx > 0) base_ts = ts[0..dot_idx];
+        }
+        return std.fmt.allocPrint(allocator, "timeline/mems/{s}.exp", .{base_ts}) catch null;
     }
+    
     var dir: []const u8 = "";
     var file: []const u8 = clean_path;
     if (std.mem.lastIndexOfScalar(u8, clean_path, '/')) |idx| {
         dir = clean_path[0..idx];
         file = clean_path[idx + 1 ..];
     }
+    
+    var base_name: []const u8 = file;
+    if (std.mem.lastIndexOfScalar(u8, file, '.')) |dot_idx| {
+        if (dot_idx > 0) { // Strip existing extension for .exp swap
+            base_name = file[0..dot_idx];
+        }
+    }
+    
     if (dir.len > 0) {
-        return std.fmt.allocPrint(allocator, "{s}/.{s}.exp", .{dir, file}) catch null;
+        return std.fmt.allocPrint(allocator, "{s}/{s}.exp", .{dir, base_name}) catch null;
     } else {
-        return std.fmt.allocPrint(allocator, ".{s}.exp", .{file}) catch null;
+        return std.fmt.allocPrint(allocator, "{s}.exp", .{base_name}) catch null;
     }
 }
 
@@ -109,10 +123,51 @@ fn switchTab(h: *hunter.Hunter, c: *composer.Composer, dir: i32, allocator: std.
             allocator.free(exp_path);
         }
         h.mutex.unlock();
-        c.active = false; // Strictly close Composer on Tab Switch
+        c.active = false;
     }
 
     h.navigateHistory(dir) catch {};
+
+    const new_idx = h.history_index;
+    if (new_idx == old_idx) return;
+
+    h.mutex.lock();
+    const new_node = &h.history.items[new_idx];
+    const is_open = new_node.is_open;
+    const is_dirty = new_node.is_dirty;
+    const new_uri = h.allocator.dupe(u8, new_node.uri) catch {
+        h.mutex.unlock();
+        return;
+    };
+    h.mutex.unlock();
+
+    if (c.active or is_open) {
+        var loaded_exp = false;
+        if (getExpPath(allocator, new_uri)) |exp_path| {
+            if (std.fs.cwd().openFile(exp_path, .{})) |f| {
+                c.len = f.readAll(c.buffer) catch 0;
+                f.close();
+                
+                const p_len = @min(new_uri.len, 256);
+                @memcpy(c.filepath[0..p_len], new_uri[0..p_len]);
+                c.filepath_len = p_len;
+                
+                c.active = true;
+                c.dirty = is_dirty;
+                c.setStatus("LOADED FROM .EXP MATRIX");
+                loaded_exp = true;
+            } else |_| {}
+            allocator.free(exp_path);
+        }
+        
+        if (!loaded_exp) {
+            c.open(new_uri);
+            h.mutex.lock();
+            h.history.items[new_idx].is_open = true;
+            h.mutex.unlock();
+        }
+    }
+    h.allocator.free(new_uri);
 }
 
 fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
@@ -1134,7 +1189,7 @@ pub fn main() !void {
                         } else |_| {}
                         void_allocator.free(exp_path);
                     }
-                    if (node.is_open) exp_exists = true; // Fallback guarantee
+                    if (node.is_open) exp_exists = true; 
                     sys_hunter.mutex.unlock();
                     
                     if (exp_exists) {
@@ -1689,7 +1744,7 @@ pub fn main() !void {
                 sys_hunter.renderTimeline(&back_buffer, WIDTH, HEIGHT);
                 
                 if (is_exp_save_modal) {
-                    const effective_width = WIDTH - 200;
+                    const effective_width = WIDTH - 65;
                     const mw = 480;
                     const mh = 140; 
                     const mx = (effective_width / 2) - (mw / 2);
