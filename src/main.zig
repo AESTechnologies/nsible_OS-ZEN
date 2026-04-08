@@ -893,19 +893,6 @@ pub fn main() !void {
                         }
                         esc_len = 0;
                         continue;
-                    } else if (esc_len == 6 and esc_seq[1] == '[' and esc_seq[2] == '1' and esc_seq[3] == ';') {
-                        // ^:: SHIFT / ALT SPATIAL TRAP <<dev:archx m_txr.Gem3P>>\.
-                        if (esc_seq[4] == '2') { // SHIFT MODIFIER
-                            if (byte == 'A') { sys_hunter.shiftNode(-1); }
-                            else if (byte == 'B') { sys_hunter.shiftNode(1); }
-                            else if (byte == 'C') { switchTab(&sys_hunter, &sys_composer, 1, void_allocator); }
-                            else if (byte == 'D') { switchTab(&sys_hunter, &sys_composer, -1, void_allocator); }
-                        } else if (esc_seq[4] == '3') { // ALT MODIFIER
-                            if (byte == 'A') { sys_hunter.cycleNodeColor(1); }
-                            else if (byte == 'B') { sys_hunter.cycleNodeColor(-1); }
-                        }
-                        esc_len = 0;
-                        continue;
                     } else if (esc_len == 2 and byte != '[') {
                         if (is_bash_pipe) { is_bash_pipe = false;
                         journal_len = 0; }
@@ -1011,6 +998,31 @@ pub fn main() !void {
                     exitSequence();
                 }
             } 
+            else if (std.mem.endsWith(u8, &seq_buf, ".!T<-.")) {
+                switchTab(&sys_hunter, &sys_composer, -1, void_allocator);
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                reflex_triggered = true;
+            }
+            else if (std.mem.endsWith(u8, &seq_buf, ".!T>-.")) {
+                switchTab(&sys_hunter, &sys_composer, 1, void_allocator);
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                reflex_triggered = true;
+            }
+            else if (std.mem.endsWith(u8, &seq_buf, ".!R^-.")) {
+                sys_hunter.shiftNode(-1);
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                reflex_triggered = true;
+            }
+            else if (std.mem.endsWith(u8, &seq_buf, ".!Rv-.")) {
+                sys_hunter.shiftNode(1);
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                reflex_triggered = true;
+            }
+            else if (std.mem.endsWith(u8, &seq_buf, ".!C+-.")) {
+                sys_hunter.cycleNodeColor(1);
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                reflex_triggered = true;
+            }
             else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) { sys_hunter.shiftScope(1);
             if (journal_len >= 4) journal_len -= 4; reflex_triggered = true;
             } 
@@ -1771,9 +1783,9 @@ pub fn main() !void {
                     print(ax + 20, ay + 110, "w3?. <query> : Global Matrix Search", codex.get("S.H"));
                     print(ax + 20, ay + 130, "<Number>     : MELT Traverse (Follow Link [x])", codex.get("C.S"));
                     print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", codex.get("B.S"));
-                    print(ax + 20, ay + 170, "[SHIFT][<] / [>] : Switch Timeline Tab (even in Composer)", codex.get("S.H"));
-                    print(ax + 20, ay + 190, "[SHIFT][v] / [^] : Shift Node Position on Timeline Rail", codex.get("S.H"));
-                    print(ax + 20, ay + 210, "[ALT][v] / [^]   : Cycle Node Color Identity", codex.get("S.H"));
+                    print(ax + 20, ay + 170, ".!T<-. / .!T>-.  : Switch Timeline Tab (even in Composer)", codex.get("S.H"));
+                    print(ax + 20, ay + 190, ".!R^-. / .!Rv-.  : Shift Node Position on Timeline Rail", codex.get("S.H"));
+                    print(ax + 20, ay + 210, ".!C+-.           : Cycle Node Color Identity", codex.get("S.H"));
                     print(ax + 20, ay + 230, "[ ARTIFACT FORGE & GZL ]", codex.get("S.S"));
                     print(ax + 20, ay + 250, "memo <txt>   : Quick Operator Artifact", codex.get("S.H"));
                     print(ax + 20, ay + 270, "<Title> //-. : Title & Save Artifact", codex.get("S.H"));
