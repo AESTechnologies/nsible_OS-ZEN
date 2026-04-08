@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.10.37-apex // Banysang",
+//   version: "v0.11.0-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Refactored core rendering pipeline to dynamically source sovereign palette via codex.get(). Eliminated all hardcoded hex values.",
+//   changes: "Wired 6-byte ANSI sequences for Shift/Alt spatial manipulation. Engineered the .exp swap protocol for infinite open workspace states.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -40,7 +40,7 @@ var radio_f0: f32 = 432.0;
 var radio_decay: f32 = 2.5;
 var radio_diss: f32 = 0.45;
 var radio_phi: f32 = 1.618;
-var radio_sel: u8 = 0;
+var radio_sel: u8 = 0; 
 var pulse_timer: usize = 0; 
 const PULSE_MAX: usize = 120;
 //^::SEEDED AUD.IO STATE<<dev:archx m_txr.Gem3P>>\.
@@ -61,6 +61,92 @@ pub const @"aud.stateT.io" = struct {
 	vis_data: [32]f32 = .{0.0} ** 32,
 };
 var @"aud.state.io":@"aud.stateT.io" = .{}; //:X
+
+fn getExpPath(allocator: std.mem.Allocator, uri: []const u8) ?[]u8 {
+    var clean_path: []const u8 = uri;
+    if (std.mem.startsWith(u8, clean_path, "@://mchn/")) {
+        clean_path = clean_path[9..];
+    } else if (std.mem.startsWith(u8, clean_path, "mchn/")) {
+        clean_path = clean_path[5..];
+    } else if (std.mem.startsWith(u8, clean_path, "@://")) {
+        if (std.mem.indexOfScalar(u8, clean_path[4..], '/')) |idx| {
+            clean_path = clean_path[4 + idx + 1..];
+        } else {
+            clean_path = clean_path[4..];
+        }
+    }
+    var dir: []const u8 = "";
+    var file: []const u8 = clean_path;
+    if (std.mem.lastIndexOfScalar(u8, clean_path, '/')) |idx| {
+        dir = clean_path[0..idx];
+        file = clean_path[idx + 1 ..];
+    }
+    if (dir.len > 0) {
+        return std.fmt.allocPrint(allocator, "{s}/.{s}.exp", .{dir, file}) catch null;
+    } else {
+        return std.fmt.allocPrint(allocator, ".{s}.exp", .{file}) catch null;
+    }
+}
+
+fn switchTab(h: *hunter.Hunter, c: *composer.Composer, dir: i32, allocator: std.mem.Allocator) void {
+    if (h.history.items.len == 0) return;
+    const old_idx = h.history_index;
+    
+    if (c.active) {
+        h.mutex.lock();
+        var node = &h.history.items[old_idx];
+        node.is_open = true;
+        node.is_dirty = c.dirty;
+        if (getExpPath(allocator, node.uri)) |exp_path| {
+            if (std.fs.cwd().createFile(exp_path, .{})) |f| {
+                f.writeAll(c.buffer[0..c.len]) catch {};
+                f.close();
+            } else |_| {}
+            allocator.free(exp_path);
+        }
+        h.mutex.unlock();
+    }
+
+    h.navigateHistory(dir) catch {};
+
+    const new_idx = h.history_index;
+    if (new_idx == old_idx) return;
+
+    h.mutex.lock();
+    var new_node = &h.history.items[new_idx];
+    const new_uri = h.allocator.dupe(u8, new_node.uri) catch return;
+    const is_open = new_node.is_open;
+    const is_dirty = new_node.is_dirty;
+    h.mutex.unlock();
+
+    if (c.active or is_open) {
+        var loaded_exp = false;
+        if (getExpPath(allocator, new_uri)) |exp_path| {
+            if (std.fs.cwd().openFile(exp_path, .{})) |f| {
+                c.len = f.readAll(c.buffer) catch 0;
+                f.close();
+                
+                const p_len = @min(new_uri.len, 256);
+                @memcpy(c.filepath[0..p_len], new_uri[0..p_len]);
+                c.filepath_len = p_len;
+                
+                c.active = true;
+                c.dirty = is_dirty;
+                c.setStatus("LOADED FROM .EXP MATRIX");
+                loaded_exp = true;
+            } else |_| {}
+            allocator.free(exp_path);
+        }
+        
+        if (!loaded_exp) {
+            c.open(new_uri);
+            h.mutex.lock();
+            h.history.items[new_idx].is_open = true;
+            h.mutex.unlock();
+        }
+    }
+    h.allocator.free(new_uri);
+}
 
 fn appendAudQueue(allocator: std.mem.Allocator, target_path: []const u8) void {
     const cwd = std.fs.cwd();
@@ -536,7 +622,7 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 pub fn main() !void {
     //^:: BLAST DOORS - THE SIGINT/SIGTSTP KERNEL TRAP<<dev:archx m_txr.Gem3P>>\.
     var sa = std.mem.zeroes(linux.Sigaction);
-    sa.handler = .{ .handler = @as(?*const fn (i32) callconv(.c) void, @ptrFromInt(1)) };
+    sa.handler = .{ .handler = @as(?*const fn (i32) callconv(.c) void, @ptrFromInt(1)) }; 
     _ = linux.sigaction(2, &sa, null);  // Lock SIGINT  (^C)
     _ = linux.sigaction(3, &sa, null);  // Lock SIGQUIT (^\)
     _ = linux.sigaction(20, &sa, null); // Lock SIGTSTP (^Z)
@@ -550,9 +636,9 @@ pub fn main() !void {
     { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("assets/aud.io") catch |err|
     { if (err != error.PathAlreadyExists) {} };
-// <<dev:archx-MMXXVINIVNII:IVNXLIV>>: Refactor to anchor timeline/.aiua.tome in the timeline dir.
-    if (fs.access("timeline/.aiua.tome", .{})) |_| {} else |_|
-    { if (fs.createFile("timeline/.aiua.tome", .{})) |f|
+
+	// <<dev:archx-MMXXVINIVNII:IVNXLIV>>: Refactor to anchor timeline/.aiua.tome in the timeline dir.
+    if (fs.access("timeline/.aiua.tome", .{})) |_| {} else |_| { if (fs.createFile("timeline/.aiua.tome", .{})) |f|
     { f.close(); } else |_|
     {} }
     
@@ -646,7 +732,7 @@ pub fn main() !void {
     if (sys_hunter.history.items.len == 0) { is_tabula_rasa = true;
     } 
     else {
-        const first_entry = sys_hunter.history.items[0];
+        const first_entry = sys_hunter.history.items[0].uri;
         if (!std.mem.startsWith(u8, first_entry, "@AVIUM_RESONANCE:")) { is_tabula_rasa = true; }
     }
     
@@ -708,8 +794,7 @@ pub fn main() !void {
                 journal_len = 0; }
                 else if (is_bash_modal) { is_bash_modal = false;
                 }
-                else if (is_void_modal) { is_void_modal = false;
-                }
+                else if (is_void_modal) { is_void_modal = false; }
                 
                 esc_len = 0;
                 esc_timer = 0;
@@ -784,7 +869,7 @@ pub fn main() !void {
                             esc_len = 0;
                             }
                         continue;
-                        } else if (esc_len == 4 and esc_seq[1] == '[' and esc_seq[2] >= '0' and esc_seq[2] <= '9' and byte == '~') {
+                    } else if (esc_len == 4 and esc_seq[1] == '[' and esc_seq[2] >= '0' and esc_seq[2] <= '9' and byte == '~') {
                         if (sys_composer.active) {
                             if (esc_seq[2] == '3') { sys_composer.deleteChar();
                             }
@@ -805,6 +890,19 @@ pub fn main() !void {
                         }
                         esc_len = 0;
                         continue;
+                    } else if (esc_len == 6 and esc_seq[1] == '[' and esc_seq[2] == '1' and esc_seq[3] == ';') {
+                        // ^:: SHIFT / ALT SPATIAL TRAP <<dev:archx m_txr.Gem3P>>\.
+                        if (esc_seq[4] == '2') { // SHIFT MODIFIER
+                            if (byte == 'A') { sys_hunter.shiftNode(-1); }
+                            else if (byte == 'B') { sys_hunter.shiftNode(1); }
+                            else if (byte == 'C') { switchTab(&sys_hunter, &sys_composer, 1, void_allocator); }
+                            else if (byte == 'D') { switchTab(&sys_hunter, &sys_composer, -1, void_allocator); }
+                        } else if (esc_seq[4] == '3') { // ALT MODIFIER
+                            if (byte == 'A') { sys_hunter.cycleNodeColor(1); }
+                            else if (byte == 'B') { sys_hunter.cycleNodeColor(-1); }
+                        }
+                        esc_len = 0;
+                        continue;
                     } else if (esc_len == 2 and byte != '[') {
                         if (is_bash_pipe) { is_bash_pipe = false;
                         journal_len = 0; }
@@ -821,7 +919,7 @@ pub fn main() !void {
                         else if (is_assist_modal) { is_assist_modal = false;
                         }
                         else if (is_void_modal) { 
-                            is_void_modal = false;
+                            is_void_modal = false; 
                             sys_hunter.status = "[ VOID CANCELLED ]"; 
                             journal_len = 0; 
                         }
@@ -862,12 +960,32 @@ pub fn main() !void {
                         const now = std.time.milliTimestamp();
                         if (now - sys_composer.last_xx_ms < 3000) {
                             sys_composer.active = false;
+                            
+                            sys_hunter.mutex.lock();
+                            var node = &sys_hunter.history.items[sys_hunter.history_index];
+                            node.is_open = false;
+                            node.is_dirty = false;
+                            if (getExpPath(void_allocator, node.uri)) |exp_path| {
+                                std.fs.cwd().deleteFile(exp_path) catch {};
+                                void_allocator.free(exp_path);
+                            }
+                            sys_hunter.mutex.unlock();
                         } else {
                             sys_composer.setStatus("UNSAVED! .!XX-. AGAIN TO DISCARD");
                             sys_composer.last_xx_ms = now;
                         }
                     } else {
                         sys_composer.active = false;
+                        
+                        sys_hunter.mutex.lock();
+                        var node = &sys_hunter.history.items[sys_hunter.history_index];
+                        node.is_open = false;
+                        node.is_dirty = false;
+                        if (getExpPath(void_allocator, node.uri)) |exp_path| {
+                            std.fs.cwd().deleteFile(exp_path) catch {};
+                            void_allocator.free(exp_path);
+                        }
+                        sys_hunter.mutex.unlock();
                     }
                     reflex_triggered = true;
                 } else if (is_bash_modal) {
@@ -977,6 +1095,11 @@ pub fn main() !void {
                     }
 
                     sys_composer.open(target_path);
+                    
+                    sys_hunter.mutex.lock();
+                    sys_hunter.history.items[sys_hunter.history_index].is_open = true;
+                    sys_hunter.mutex.unlock();
+
                     if (resolved_alloc) |res| {
                         sys_hunter.allocator.free(res);
                     }
@@ -989,11 +1112,21 @@ pub fn main() !void {
                 if (sys_composer.active) {
                     sys_composer.undo_reflex(5);
                     sys_composer.save();
+                    
+                    sys_hunter.mutex.lock();
+                    var node = &sys_hunter.history.items[sys_hunter.history_index];
+                    node.is_dirty = false;
+                    if (getExpPath(void_allocator, node.uri)) |exp_path| {
+                        std.fs.cwd().deleteFile(exp_path) catch {};
+                        void_allocator.free(exp_path);
+                    }
+                    sys_hunter.mutex.unlock();
+                    
                     reflex_triggered = true;
                 }
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!SR-.")) {
-                sys_hunter.toggleSort();
+                sys_hunter.hunt(".!SR-.") catch {};
                 if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 reflex_triggered = true;
             }
@@ -1038,8 +1171,7 @@ pub fn main() !void {
                         var id_buf: [128]u8 = undefined;
                         const id_str = std.fmt.bufPrint(&id_buf, "@AVIUM_RESONANCE:[{s}]//SOCIUS:{s}", .{sik_buf, socius_alias}) catch "@AVIUM_RESONANCE:ERR";
                         sys_hunter.mutex.lock();
-                        const duped_id = sys_hunter.allocator.dupe(u8, id_str) catch { sys_hunter.mutex.unlock(); continue; };
-                        sys_hunter.history.insert(sys_hunter.allocator, 0, duped_id) catch { sys_hunter.allocator.free(duped_id); };
+                        sys_hunter.appendNode(id_str) catch {};
                         sys_hunter.mutex.unlock();
                         
                         sys_hunter.createMemo("Genesis", "Avium Resonance Bound. Matrix Sealed.") catch {};
@@ -1490,6 +1622,7 @@ pub fn main() !void {
             if (sys_composer.active) {
                 drawHeader(is_high_cycle); // Global OS header parity overlay
                 sys_composer.render(&back_buffer, WIDTH, HEIGHT);
+                sys_hunter.renderTimeline(&back_buffer, WIDTH, HEIGHT);
                 drawPulseOverlay();
             } else {
                 drawHeader(is_high_cycle);
@@ -1635,9 +1768,9 @@ pub fn main() !void {
                     print(ax + 20, ay + 110, "w3?. <query> : Global Matrix Search", codex.get("S.H"));
                     print(ax + 20, ay + 130, "<Number>     : MELT Traverse (Follow Link [x])", codex.get("C.S"));
                     print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", codex.get("B.S"));
-                    print(ax + 20, ay + 170, "[<] / [>]    : Navigate Timeline History", codex.get("S.H"));
-                    print(ax + 20, ay + 190, "v / ^        : Scroll Active Matrix down/up", codex.get("S.H"));
-                    print(ax + 20, ay + 210, ".!SR-.       : Toggle MELT Sort (Name/Date)", codex.get("B.S"));
+                    print(ax + 20, ay + 170, "[SHIFT][<] / [>] : Switch Timeline Tab (even in Composer)", codex.get("S.H"));
+                    print(ax + 20, ay + 190, "[SHIFT][v] / [^] : Shift Node Position on Timeline Rail", codex.get("S.H"));
+                    print(ax + 20, ay + 210, "[ALT][v] / [^]   : Cycle Node Color Identity", codex.get("S.H"));
                     print(ax + 20, ay + 230, "[ ARTIFACT FORGE & GZL ]", codex.get("S.S"));
                     print(ax + 20, ay + 250, "memo <txt>   : Quick Operator Artifact", codex.get("S.H"));
                     print(ax + 20, ay + 270, "<Title> //-. : Title & Save Artifact", codex.get("S.H"));
@@ -1651,7 +1784,7 @@ pub fn main() !void {
                     print(ax + 440, ay + 130, "radio / tune : Philotic Resonance Tuning", codex.get("S.H"));
                     print(ax + 440, ay + 150, ".!@&-.       : Force Cache Reload", codex.get("B.S"));
                     print(ax + 440, ay + 170, "cycle        : Print Local Tempus", codex.get("S.H"));
-                    print(ax + 440, ay + 190, ".!XX-. / exit: Terminate Matrix", codex.get("S.H"));
+                    print(ax + 440, ay + 190, ".!XX-. / exit: Terminate Matrix / Close Tab", codex.get("S.H"));
                     drawRect(ax + 20, ay + 370, aw - 40, 1, codex.get("K.H"));
                     print(ax + 20, ay + 390, "[ AST ARITHMETIC ENGINE ]", codex.get("C.S"));
                     print(ax + 20, ay + 410, ">> STATUS : Native Recursive Descent Operational.", codex.get("K.H"));
