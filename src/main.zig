@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.11.0-apex // Banysang",
+//   version: "v0.11.1-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Wired 6-byte ANSI sequences for Shift/Alt spatial manipulation. Engineered the .exp swap protocol for infinite open workspace states.",
+//   changes: "Rectified const mutation compiler trap in switchTab. Patched silent mutex deadlock risk.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -113,10 +113,13 @@ fn switchTab(h: *hunter.Hunter, c: *composer.Composer, dir: i32, allocator: std.
     if (new_idx == old_idx) return;
 
     h.mutex.lock();
-    var new_node = &h.history.items[new_idx];
-    const new_uri = h.allocator.dupe(u8, new_node.uri) catch return;
+    const new_node = &h.history.items[new_idx];
     const is_open = new_node.is_open;
     const is_dirty = new_node.is_dirty;
+    const new_uri = h.allocator.dupe(u8, new_node.uri) catch {
+        h.mutex.unlock();
+        return;
+    };
     h.mutex.unlock();
 
     if (c.active or is_open) {
