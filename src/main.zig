@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.11.5-apex // Banysang",
+//   version: "v0.11.6-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Fixed getExpPath to exactly swap the artifact's extension for .exp, eliminating double-dot anomalies.",
+//   changes: "Severed Composer .exp logic from Hunter history index. Matrix stashing now strictly utilizes Composer's active filepath to prevent target desync after background fetches.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -115,10 +115,24 @@ fn switchTab(h: *hunter.Hunter, c: *composer.Composer, dir: i32, allocator: std.
     
     if (c.active) {
         h.mutex.lock();
-        var node = &h.history.items[old_idx];
-        node.is_open = true;
-        node.is_dirty = c.dirty;
-        if (getExpPath(allocator, node.uri)) |exp_path| {
+        const c_path = c.filepath[0..c.filepath_len];
+        
+        var target_node: ?*hunter.Hunter.TimelineNode = null;
+        var i: usize = h.history.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (std.mem.endsWith(u8, h.history.items[i].uri, c_path)) {
+                target_node = &h.history.items[i];
+                break;
+            }
+        }
+        
+        if (target_node) |node| {
+            node.is_open = true;
+            node.is_dirty = c.dirty;
+        }
+        
+        if (getExpPath(allocator, c_path)) |exp_path| {
             if (std.fs.cwd().createFile(exp_path, .{})) |f| {
                 f.writeAll(c.buffer[0..c.len]) catch {};
                 f.close();
@@ -884,10 +898,18 @@ pub fn main() !void {
                         if (now - sys_composer.last_xx_ms < 3000) {
                             sys_composer.active = false;
                             sys_hunter.mutex.lock();
-                            var node = &sys_hunter.history.items[sys_hunter.history_index];
-                            node.is_open = false;
-                            node.is_dirty = false;
-                            if (getExpPath(void_allocator, node.uri)) |exp_path| {
+                            const c_path = sys_composer.filepath[0..sys_composer.filepath_len];
+                            var i: usize = sys_hunter.history.items.len;
+                            while (i > 0) {
+                                i -= 1;
+                                if (std.mem.endsWith(u8, sys_hunter.history.items[i].uri, c_path)) {
+                                    var node = &sys_hunter.history.items[i];
+                                    node.is_open = false;
+                                    node.is_dirty = false;
+                                    break;
+                                }
+                            }
+                            if (getExpPath(void_allocator, c_path)) |exp_path| {
                                 std.fs.cwd().deleteFile(exp_path) catch {};
                                 void_allocator.free(exp_path);
                             }
@@ -899,10 +921,18 @@ pub fn main() !void {
                     } else {
                         sys_composer.active = false;
                         sys_hunter.mutex.lock();
-                        var node = &sys_hunter.history.items[sys_hunter.history_index];
-                        node.is_open = false;
-                        node.is_dirty = false;
-                        if (getExpPath(void_allocator, node.uri)) |exp_path| {
+                        const c_path = sys_composer.filepath[0..sys_composer.filepath_len];
+                        var i: usize = sys_hunter.history.items.len;
+                        while (i > 0) {
+                            i -= 1;
+                            if (std.mem.endsWith(u8, sys_hunter.history.items[i].uri, c_path)) {
+                                var node = &sys_hunter.history.items[i];
+                                node.is_open = false;
+                                node.is_dirty = false;
+                                break;
+                            }
+                        }
+                        if (getExpPath(void_allocator, c_path)) |exp_path| {
                             std.fs.cwd().deleteFile(exp_path) catch {};
                             void_allocator.free(exp_path);
                         }
@@ -1092,14 +1122,23 @@ pub fn main() !void {
                     sys_composer.undo_reflex(5);
                     var exp_exists = false;
                     sys_hunter.mutex.lock();
-                    const node = &sys_hunter.history.items[sys_hunter.history_index];
-                    if (getExpPath(void_allocator, node.uri)) |exp_path| {
+                    const c_path = sys_composer.filepath[0..sys_composer.filepath_len];
+                    
+                    if (getExpPath(void_allocator, c_path)) |exp_path| {
                         if (std.fs.cwd().access(exp_path, .{})) |_| {
                             exp_exists = true;
                         } else |_| {}
                         void_allocator.free(exp_path);
                     }
-                    if (node.is_open) exp_exists = true;
+                    
+                    var i: usize = sys_hunter.history.items.len;
+                    while (i > 0) {
+                        i -= 1;
+                        if (std.mem.endsWith(u8, sys_hunter.history.items[i].uri, c_path)) {
+                            if (sys_hunter.history.items[i].is_open) exp_exists = true;
+                            break;
+                        }
+                    }
                     sys_hunter.mutex.unlock();
                     
                     if (exp_exists) {
@@ -1131,10 +1170,18 @@ pub fn main() !void {
                 if (byte == 'o' or byte == 'O') {
                     sys_composer.save();
                     sys_hunter.mutex.lock();
-                    var node = &sys_hunter.history.items[sys_hunter.history_index];
-                    node.is_open = false;
-                    node.is_dirty = false;
-                    if (getExpPath(void_allocator, node.uri)) |exp_path| {
+                    const c_path = sys_composer.filepath[0..sys_composer.filepath_len];
+                    var i: usize = sys_hunter.history.items.len;
+                    while (i > 0) {
+                        i -= 1;
+                        if (std.mem.endsWith(u8, sys_hunter.history.items[i].uri, c_path)) {
+                            var node = &sys_hunter.history.items[i];
+                            node.is_open = false;
+                            node.is_dirty = false;
+                            break;
+                        }
+                    }
+                    if (getExpPath(void_allocator, c_path)) |exp_path| {
                         std.fs.cwd().deleteFile(exp_path) catch {};
                         void_allocator.free(exp_path);
                     }
@@ -1143,16 +1190,24 @@ pub fn main() !void {
                     journal_len = 0;
                 } else if (byte == 'c' or byte == 'C') {
                     sys_hunter.mutex.lock();
-                    var node = &sys_hunter.history.items[sys_hunter.history_index];
-                    node.is_open = true;
-                    if (getExpPath(void_allocator, node.uri)) |exp_path| {
+                    const c_path = sys_composer.filepath[0..sys_composer.filepath_len];
+                    var i: usize = sys_hunter.history.items.len;
+                    while (i > 0) {
+                        i -= 1;
+                        if (std.mem.endsWith(u8, sys_hunter.history.items[i].uri, c_path)) {
+                            var node = &sys_hunter.history.items[i];
+                            node.is_open = true;
+                            node.is_dirty = false;
+                            break;
+                        }
+                    }
+                    if (getExpPath(void_allocator, c_path)) |exp_path| {
                         if (std.fs.cwd().createFile(exp_path, .{})) |f| {
                             f.writeAll(sys_composer.buffer[0..sys_composer.len]) catch {};
                             f.close();
                         } else |_| {}
                         void_allocator.free(exp_path);
                     }
-                    node.is_dirty = false;
                     sys_hunter.mutex.unlock();
                     
                     sys_composer.dirty = false;
