@@ -11,35 +11,35 @@ const banyan = @import("banyan.zig");
 const codex = @import("codex.zig");
 const sys_root = @import("root.zig");
 
-pub const TimelineNode = struct {
-    rail_pos: usize,
-    obj_id: u64,
-    phi_stamp: i64,
-    color_id: u8,
-    color_fx: u8,
-    is_open: bool,
-    is_dirty: bool,
-    uri: []u8,
-};
-
-const TimelineList = std.ArrayListUnmanaged(TimelineNode);
-const PhiloteMap = std.StringHashMapUnmanaged(u32);
-const PageCache = std.StringHashMapUnmanaged([]u8); 
-const ExternalAgent = std.process.Child;
-
 var void_status_buf: [64]u8 = undefined;
 
-const FlightVector = struct {
-    allocator: std.mem.Allocator,
-    url: []u8,
-    result_payload: ?[]u8, 
-    is_complete: bool,    
-    success: bool,
-    is_pipe: bool,
-    pipe_target_file: ?[]u8,
-};
-
 pub const Hunter = struct {
+    pub const TimelineNode = struct {
+        rail_pos: usize,
+        obj_id: u64,
+        phi_stamp: i64,
+        color_id: u8,
+        color_fx: u8,
+        is_open: bool,
+        is_dirty: bool,
+        uri: []u8,
+    };
+
+    const TimelineList = std.ArrayListUnmanaged(TimelineNode);
+    const PhiloteMap = std.StringHashMapUnmanaged(u32);
+    const PageCache = std.StringHashMapUnmanaged([]u8); 
+    const ExternalAgent = std.process.Child;
+
+    const FlightVector = struct {
+        allocator: std.mem.Allocator,
+        url: []u8,
+        result_payload: ?[]u8, 
+        is_complete: bool,    
+        success: bool,
+        is_pipe: bool,
+        pipe_target_file: ?[]u8,
+    };
+
     allocator: std.mem.Allocator, 
     sap_fba: *std.heap.FixedBufferAllocator, 
     mutex: std.Thread.Mutex,
@@ -158,7 +158,6 @@ pub const Hunter = struct {
         defer self.mutex.unlock();
         if (self.history.items.len == 0) return;
         var node = &self.history.items[self.history_index];
-        
         if (dir > 0) {
             node.color_id = (node.color_id + 1) % 4;
         } else if (dir < 0) {
@@ -273,7 +272,6 @@ pub const Hunter = struct {
             3 => "SORT: DATE [DESC]",
             else => "SORT",
         };
-        
         if (self.history.items.len > 0) {
             const current_target = self.history.items[self.history_index].uri;
             self.executeFetch(current_target, true) catch {};
@@ -311,7 +309,6 @@ pub const Hunter = struct {
                             
                             var filename_buf: [256]u8 = undefined;
                             const final_name = std.fmt.bufPrint(&filename_buf, "{s}.{d}{s}", .{explicit_base, ts, parsed_ext}) catch "anomaly.memo";
-                            
                             if (explicit_dir.len > 0) {
                                 physical_path = std.fmt.bufPrint(&path_buf, "timeline/{s}/{s}", .{explicit_dir, final_name}) catch "timeline/mems/anomaly.memo";
                             } else {
@@ -362,7 +359,6 @@ pub const Hunter = struct {
                         var uri_buf: [512]u8 = undefined;
                         if (std.fmt.bufPrint(&uri_buf, "@://mchn/{s}", .{physical_path})) |full_uri| {
                             self.appendNode(full_uri) catch {};
-                            
                             if (std.mem.lastIndexOfScalar(u8, physical_path, '/')) |last_slash| {
                                 const dir_path = physical_path[0..last_slash];
                                 std.fs.cwd().makePath(dir_path) catch {};
@@ -439,9 +435,8 @@ pub const Hunter = struct {
         }
         
         const syn = sys_root.resolveGzlSyntax(parsed_ext);
-
         var uri_buf: [256]u8 = undefined;
-        const full_uri = try std.fmt.bufPrint(&uri_buf, "memo://{s}", .{final_title});
+        const full_uri = try std.fmt.bufPrint(&uri_buf, "memo://{s}");
         try self.appendNode(full_uri);
         
         var final_content: []const u8 = content;
@@ -460,7 +455,6 @@ pub const Hunter = struct {
             
             try file.writeAll(header);
             try file.writeAll(final_content);
-            
             var footer_buf: [128]u8 = undefined;
             const footer = sys_root.buildFooter(footer_buf[0..], syn);
             try file.writeAll(footer);
@@ -541,16 +535,13 @@ pub const Hunter = struct {
             "//   status: \"deprecated\"\n\n",
             .{target_path, ts, f_size}
         ) catch "\n// [VOID_HEADER_ERR]\n\n";
-
         void_file.writeAll(header) catch {};
         void_file.writeAll(content) catch {};
         void_file.writeAll("\n\n// }-.]\n") catch {};
-
         std.fs.cwd().deleteFile(target_path) catch {
             self.status = "VOID_ERR_DEL";
             return;
         };
-
         const size_kb = @as(f32, @floatFromInt(f_size)) / 1024.0;
         self.status = std.fmt.bufPrint(&void_status_buf, "[ VOIDED : {d:.1} KB ]", .{size_kb}) catch "[ VOIDED ]";
     }
@@ -588,15 +579,15 @@ pub const Hunter = struct {
             var base_end: usize = 0;
             if (std.mem.indexOf(u8, self.url, "://")) |scheme_idx| {
                 if (std.mem.indexOfScalarPos(u8, self.url, scheme_idx + 3, '/')) |slash_idx| { 
-                    base_end = slash_idx; 
+                    base_end = slash_idx;
                 } else { 
-                    base_end = self.url.len; 
+                    base_end = self.url.len;
                 }
             }
             if (base_end > 0) { 
-                resolved = std.fmt.bufPrint(&abs_buf, "{s}{s}", .{self.url[0..base_end], actual_target}) catch actual_target; 
+                resolved = std.fmt.bufPrint(&abs_buf, "{s}{s}", .{self.url[0..base_end], actual_target}) catch actual_target;
             } else { 
-                resolved = std.fmt.bufPrint(&abs_buf, "https://{s}", .{actual_target}) catch actual_target; 
+                resolved = std.fmt.bufPrint(&abs_buf, "https://{s}", .{actual_target}) catch actual_target;
             }
         } else {
             var base_end: usize = self.url.len;
@@ -650,7 +641,6 @@ pub const Hunter = struct {
         var is_melt = actual_url_part.len > 0;
         for (actual_url_part) |c| { if (c < '0' or c > '9') is_melt = false; }
         var actual_target: []const u8 = actual_url_part;
-        
         if (is_melt) {
             const idx = std.fmt.parseInt(usize, actual_url_part, 10) catch {
                 if (explicit_file) |ef| self.allocator.free(ef);
@@ -660,7 +650,7 @@ pub const Hunter = struct {
                 actual_target = try self.resolveMeltTarget(self.lens.links.items[idx]);
                 free_target = true;
             } else { 
-                self.status = "PIPE_ERR_VOID"; 
+                self.status = "PIPE_ERR_VOID";
                 if (explicit_file) |ef| self.allocator.free(ef);
                 return; 
             }
@@ -693,9 +683,9 @@ pub const Hunter = struct {
         defer encoded.deinit(self.allocator);
         for (query) |c| {
             if (c == ' ') { 
-                try encoded.append(self.allocator, '+'); 
+                try encoded.append(self.allocator, '+');
             } else if ((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c == '-' or c == '_' or c == '.') { 
-                try encoded.append(self.allocator, c); 
+                try encoded.append(self.allocator, c);
             } else {
                 var hex_buf: [3]u8 = undefined;
                 if (std.fmt.bufPrint(&hex_buf, "%{X:0>2}", .{c})) |hex| { try encoded.appendSlice(self.allocator, hex); } else |_| {}
@@ -724,7 +714,6 @@ pub const Hunter = struct {
         defer html_buf.deinit(self.allocator);
         const is_absolute = std.mem.startsWith(u8, path, "/");
         var is_dir = false;
-        
         if (is_absolute) { 
             if (std.fs.openDirAbsolute(path, .{})) |dir| { var d = dir; is_dir = true; d.close(); } else |_| {} 
         } else { 
@@ -741,7 +730,6 @@ pub const Hunter = struct {
                 kind: std.fs.File.Kind,
                 mtime: i128,
             };
-            
             var entries: std.ArrayListUnmanaged(DirEntry) = .{};
             defer {
                 for (entries.items) |e| self.allocator.free(e.name);
@@ -790,7 +778,8 @@ pub const Hunter = struct {
                 }
             }
 
-            try html_buf.appendSlice(self.allocator, "<b>[ DYNAMIC DISK: "); try html_buf.appendSlice(self.allocator, path); try html_buf.appendSlice(self.allocator, " ]</b><br><br>");
+            try html_buf.appendSlice(self.allocator, "<b>[ DYNAMIC DISK: ");
+            try html_buf.appendSlice(self.allocator, path); try html_buf.appendSlice(self.allocator, " ]</b><br><br>");
             for (entries.items) |entry| {
                 const icon = if (entry.kind == .directory) "[DIR ]" else "[FILE]";
                 const clean_path = if (std.mem.eql(u8, path, ".")) "" else path;
@@ -856,9 +845,11 @@ pub const Hunter = struct {
         var is_local = false;
         var local_path: []const u8 = ""; var active_prefix: []const u8 = "";
         if (std.mem.startsWith(u8, target, host_prefix)) { 
-            is_local = true; local_path = target[host_prefix.len..]; active_prefix = host_prefix; 
+            is_local = true;
+            local_path = target[host_prefix.len..]; active_prefix = host_prefix; 
         } else if (std.mem.startsWith(u8, target, mchn_prefix)) { 
-            is_local = true; local_path = target[mchn_prefix.len..]; active_prefix = mchn_prefix; 
+            is_local = true;
+            local_path = target[mchn_prefix.len..]; active_prefix = mchn_prefix; 
         }
         if (is_local) {
             self.status = "LOCAL_DISK";
@@ -868,12 +859,15 @@ pub const Hunter = struct {
         }
         if (!force_refresh) { 
             if (self.page_cache.get(target)) |cached_body| { 
-                self.status = "CACHED"; try self.parseContent(cached_body);
+                self.status = "CACHED";
+                try self.parseContent(cached_body);
                 if (self.current_vector) |_| { if (self.thread_handle) |t| t.detach(); self.current_vector = null; } 
-                self.allocator.free(self.url); self.url = try self.allocator.dupe(u8, target); return;
+                self.allocator.free(self.url);
+                self.url = try self.allocator.dupe(u8, target); return;
             } 
         }
-        const gop = try self.philote_map.getOrPut(self.allocator, target); if (!gop.found_existing) gop.value_ptr.* = 0;
+        const gop = try self.philote_map.getOrPut(self.allocator, target);
+        if (!gop.found_existing) gop.value_ptr.* = 0;
         gop.value_ptr.* += 1;
         if (self.current_vector) |_| { if (self.thread_handle) |t| t.detach(); self.current_vector = null; }
         const vector = try self.allocator.create(FlightVector);
@@ -887,7 +881,6 @@ pub const Hunter = struct {
         var is_local = false;
         var local_path_buf: [512]u8 = undefined;
         var fetch_path: []const u8 = "";
-
         if (std.mem.startsWith(u8, vector.url, "@://mchn/")) {
             const raw_path = vector.url[9..];
             fetch_path = if (raw_path.len == 0) "." else raw_path;
@@ -902,7 +895,6 @@ pub const Hunter = struct {
             if (std.fs.cwd().openFile(fetch_path, .{})) |file| {
                 if (file.readToEndAlloc(vector.allocator, 1024 * 1024 * 50)) |body| {
                     var final_body: []u8 = body;
-                    
                     if (std.mem.indexOf(u8, body, "[@://nsible_os/")) |hdr_start| {
                         if (std.mem.indexOf(u8, body[hdr_start..], "}-.]\n\n")) |hdr_end_rel| {
                             const payload_start = hdr_start + hdr_end_rel + 6;
@@ -939,7 +931,8 @@ pub const Hunter = struct {
         if (agent.spawn()) |_| { 
             if (agent.stdout) |stdout| { 
                 if (stdout.readToEndAlloc(vector.allocator, 1024 * 1024 * 2)) |body| { 
-                    _ = agent.wait() catch {}; vector.result_payload = body; vector.success = true; 
+                    _ = agent.wait() catch {};
+                    vector.result_payload = body; vector.success = true; 
                 } else |_| { vector.success = false; } 
             } 
         } else |_| { vector.success = false; }
@@ -980,7 +973,7 @@ pub const Hunter = struct {
         self.lens = banyan.Banyan.init(self.sap_fba.allocator()); try self.lens.absorb(raw);
     }
 
-    fn saveHistory(self: *Hunter) !void {
+    pub fn saveHistory(self: *Hunter) !void {
         const file = try std.fs.cwd().createFile("timeline/.aiua.tome", .{});
         defer file.close();
         for (self.history.items) |node| {
@@ -993,20 +986,18 @@ pub const Hunter = struct {
         }
     }
 
-    fn loadHistory(self: *Hunter) !void {
+    pub fn loadHistory(self: *Hunter) !void {
         const file = std.fs.cwd().openFile("timeline/.aiua.tome", .{}) catch return;
         defer file.close();
         const content = file.readToEndAlloc(self.allocator, 1024 * 1024) catch return; defer self.allocator.free(content);
         var iter = std.mem.splitScalar(u8, content, '\n');
-        
         while (iter.next()) |line| { 
-            const clean = std.mem.trim(u8, line, "\r"); 
+            const clean = std.mem.trim(u8, line, "\r");
             if (clean.len == 0) continue;
             
             var parts = std.mem.splitScalar(u8, clean, '|');
             var p_idx: usize = 0;
             var node = TimelineNode{ .rail_pos = 0, .obj_id = 0, .phi_stamp = 0, .color_id = 0, .color_fx = 0, .is_open = false, .is_dirty = false, .uri = &[_]u8{} };
-            
             while (parts.next()) |part| {
                 switch(p_idx) {
                     0 => node.rail_pos = std.fmt.parseInt(usize, part, 10) catch 0,
@@ -1034,11 +1025,11 @@ pub const Hunter = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         const start_y = 20; const end_y = height - 20;
-        const timeline_x = width - 20; var t_y: usize = start_y;
+        const timeline_x = width - 20;
+        var t_y: usize = start_y;
         
         for (self.history.items, 0..) |node, idx| {
             if (t_y >= end_y) break;
-            
             var color: u32 = switch(node.color_id) {
                 0 => codex.get("S.S"),
                 1 => codex.get("C.S"),
@@ -1049,7 +1040,6 @@ pub const Hunter = struct {
             
             if (node.is_open) color = codex.get("B.S");
             if (node.is_dirty) color = codex.get("C.S");
-            
             if (std.mem.indexOf(u8, node.uri, ".void") != null) color = codex.get("K.H");
 
             var weight_px: usize = 3;
@@ -1063,7 +1053,8 @@ pub const Hunter = struct {
                 color = codex.get("S.H");
             }
             
-            var dy: usize = 0; while (dy < 8) : (dy += 1) { 
+            var dy: usize = 0;
+            while (dy < 8) : (dy += 1) { 
                 var dx: usize = 0;
                 while (dx < weight_px) : (dx += 1) { 
                     const sx = (timeline_x + 18) - dx;
@@ -1076,7 +1067,8 @@ pub const Hunter = struct {
 
         if (self.active) {
             var sx: usize = width - 180;
-            const sy: usize = height - 15; var status_buf: [64]u8 = undefined;
+            const sy: usize = height - 15; 
+            var status_buf: [64]u8 = undefined;
             const scope_str = switch (self.lens.focus_depth) { 0 => "[RAW]", 1 => "[ZEN]", 2 => "[MATRIX]", 3 => "[ROOT]", else => "[?]" };
             const final_status = std.fmt.bufPrint(&status_buf, "{s} {s}", .{self.status, scope_str}) catch self.status;
             
@@ -1088,7 +1080,8 @@ pub const Hunter = struct {
             }
             
             for (final_status) |c| { 
-                drawCharToBuf(buffer, width, height, sx, sy, c, status_col); sx += 8; 
+                drawCharToBuf(buffer, width, height, sx, sy, c, status_col);
+                sx += 8; 
             }
         }
     }
