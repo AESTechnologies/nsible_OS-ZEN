@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.11.6-apex // Banysang",
+//   version: "v0.11.11-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Severed Composer .exp logic from Hunter history index. Matrix stashing now strictly utilizes Composer's active filepath to prevent target desync after background fetches.",
+//   changes: "Fixed phantom_strike and journal byte offsets to cleanly erase macros from Composer buffers without leaving ghost artifacts. Added .~[color]-. color assignment mapping.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -954,42 +954,55 @@ pub fn main() !void {
                 }
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!T<-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(6);
+                if (sys_composer.active) sys_composer.phantom_strike(5);
                 switchTab(&sys_hunter, &sys_composer, -1, void_allocator);
-                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!T>-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(6);
+                if (sys_composer.active) sys_composer.phantom_strike(5);
                 switchTab(&sys_hunter, &sys_composer, 1, void_allocator);
-                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!R^-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(6);
+                if (sys_composer.active) sys_composer.phantom_strike(5);
                 sys_hunter.shiftNode(-1);
-                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!Rv-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(6);
+                if (sys_composer.active) sys_composer.phantom_strike(5);
                 sys_hunter.shiftNode(1);
-                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!C+-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(6);
+                if (sys_composer.active) sys_composer.phantom_strike(5);
                 sys_hunter.cycleNodeColor(1);
-                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
                 reflex_triggered = true;
             }
-            else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) { sys_hunter.shiftScope(1);
-                if (journal_len >= 4) journal_len -= 4; reflex_triggered = true;
+            else if (std.mem.startsWith(u8, &seq_buf, ".~") and std.mem.endsWith(u8, &seq_buf, "-.")) {
+                if (sys_composer.active) sys_composer.phantom_strike(5);
+                sys_hunter.setNodeColor(seq_buf[2..4]);
+                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                reflex_triggered = true;
+            }
+            else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) { 
+                if (sys_composer.active) sys_composer.phantom_strike(4);
+                sys_hunter.shiftScope(1);
+                if (journal_len >= 4) journal_len -= 4 else journal_len = 0; 
+                reflex_triggered = true;
             } 
-            else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) { sys_hunter.shiftScope(-1);
-                if (journal_len >= 4) journal_len -= 4; reflex_triggered = true;
+            else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) { 
+                if (sys_composer.active) sys_composer.phantom_strike(4);
+                sys_hunter.shiftScope(-1);
+                if (journal_len >= 4) journal_len -= 4 else journal_len = 0; 
+                reflex_triggered = true;
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!@&-.")) {
+                if (sys_composer.active) sys_composer.phantom_strike(5);
                 sys_hunter.refresh() catch {};
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
                 reflex_triggered = true;
@@ -1152,12 +1165,14 @@ pub fn main() !void {
                 }
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!SR-.")) {
+                if (sys_composer.active) sys_composer.phantom_strike(5);
                 sys_hunter.hunt(".!SR-.") catch {};
-                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
+                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, "//-.")) {
-                if (journal_len >= 4) journal_len -= 4;
+                if (sys_composer.active) sys_composer.phantom_strike(3);
+                if (journal_len >= 3) journal_len -= 3 else journal_len = 0;
                 const clean_slice = std.mem.trimRight(u8, journal[0..journal_len], " ");
                 @memcpy(pending_memo_content[0..clean_slice.len], clean_slice);
                 pending_memo_len = clean_slice.len;
