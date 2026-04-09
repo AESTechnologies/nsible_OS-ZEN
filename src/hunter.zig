@@ -436,7 +436,7 @@ pub const Hunter = struct {
         
         const syn = sys_root.resolveGzlSyntax(parsed_ext);
         var uri_buf: [256]u8 = undefined;
-        const full_uri = try std.fmt.bufPrint(&uri_buf, "memo://{s}");
+        const full_uri = try std.fmt.bufPrint(&uri_buf, "memo://{s}", .{final_title});
         try self.appendNode(full_uri);
         
         var final_content: []const u8 = content;
@@ -973,7 +973,7 @@ pub const Hunter = struct {
         self.lens = banyan.Banyan.init(self.sap_fba.allocator()); try self.lens.absorb(raw);
     }
 
-    pub fn saveHistory(self: *Hunter) !void {
+    fn saveHistory(self: *Hunter) !void {
         const file = try std.fs.cwd().createFile("timeline/.aiua.tome", .{});
         defer file.close();
         for (self.history.items) |node| {
@@ -986,7 +986,7 @@ pub const Hunter = struct {
         }
     }
 
-    pub fn loadHistory(self: *Hunter) !void {
+    fn loadHistory(self: *Hunter) !void {
         const file = std.fs.cwd().openFile("timeline/.aiua.tome", .{}) catch return;
         defer file.close();
         const content = file.readToEndAlloc(self.allocator, 1024 * 1024) catch return; defer self.allocator.free(content);
@@ -1067,8 +1067,7 @@ pub const Hunter = struct {
 
         if (self.active) {
             var sx: usize = width - 180;
-            const sy: usize = height - 15; 
-            var status_buf: [64]u8 = undefined;
+            const sy: usize = height - 15; var status_buf: [64]u8 = undefined;
             const scope_str = switch (self.lens.focus_depth) { 0 => "[RAW]", 1 => "[ZEN]", 2 => "[MATRIX]", 3 => "[ROOT]", else => "[?]" };
             const final_status = std.fmt.bufPrint(&status_buf, "{s} {s}", .{self.status, scope_str}) catch self.status;
             
