@@ -1,8 +1,8 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Module",
-//   version: "0.11.9-apex // Banysang",
+//   version: "0.11.10-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Restored from physical transmission truncation. TimelineNode struct perfectly sealed and fully integrated.",
+//   changes: "Expanded Node Color Identity to 8-channel map. Active tab rendering shifted to 2px leading edge. Implemented setNodeColor string-parser.",
 //   philotic_inferences: "The timeline is no longer a trail; it is a spatial workspace. Form dictates function."
 
 const std = @import("std");
@@ -159,10 +159,28 @@ pub const Hunter = struct {
         if (self.history.items.len == 0) return;
         var node = &self.history.items[self.history_index];
         if (dir > 0) {
-            node.color_id = (node.color_id + 1) % 4;
+            node.color_id = (node.color_id + 1) % 8;
         } else if (dir < 0) {
-            if (node.color_id == 0) node.color_id = 3 else node.color_id -= 1;
+            if (node.color_id == 0) node.color_id = 7 else node.color_id -= 1;
         }
+        self.saveHistory() catch {};
+    }
+
+    pub fn setNodeColor(self: *Hunter, code: []const u8) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.history.items.len == 0) return;
+        var node = &self.history.items[self.history_index];
+        
+        if (std.mem.eql(u8, code, "SS")) { node.color_id = 0; }
+        else if (std.mem.eql(u8, code, "CS")) { node.color_id = 1; }
+        else if (std.mem.eql(u8, code, "BS")) { node.color_id = 2; }
+        else if (std.mem.eql(u8, code, "KS")) { node.color_id = 3; }
+        else if (std.mem.eql(u8, code, "SH")) { node.color_id = 4; }
+        else if (std.mem.eql(u8, code, "CH")) { node.color_id = 5; }
+        else if (std.mem.eql(u8, code, "BH")) { node.color_id = 6; }
+        else if (std.mem.eql(u8, code, "KH")) { node.color_id = 7; }
+        
         self.saveHistory() catch {};
     }
 
@@ -1034,12 +1052,16 @@ pub const Hunter = struct {
                 0 => codex.get("S.S"),
                 1 => codex.get("C.S"),
                 2 => codex.get("B.S"),
-                3 => codex.get("K.H"),
+                3 => codex.get("K.S"),
+                4 => codex.get("S.H"),
+                5 => codex.get("C.H"),
+                6 => codex.get("B.H"),
+                7 => codex.get("K.H"),
                 else => codex.get("S.S"),
             };
             
-            if (node.is_open) color = codex.get("B.S");
-            if (node.is_dirty) color = codex.get("C.S");
+            if (node.is_open and node.color_id == 0) color = codex.get("B.S");
+            if (node.is_dirty and node.color_id == 0) color = codex.get("C.S");
             if (std.mem.indexOf(u8, node.uri, ".void") != null) color = codex.get("K.H");
 
             var weight_px: usize = 3;
@@ -1048,9 +1070,9 @@ pub const Hunter = struct {
                 if (weight_px > 30) weight_px = 30; // Hard cap
             }
             
-            if (self.active and idx == self.history_index) {
+            const is_active_node = self.active and idx == self.history_index;
+            if (is_active_node) {
                 weight_px += 8;
-                color = codex.get("S.H");
             }
             
             var dy: usize = 0;
@@ -1059,7 +1081,13 @@ pub const Hunter = struct {
                 while (dx < weight_px) : (dx += 1) { 
                     const sx = (timeline_x + 18) - dx;
                     const sy = t_y + dy; 
-                    if (sx < width and sy < height) buffer[sy * width + sx] = color;
+                    
+                    var draw_color = color;
+                    if (is_active_node and dx >= weight_px - 2) {
+                        draw_color = codex.get("S.H");
+                    }
+                    
+                    if (sx < width and sy < height) buffer[sy * width + sx] = draw_color;
                 } 
             }
             t_y += 10;
