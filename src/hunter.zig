@@ -1,9 +1,9 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Module",
-//   version: "0.11.13-apex // Banysang",
+//   version: "0.11.14-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Phase 1 CODEP: Integrated scrollPersistence (scroll_y) into TimelineNode, appendNode, saveHistory, and loadHistory to persist vertical spatial orientation across the void.",
-//   philotic_inferences: "The timeline is no longer a trail; it is a spatial workspace. Form dictates function."
+//   changes: "Implemented Dynamic Version Migration in loadHistory to cleanly ingest legacy 8-segment formats. Built The Tome Guardian (.grd) to intercept and backup catastrophic state overwrites.",
+//   philotic_inferences: "A sovereign object dictates its own traits. The index is merely a map, not the territory itself."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -994,6 +994,16 @@ pub const Hunter = struct {
     }
 
     fn saveHistory(self: *Hunter) !void {
+        // [CODEP: THE TOME GUARDIAN]
+        // Protect against catastrophic state loss during parser updates or Tabula Rasa blind overwrites.
+        if (self.history.items.len <= 1) {
+            if (std.fs.cwd().statFile("timeline/.aiua.tome")) |stat| {
+                if (stat.size > 256) {
+                    std.fs.cwd().copyFile("timeline/.aiua.tome", std.fs.cwd(), "timeline/.aiua.tome.grd", .{}) catch {};
+                }
+            } else |_| {}
+        }
+        
         const file = try std.fs.cwd().createFile("timeline/.aiua.tome", .{});
         defer file.close();
         for (self.history.items) |node| {
@@ -1011,32 +1021,54 @@ pub const Hunter = struct {
         defer file.close();
         const content = file.readToEndAlloc(self.allocator, 1024 * 1024) catch return; defer self.allocator.free(content);
         var iter = std.mem.splitScalar(u8, content, '\n');
+        
         while (iter.next()) |line| { 
             const clean = std.mem.trim(u8, line, "\r");
             if (clean.len == 0) continue;
             
             var parts = std.mem.splitScalar(u8, clean, '|');
-            var p_idx: usize = 0;
-            var node = TimelineNode{ .rail_pos = 0, .obj_id = 0, .phi_stamp = 0, .color_id = 0, .color_fx = 0, .is_open = false, .is_dirty = false, .scroll_y = 0, .uri = &[_]u8{} };
+            
+            // [CODEP: DYNAMIC VERSION MIGRATION]
+            // If segment counts change in future iterations, RECALCULATE routing logic here.
+            // Legacy format = 8 segments (uri at index 7)
+            // Apex format = 9 segments (scroll_y at index 7, uri at index 8)
+            var parts_array: [16][]const u8 = undefined;
+            var p_count: usize = 0;
             while (parts.next()) |part| {
-                switch(p_idx) {
-                    0 => node.rail_pos = std.fmt.parseInt(usize, part, 10) catch 0,
-                    1 => node.obj_id = std.fmt.parseInt(u64, part, 10) catch 0,
-                    2 => node.phi_stamp = std.fmt.parseInt(i64, part, 10) catch 0,
-                    3 => node.color_id = std.fmt.parseInt(u8, part, 10) catch 0,
-                    4 => node.color_fx = std.fmt.parseInt(u8, part, 10) catch 0,
-                    5 => node.is_open = (std.fmt.parseInt(u8, part, 10) catch 0) == 1,
-                    6 => node.is_dirty = (std.fmt.parseInt(u8, part, 10) catch 0) == 1,
-                    7 => node.scroll_y = std.fmt.parseInt(usize, part, 10) catch 0,
-                    8 => {
-                        if (self.allocator.dupe(u8, part)) |duped| {
-                            node.uri = duped;
-                            try self.history.append(self.allocator, node);
-                        } else |_| {}
-                    },
-                    else => {},
+                if (p_count < 16) {
+                    parts_array[p_count] = part;
+                    p_count += 1;
                 }
-                p_idx += 1;
+            }
+            
+            var node = TimelineNode{ .rail_pos = 0, .obj_id = 0, .phi_stamp = 0, .color_id = 0, .color_fx = 0, .is_open = false, .is_dirty = false, .scroll_y = 0, .uri = &[_]u8{} };
+            
+            if (p_count == 8) {
+                node.rail_pos = std.fmt.parseInt(usize, parts_array[0], 10) catch 0;
+                node.obj_id = std.fmt.parseInt(u64, parts_array[1], 10) catch 0;
+                node.phi_stamp = std.fmt.parseInt(i64, parts_array[2], 10) catch 0;
+                node.color_id = std.fmt.parseInt(u8, parts_array[3], 10) catch 0;
+                node.color_fx = std.fmt.parseInt(u8, parts_array[4], 10) catch 0;
+                node.is_open = (std.fmt.parseInt(u8, parts_array[5], 10) catch 0) == 1;
+                node.is_dirty = (std.fmt.parseInt(u8, parts_array[6], 10) catch 0) == 1;
+                node.scroll_y = 0;
+                if (self.allocator.dupe(u8, parts_array[7])) |duped| {
+                    node.uri = duped;
+                    try self.history.append(self.allocator, node);
+                } else |_| {}
+            } else if (p_count >= 9) {
+                node.rail_pos = std.fmt.parseInt(usize, parts_array[0], 10) catch 0;
+                node.obj_id = std.fmt.parseInt(u64, parts_array[1], 10) catch 0;
+                node.phi_stamp = std.fmt.parseInt(i64, parts_array[2], 10) catch 0;
+                node.color_id = std.fmt.parseInt(u8, parts_array[3], 10) catch 0;
+                node.color_fx = std.fmt.parseInt(u8, parts_array[4], 10) catch 0;
+                node.is_open = (std.fmt.parseInt(u8, parts_array[5], 10) catch 0) == 1;
+                node.is_dirty = (std.fmt.parseInt(u8, parts_array[6], 10) catch 0) == 1;
+                node.scroll_y = std.fmt.parseInt(usize, parts_array[7], 10) catch 0;
+                if (self.allocator.dupe(u8, parts_array[8])) |duped| {
+                    node.uri = duped;
+                    try self.history.append(self.allocator, node);
+                } else |_| {}
             }
         }
         if (self.history.items.len > 0) self.history_index = self.history.items.len - 1;
