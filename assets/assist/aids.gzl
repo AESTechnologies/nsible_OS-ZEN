@@ -1,0 +1,45 @@
+// [@://nsible_os/assets/assist/aids.gzl/.-={
+//   module: "Operator Assist & Dev Tracker",
+//   version: "v0.11.13-apex",
+//   description: "@NSIBLE COMMAND BIBLE & MATRIX PROTOCOLS",
+//   status: "immutable"
+
+<h2>[ CORE MATRIX TRAVERSAL ]</h2>
+<ul>
+<li><b>mchn/</b>        : View Local Root Directory</li>
+<li><b>w3.&lt;target&gt;</b>  : Shadow Flight (Web Traversal)</li>
+<li><b>w3?. &lt;query&gt;</b> : Global Matrix Search</li>
+<li><b>&lt;Number&gt;</b>     : MELT Traverse (Follow Link [x])</li>
+<li><b>stargaze</b>     : Entropic Wind (Random Node)</li>
+<li><b>.!T&lt;-. / .!T&gt;-.</b>  : Switch Timeline Tab</li>
+<li><b>.!R^-. / .!Rv-.</b>  : Shift Node Position on Timeline Rail</li>
+<li><b>.!C+-.</b>           : Cycle Node Color Identity</li>
+<li><b>.~[cc]-.</b>         : Set Node Color (e.g. .~CH-.)</li>
+<li><b>.!SR-.</b>           : Toggle Sort Mode</li>
+</ul>
+
+<h2>[ ARTIFACT FORGE & GZL ]</h2>
+<ul>
+<li><b>memo &lt;txt&gt;</b>   : Quick Operator Artifact</li>
+<li><b>&lt;Title&gt; //-.</b> : Title & Save Artifact</li>
+<li><b>| memo</b>       : Pipe active target to timeline</li>
+</ul>
+<p>>> GZL Syntax encodes artifacts with module, timestamps, and philotic inferences.</p>
+
+<h2>[ SCOPE & SYSTEM ]</h2>
+<ul>
+<li><b>zI / zO</b>      : Shift Banyan Scope Depth [0:RAW, 1:ZEN, 2:MTX, 3:ROOT]</li>
+<li><b>shed / drop</b>  : Destroy active node</li>
+<li><b>.!VD-.</b>       : Void Banishment (Temporal Decay)</li>
+<li><b>radio / tune</b> : Philotic Resonance Tuning</li>
+<li><b>.!@&-.</b>       : Force Cache Reload</li>
+<li><b>cycle</b>        : Print Local Tempus</li>
+<li><b>.!XX-. / exit</b>: Terminate Matrix / Close Tab</li>
+<li><b>mount / unmount</b>: Manage Dynamic Drives</li>
+</ul>
+
+<h2>[ AST ARITHMETIC ENGINE ]</h2>
+<p>>> STATUS : Native Recursive Descent Operational.</p>
+<p>>> ACTIVE : Type 'calc' or '@://calc/' to invoke.</p>
+
+// }-.]
