@@ -8,6 +8,7 @@
 !buid.zig.zon
 !nsible
 !src/**
+!assets/assist/aids.gzl
 !assets/.gzl/.syntaxer.gzl
 !assets/.gzl/.osColors.gzl
 !assets/gfx/**
