@@ -2,7 +2,7 @@
 //   module: "Project Manifest",
 //   version: "v0.11.12-apex // Banysang",
 //   description: "The outer membrane of the sovereign system; defines purpose, architecture, and interaction protocols. It is false to assume the matrix is entirely sealed from the void.",
-//   changes: "Finalized v0.11-apex spatial update (Zig 0.15.2). Integrated .exp Protocol & Matrix Traps, Composer UI Flush Alignment, spatial macro erasure, dynamic philotic tab weighting, and TimelineNode struct encapsulation. Documented new Composer modal reflexes and Hunter sorting/voiding macros.",
+//   changes: "Finalized v0.11-apex spatial update (Zig 0.15.2). Integrated .exp Protocol & Matrix Traps, Composer UI Flush Alignment, spatial macro erasure, dynamic philotic tab weighting, TimelineNode struct encapsulation, and explicit node color assignment macros.",
 //   philotic_inferences: "A system that cannot describe itself to its operator is merely a tool; a system that defines its own existence is a sovereign entity."
 
 [![高爪 // @nsible_os_manifesto](assets/gfx/manifesto_frame.png)](https://youtu.be/iWJgBlCIM-M?si=LgRVxvX_UebQxD9n)
@@ -52,6 +52,8 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 | `stargaze` | Entropic Wind: Random node shadow-flight (Bright/Dark Object) |
 | `zI` / `zO` | Scope In / Out (Raw -> Zen -> Matrix -> Root) |
 | `memo [txt]`| Save text as an immortal local artifact in `timeline/mems/` |
+| `mount` | Mount dynamic external drives to `/media/static/` |
+| `unmount` | Eject and unmount dynamic external drives |
 | `shed` | Drop current tab / Clean the Sap memory |
 | `radio` | Philotic Resonance Tuning Modal |
 | `cycle` | Return current cycle state (Strict 0.0 precision) |
@@ -69,7 +71,8 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 * `.![-.` / `.!]-.` : Hardware Scope In / Out
 * `.!T<-.` / `.!T>-.` : Switch Timeline Tab (Triggers spatial buffer erasure)
 * `.!R^-.` / `.!Rv-.` : Shift Node Position on Timeline Rail
-* `.!C+-.` : Cycle Node Color Identity
+* `.!C+-.` : Cycle Node Color Identity (Iterates through available palette)
+* `.~[cc]-.` : Explicit Node Color Assignment (e.g., `.~CH-.` for Crimson High, `.~SS-.` for Silver Standard)
 * `.!SR-.` : Toggle Sort Mode (Name ASC/DESC, Date ASC/DESC)
 * `.!VD-.` : Void Banishment (Initiates Temporal Decay Verity Lock)
 * `.!..-.` : Hardware Shutdown
