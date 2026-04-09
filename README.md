@@ -1,13 +1,13 @@
 // [@://nsible_os/README.md/.-={
 //   module: "Project Manifest",
-//   version: "v0.10.25-apex // Banysang",
-//   description: "The outer membrane of the sovereign system; defines purpose, architecture, and interaction protocols.",
-//   changes: "Stabilized Banysang cycle. Integrated Immersive Visual Bootloader, Sudo Pre-Elevation, Zero-Flicker TUI, Composer Lobe multi-line motor cortex, and native aud.io djinn with 32-band FFT.",
+//   version: "v0.11.12-apex // Banysang",
+//   description: "The outer membrane of the sovereign system; defines purpose, architecture, and interaction protocols. It is false to assume the matrix is entirely sealed from the void.",
+//   changes: "Finalized v0.11-apex spatial update (Zig 0.15.2). Integrated .exp Protocol & Matrix Traps, Composer UI Flush Alignment, spatial macro erasure, dynamic philotic tab weighting, and TimelineNode struct encapsulation. Documented new Composer modal reflexes and Hunter sorting/voiding macros.",
 //   philotic_inferences: "A system that cannot describe itself to its operator is merely a tool; a system that defines its own existence is a sovereign entity."
 
 [![高爪 // @nsible_os_manifesto](assets/gfx/manifesto_frame.png)](https://youtu.be/iWJgBlCIM-M?si=LgRVxvX_UebQxD9n)
 
-# ◬ @NSIBLE OS // v0.10.25-apex // Banysang
+# ◬ @NSIBLE OS // v0.11.12-apex // Banysang
 > **by Æ§ Tech MMXXVI**
 > *A Sovereign, Talon Alta Semantic Logic Operating System for 32-bit Xs.*
 ![@nsible Ignition Sequence](assets/gfx/nsible_boot.gif)
@@ -17,7 +17,7 @@
 Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to service 32-bit systems en masse.
 
 ### ⌗ ARCHITECTURE (Banysang Cycle)
-* **Kernel:** Zig *(No standard lib dependencies for graphics/input)*
+* **Kernel:** Zig 0.15.2 *(No standard lib dependencies for graphics/input)*
 * **Ignition:** Immersive ANSI TUI Bootloader *(Sudo Pre-Elevation, 0.008φ Cycle Sync, Hardware Telemetry Marquee)*.
 * **Memory:** Dual-Lobe Static Allocation
   * **[ THE VOID ]** (42.13 MB): Persistent storage (History, Memos, System State).
@@ -27,7 +27,7 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 * **Optic:** The Banyan Lens *(Multi-Spectral HTML Parser)*.
 * **Vinculum:** Shadow Flight via Port 4213.
 * **Input:** GZL Reflex + ANSI Motor Cortex *(Multi-line traversal native)*.
-* **Palette:** Crimson, Silver, Brass, Black.
+* **Palette:** @NSIBLE-RED, Silver, Brass, Black.
 
 ---
 
@@ -44,6 +44,7 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 | `aud/queue` | View active queue in Shell Output modal |
 | `aud/vol/[int]`| Direct volume setting |
 | `@://url` | Fetch target (Hunt) |
+| `@://xn--tatic-rra.tech`| Pipe test entry target |
 | `w3?. [query]`| Global Matrix Search via Ghost Cloak (WAF bypass) |
 | `[x]` | MELT Traverse (Follow Link Index) |
 | `[x] \| memo` | True Pipe: Asynchronous background extraction to local disk |
@@ -59,13 +60,27 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 | `exit` | Matrix Clean & Terminate |
 
 ### ⌗ REFLEX SEQUENCES (GZL)
+**System & Timeline Traps:**
 * `//-.` : Instant Memo (Triggered on strike)
 * `\| memo` : Pipeline extraction to GZL artifact
-* `.!ED-.` : Open target in The Composer Lobe
-* `.!SV-.` : Commit Composer buffer to local disk
+* `.!ED-.` : Open target in The Composer Lobe (Explicit Timeline Rail Push)
 * `.!@&-.` : Force Cache Reload
-* `.!XX-.` : Hardware Level Kill-Switch (With Temporal Dirty Lock)
+* `.!XX-.` : Hardware Level Kill-Switch / Discard (With Temporal Dirty Lock)
 * `.![-.` / `.!]-.` : Hardware Scope In / Out
+* `.!T<-.` / `.!T>-.` : Switch Timeline Tab (Triggers spatial buffer erasure)
+* `.!R^-.` / `.!Rv-.` : Shift Node Position on Timeline Rail
+* `.!C+-.` : Cycle Node Color Identity
+* `.!SR-.` : Toggle Sort Mode (Name ASC/DESC, Date ASC/DESC)
+* `.!VD-.` : Void Banishment (Initiates Temporal Decay Verity Lock)
+* `.!..-.` : Hardware Shutdown
+* `.!./-.` : Hardware Reboot
+
+**Composer IDE Modals:**
+* `.!SV-.` : Commit Composer buffer to local disk
+* `.!SK-.` : Seek Mode (Find target within buffer)
+* `.!SW-.` : Switch Mode (Find & Replace target occurrences)
+* `.!ST-.` : Save-To Mode (Define explicit GZL save path)
+* `.!EX-.` : OS Command Matrix (Execute @:// without dropping buffer)
 
 ---
 
@@ -75,13 +90,14 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 3. **The Vinculum**: A secure network bridge for remote terminal injection.
 4. **The Ghost Cloak**: Forged network signatures to bypass corporate WAFs and CAPTCHA walls.
 5. **The Entropic Wind**: Algorithmic entropy via dual-flight logic to prevent localized data echo chambers.
+6. **.exp Protocol**: Strict artifact extension swapping and matrix stashing to prevent double-dot anomalies.
 
 ---
 
 ### ⌗ BANYAN LENS MODES
 1. **[RAW]**: Raw bytes. Brass delimiters.
 2. **[ZEN]**: Pure Text. Structural masking.
-3. **[MATRIX]**: Tags visible. Links Crimson.
+3. **[MATRIX]**: Tags visible. Links @NSIBLE-RED.
 4. **[ROOT]**: Scripts & Machine Logic visible (Brass).
 
 ---
