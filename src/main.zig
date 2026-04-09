@@ -1,8 +1,8 @@
 // [@://nsible_os/src/main.zig/.-={
 //   module: "Kernel Root",
-//   version: "v0.11.11-apex // Banysang",
+//   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Fixed phantom_strike and journal byte offsets to cleanly erase macros from Composer buffers without leaving ghost artifacts. Added .~[color]-. color assignment mapping.",
+//   changes: "Phase 2 & 3 CODEP: Fully debloated main.zig. Stripped assist modal and hardcoded aids.gzl generation. Delegated assist to native Banyan Lens fetch. Maintained switchTab scroll persistence.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -130,6 +130,7 @@ fn switchTab(h: *hunter.Hunter, c: *composer.Composer, dir: i32, allocator: std.
         if (target_node) |node| {
             node.is_open = true;
             node.is_dirty = c.dirty;
+            node.scroll_y = c.scroll_y;
         }
         
         if (getExpPath(allocator, c_path)) |exp_path| {
@@ -141,6 +142,10 @@ fn switchTab(h: *hunter.Hunter, c: *composer.Composer, dir: i32, allocator: std.
         }
         h.mutex.unlock();
         c.active = false;
+    } else {
+        h.mutex.lock();
+        h.history.items[old_idx].scroll_y = h.scroll_y;
+        h.mutex.unlock();
     }
 
     h.navigateHistory(dir) catch {};
@@ -151,6 +156,7 @@ fn switchTab(h: *hunter.Hunter, c: *composer.Composer, dir: i32, allocator: std.
     const new_node = &h.history.items[new_idx];
     const is_open = new_node.is_open;
     const is_dirty = new_node.is_dirty;
+    const target_scroll = new_node.scroll_y;
     const new_uri = h.allocator.dupe(u8, new_node.uri) catch {
         h.mutex.unlock();
         return;
@@ -170,6 +176,7 @@ fn switchTab(h: *hunter.Hunter, c: *composer.Composer, dir: i32, allocator: std.
                 
                 c.active = true;
                 c.dirty = is_dirty;
+                c.scroll_y = target_scroll;
                 c.setStatus("LOADED FROM .EXP MATRIX");
                 loaded_exp = true;
             } else |_| {}
@@ -178,10 +185,15 @@ fn switchTab(h: *hunter.Hunter, c: *composer.Composer, dir: i32, allocator: std.
         
         if (!loaded_exp) {
             c.open(new_uri);
+            c.scroll_y = target_scroll;
             h.mutex.lock();
             h.history.items[new_idx].is_open = true;
             h.mutex.unlock();
         }
+    } else {
+        h.mutex.lock();
+        h.scroll_y = target_scroll;
+        h.mutex.unlock();
     }
     h.allocator.free(new_uri);
 }
@@ -638,8 +650,9 @@ pub fn main() !void {
     fs.makeDir("timeline") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("timeline/mems") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("assets") catch |err| { if (err != error.PathAlreadyExists) {} };
-    fs.makeDir("assets/aud.io") catch |err|
-    { if (err != error.PathAlreadyExists) {} };
+    fs.makeDir("assets/aud.io") catch |err| { if (err != error.PathAlreadyExists) {} };
+    fs.makeDir("assets/assist") catch |err| { if (err != error.PathAlreadyExists) {} };
+
     // <<dev:archx-MMXXVINIVNII:IVNXLIV>>: Refactor to anchor timeline/.aiua.tome in the timeline dir.
     if (fs.access("timeline/.aiua.tome", .{})) |_| {} else |_| { 
         if (fs.createFile("timeline/.aiua.tome", .{})) |f| { f.close(); } else |_| {} 
@@ -725,7 +738,6 @@ pub fn main() !void {
         if (!std.mem.startsWith(u8, first_entry, "@AVIUM_RESONANCE:")) { is_tabula_rasa = true; }
     }
     
-    var is_assist_modal: bool = false;
     var is_memo_modal: bool = false;
     var is_radio_modal: bool = false;
     var is_calc_modal: bool = false;
@@ -774,7 +786,6 @@ pub fn main() !void {
                 else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
                 else if (is_memo_modal) { is_memo_modal = false; }
                 else if (is_trail_modal) { is_trail_modal = false; }
-                else if (is_assist_modal) { is_assist_modal = false; }
                 else if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
                 else if (is_bash_modal) { is_bash_modal = false; }
                 else if (is_void_modal) { is_void_modal = false; }
@@ -821,7 +832,7 @@ pub fn main() !void {
                             } else if (is_bash_modal and !is_bash_pipe) {
                                 if (byte == 'A') { if (bash_scroll_y > 0) bash_scroll_y -= 1; }
                                 else if (byte == 'B') { bash_scroll_y += 1; }
-                            } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal and !is_bash_modal) {
+                            } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) {
                                 if (byte == 'A') { sys_hunter.scrollBy(-1); }
                                 else if (byte == 'B') { sys_hunter.scrollBy(1); }
                                 else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; }
@@ -838,7 +849,7 @@ pub fn main() !void {
                         } else if (is_bash_modal and !is_bash_pipe) {
                             if (esc_seq[2] == '5') { if (bash_scroll_y > 15) bash_scroll_y -= 15 else bash_scroll_y = 0; }
                             else if (esc_seq[2] == '6') { bash_scroll_y += 15; }
-                        } else if (!is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_assist_modal and !is_bash_modal) {
+                        } else if (!is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) {
                             if (esc_seq[2] == '5') { sys_hunter.scrollBy(-15); }
                             else if (esc_seq[2] == '6') { sys_hunter.scrollBy(15); }
                         }
@@ -851,7 +862,6 @@ pub fn main() !void {
                         else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
                         else if (is_memo_modal) { is_memo_modal = false; }
                         else if (is_trail_modal) { is_trail_modal = false; }
-                        else if (is_assist_modal) { is_assist_modal = false; }
                         else if (is_void_modal) { 
                             is_void_modal = false;
                             sys_hunter.status = "[ VOID CANCELLED ]"; 
@@ -948,7 +958,6 @@ pub fn main() !void {
                 else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; journal_len = 0; reflex_triggered = true; }
                 else if (is_memo_modal) { is_memo_modal = false; journal_len = 0; reflex_triggered = true; }
                 else if (is_trail_modal) { is_trail_modal = false; journal_len = 0; reflex_triggered = true; }
-                else if (is_assist_modal) { is_assist_modal = false; journal_len = 0; reflex_triggered = true; }
                 else {
                     exitSequence();
                 }
@@ -1617,8 +1626,16 @@ pub fn main() !void {
                             };
                             journal_len = 0;
                         },
-                        .ASSIST => { is_assist_modal = !is_assist_modal;
-                        journal_len = 0; },
+                        .ASSIST => { 
+                            var auto_buf: [256]u8 = undefined;
+                            const full_target = std.fmt.bufPrint(&auto_buf, "@://mchn/assets/assist/aids.gzl", .{}) catch "@://mchn/assets/assist/aids.gzl";
+                            sys_hunter.hunt(full_target) catch { 
+                                sys_hunter.mutex.lock(); 
+                                sys_hunter.status = "ASSIST_ERR"; 
+                                sys_hunter.mutex.unlock(); 
+                            };
+                            journal_len = 0; 
+                        },
                         .RADIO => { is_radio_modal = true;
                         journal_len = 0; },
                         .PRINT => {
@@ -1824,45 +1841,6 @@ pub fn main() !void {
                         print(cx + 10, cy + 45, "[ GRAPH MODULE : AWAITING PHASE 4 TENSORS ]", codex.get("K.H"));
                         print(cx + 10, cy + ch - 20, "[TAB] Toggle Graph  [ENTER] Evaluate (Empty to Dismiss)", codex.get("S.S"));
                     }
-                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
-                } else if (is_assist_modal) {
-                    const aw = 860;
-                    const ah = 480; 
-                    const ax = (WIDTH / 2) - (aw / 2);
-                    const ay = bar_y - ah - 10;
-                    drawRect(ax - 2, ay - 2, aw + 4, ah + 2, codex.get("B.S"));
-                    drawRect(ax, ay, aw, ah, codex.get("K.S"));
-
-                    print(ax + 20, ay + 20, "[ @NSIBLE COMMAND BIBLE & MATRIX PROTOCOLS ]", codex.get("B.S"));
-                    drawRect(ax + 20, ay + 35, aw - 40, 1, codex.get("K.H"));
-                    print(ax + 20, ay + 50, "[ CORE MATRIX TRAVERSAL ]", codex.get("S.S"));
-                    print(ax + 20, ay + 70, "mchn/        : View Local Root Directory", codex.get("S.H"));
-                    print(ax + 20, ay + 90, "w3.<target>  : Shadow Flight (Web Traversal)", codex.get("S.H"));
-                    print(ax + 20, ay + 110, "w3?. <query> : Global Matrix Search", codex.get("S.H"));
-                    print(ax + 20, ay + 130, "<Number>     : MELT Traverse (Follow Link [x])", codex.get("C.S"));
-                    print(ax + 20, ay + 150, "stargaze     : Entropic Wind (Random Node)", codex.get("B.S"));
-                    print(ax + 20, ay + 170, ".!T<-. / .!T>-.  : Switch Timeline Tab (even in Composer)", codex.get("S.H"));
-                    print(ax + 20, ay + 190, ".!R^-. / .!Rv-.  : Shift Node Position on Timeline Rail", codex.get("S.H"));
-                    print(ax + 20, ay + 210, ".!C+-.           : Cycle Node Color Identity", codex.get("S.H"));
-                    print(ax + 20, ay + 230, "[ ARTIFACT FORGE & GZL ]", codex.get("S.S"));
-                    print(ax + 20, ay + 250, "memo <txt>   : Quick Operator Artifact", codex.get("S.H"));
-                    print(ax + 20, ay + 270, "<Title> //-. : Title & Save Artifact", codex.get("S.H"));
-                    print(ax + 20, ay + 290, "| memo       : Pipe active target to timeline", codex.get("S.H"));
-                    print(ax + 20, ay + 320, ">> GZL Syntax encodes artifacts with module,", codex.get("K.H"));
-                    print(ax + 20, ay + 340, ">> timestamps, and philotic inferences.", codex.get("K.H"));
-                    print(ax + 440, ay + 50, "[ SCOPE & SYSTEM ]", codex.get("S.S"));
-                    print(ax + 440, ay + 70, "zI / zO      : Shift Banyan Scope Depth", codex.get("S.H"));
-                    print(ax + 440, ay + 90, "               [0:RAW, 1:ZEN, 2:MTX, 3:ROOT]", codex.get("K.H"));
-                    print(ax + 440, ay + 110, "shed / drop  : Destroy active node", codex.get("S.H"));
-                    print(ax + 440, ay + 130, "radio / tune : Philotic Resonance Tuning", codex.get("S.H"));
-                    print(ax + 440, ay + 150, ".!@&-.       : Force Cache Reload", codex.get("B.S"));
-                    print(ax + 440, ay + 170, "cycle        : Print Local Tempus", codex.get("S.H"));
-                    print(ax + 440, ay + 190, ".!XX-. / exit: Terminate Matrix / Close Tab", codex.get("S.H"));
-                    drawRect(ax + 20, ay + 370, aw - 40, 1, codex.get("K.H"));
-                    print(ax + 20, ay + 390, "[ AST ARITHMETIC ENGINE ]", codex.get("C.S"));
-                    print(ax + 20, ay + 410, ">> STATUS : Native Recursive Descent Operational.", codex.get("K.H"));
-                    print(ax + 20, ay + 430, ">> ACTIVE : Type 'calc' or '@://calc/' to invoke.", codex.get("K.H"));
-                    print(ax + 20, ay + ah - 30, ">> Type '?' or 'assist' to dismiss.", codex.get("B.S"));
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
                 } else if (is_bash_modal) {
                     const mw = WIDTH - 40;
