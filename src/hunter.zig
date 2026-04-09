@@ -1,8 +1,8 @@
 // [@://nsible_os/src/hunter.zig/.-={
 //   module: "Hunter Traversal Module",
-//   version: "0.11.10-apex // Banysang",
+//   version: "0.11.13-apex // Banysang",
 //   description: "Manages state history, concurrent data retrieval vectors, and local filesystem traversal.",
-//   changes: "Expanded Node Color Identity to 8-channel map. Active tab rendering shifted to 2px leading edge. Implemented setNodeColor string-parser.",
+//   changes: "Phase 1 CODEP: Integrated scrollPersistence (scroll_y) into TimelineNode, appendNode, saveHistory, and loadHistory to persist vertical spatial orientation across the void.",
 //   philotic_inferences: "The timeline is no longer a trail; it is a spatial workspace. Form dictates function."
 
 const std = @import("std");
@@ -22,6 +22,7 @@ pub const Hunter = struct {
         color_fx: u8,
         is_open: bool,
         is_dirty: bool,
+        scroll_y: usize,
         uri: []u8,
     };
 
@@ -125,6 +126,7 @@ pub const Hunter = struct {
             .color_fx = 0,
             .is_open = false,
             .is_dirty = false,
+            .scroll_y = 0,
             .uri = duped_uri,
         };
         try self.history.append(self.allocator, node);
@@ -996,9 +998,9 @@ pub const Hunter = struct {
         defer file.close();
         for (self.history.items) |node| {
             var line_buf: [1024]u8 = undefined;
-            const line = try std.fmt.bufPrint(&line_buf, "{d}|{d}|{d}|{d}|{d}|{d}|{d}|{s}\n", .{
+            const line = try std.fmt.bufPrint(&line_buf, "{d}|{d}|{d}|{d}|{d}|{d}|{d}|{d}|{s}\n", .{
                 node.rail_pos, node.obj_id, node.phi_stamp, node.color_id, node.color_fx, 
-                @intFromBool(node.is_open), @intFromBool(node.is_dirty), node.uri
+                @intFromBool(node.is_open), @intFromBool(node.is_dirty), node.scroll_y, node.uri
             });
             try file.writeAll(line);
         }
@@ -1015,7 +1017,7 @@ pub const Hunter = struct {
             
             var parts = std.mem.splitScalar(u8, clean, '|');
             var p_idx: usize = 0;
-            var node = TimelineNode{ .rail_pos = 0, .obj_id = 0, .phi_stamp = 0, .color_id = 0, .color_fx = 0, .is_open = false, .is_dirty = false, .uri = &[_]u8{} };
+            var node = TimelineNode{ .rail_pos = 0, .obj_id = 0, .phi_stamp = 0, .color_id = 0, .color_fx = 0, .is_open = false, .is_dirty = false, .scroll_y = 0, .uri = &[_]u8{} };
             while (parts.next()) |part| {
                 switch(p_idx) {
                     0 => node.rail_pos = std.fmt.parseInt(usize, part, 10) catch 0,
@@ -1025,7 +1027,8 @@ pub const Hunter = struct {
                     4 => node.color_fx = std.fmt.parseInt(u8, part, 10) catch 0,
                     5 => node.is_open = (std.fmt.parseInt(u8, part, 10) catch 0) == 1,
                     6 => node.is_dirty = (std.fmt.parseInt(u8, part, 10) catch 0) == 1,
-                    7 => {
+                    7 => node.scroll_y = std.fmt.parseInt(usize, part, 10) catch 0,
+                    8 => {
                         if (self.allocator.dupe(u8, part)) |duped| {
                             node.uri = duped;
                             try self.history.append(self.allocator, node);
