@@ -10,7 +10,8 @@ const font = @import("glyphs.zig");
 const codex = @import("codex.zig");
 const sys_root = @import("root.zig");
 
-const COMPOSER_CAPACITY = 52_428_800; // 50MB Maximum Capacity
+const COMPOSER_CAPACITY = 52_428_800;
+// 50MB Maximum Capacity
 var composer_global_buffer: [COMPOSER_CAPACITY]u8 = undefined;
 
 pub const Mode = enum { EDIT, SEEK, SWITCH_FIND, SWITCH_REPL, SAVE_TO, CMD };
@@ -34,7 +35,7 @@ pub const Composer = struct {
     comment_pre_len: usize,
     comment_suf: [8]u8,
     comment_suf_len: usize,
-    
+   
     // Modals & Autonomous Reflexes
     mode: Mode,
     input_buf: [256]u8,
@@ -108,7 +109,6 @@ pub const Composer = struct {
         const p_len = @min(path.len, 256);
         @memcpy(self.filepath[0..p_len], path[0..p_len]);
         self.filepath_len = p_len;
-
         var clean_path: []const u8 = path;
         if (std.mem.startsWith(u8, clean_path, "@://mchn/")) {
             clean_path = clean_path[9..];
@@ -151,7 +151,6 @@ pub const Composer = struct {
             @memcpy(self.buffer[0..header.len], header);
             @memcpy(self.buffer[header.len..header.len + 2], "\n\n");
             @memcpy(self.buffer[header.len + 2..header.len + 2 + footer.len], footer);
-            
             self.len = header.len + 2 + footer.len;
             self.cursor_idx = header.len + 1; 
             
@@ -477,10 +476,8 @@ pub const Composer = struct {
 
         // Clear text workspace
         drawRect(buffer, width, height, 0, 20, effective_width, height - 20, codex.get("K.S"));
-        
         // Header slides flush under the timeline rail
-        drawRect(buffer, width, height, 0, 20, width - 5, 20, codex.get("C.S")); 
-        
+        drawRect(buffer, width, height, 0, 20, width - 5, 20, codex.get("C.S"));
         var title_buf: [128]u8 = undefined;
         const header = std.fmt.bufPrint(&title_buf, "[ THE COMPOSER ] // {s} {s}", .{
             self.filepath[0..self.filepath_len], 
@@ -540,7 +537,6 @@ pub const Composer = struct {
         cy = start_y;
         line_no = 1;
         var draw_start_idx: usize = 0;
-        
         var in_single_comment = false;
         var in_multi_comment = false;
         var in_string = false;
@@ -552,11 +548,9 @@ pub const Composer = struct {
                 break;
             }
             const c = self.buffer[i];
-            
             var just_started_single = false;
             var just_started_multi = false;
             var just_started_string = false;
-            
             if (!in_single_comment and !in_multi_comment and !in_string) {
                 if (self.comment_pre_len > 0 and self.comment_suf_len > 0 and i + self.comment_pre_len <= self.len and std.mem.eql(u8, self.buffer[i .. i + self.comment_pre_len], self.comment_pre[0..self.comment_pre_len])) {
                     in_multi_comment = true;
