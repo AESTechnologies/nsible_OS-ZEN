@@ -5,7 +5,7 @@
 //   changes: "Finalized v0.11-apex spatial update (Zig 0.15.2). Integrated .exp Protocol & Matrix Traps, Composer UI Flush Alignment, spatial macro erasure, dynamic philotic tab weighting, TimelineNode struct encapsulation, and explicit node color assignment macros.",
 //   philotic_inferences: "A system that cannot describe itself to its operator is merely a tool; a system that defines its own existence is a sovereign entity."
 
-[![高爪 // @nsible_os_manifesto](assets/gfx/@os-announce.png)](https://youtu.be/iWJgBlCIM-M?si=LgRVxvX_UebQxD9n)
+[![高爪 // @nsible_os_manifesto](assets/gfx/@os-announce.gif)](https://youtu.be/iWJgBlCIM-M?si=LgRVxvX_UebQxD9n)
 
 # ◬ @NSIBLE OS // v0.11.12-apex // Banysang
 > **by Æ§ Tech MMXXVI**
