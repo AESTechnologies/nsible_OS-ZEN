@@ -5,12 +5,15 @@
 !.gitattributes
 !.gitignore
 !build.zig
-!buid.zig.zon
+!build.zig.zon
 !nsible
 !src/**
 !assets/assist/aids.gzl
+!assets/.gzl/.satori.gzl
 !assets/.gzl/.syntaxer.gzl
 !assets/.gzl/.osColors.gzl
 !assets/gfx/**
+
 assets/void.tome
 *.tome
+*.exp
