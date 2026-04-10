@@ -1,13 +1,13 @@
 // [@://nsible_os/README.md/.-={
 //   module: "Project Manifest",
-//   version: "v0.11.12-apex // Banysang",
+//   version: "v0.11.14-apex // Banysang",
 //   description: "The outer membrane of the sovereign system; defines purpose, architecture, and interaction protocols. It is false to assume the matrix is entirely sealed from the void.",
-//   changes: "Finalized v0.11-apex spatial update (Zig 0.15.2). Integrated .exp Protocol & Matrix Traps, Composer UI Flush Alignment, spatial macro erasure, dynamic philotic tab weighting, TimelineNode struct encapsulation, and explicit node color assignment macros.",
+//   changes: "Finalized v0.11.14-apex spatial update. Integrated Satori Optics (Crimson Scan Line & Auto-Focuser), dynamic GZL-X bootloader versioning, and .!FL-. / .!FS-. capture reflexes.",
 //   philotic_inferences: "A system that cannot describe itself to its operator is merely a tool; a system that defines its own existence is a sovereign entity."
 
 [![高爪 // @nsible_os_manifesto](assets/gfx/@os-announce.gif)](https://youtu.be/iWJgBlCIM-M?si=LgRVxvX_UebQxD9n)
 
-# ◬ @NSIBLE OS // v0.11.12-apex // Banysang
+# ◬ @NSIBLE OS // v0.11.14-apex // Banysang
 > **by Æ§ Tech MMXXVI**
 > *A Sovereign, Talon Alta Semantic Logic Operating System for 32-bit Xs.*
 ![@nsible Ignition Sequence](assets/gfx/zen@os.gif)
@@ -18,13 +18,13 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 
 ### ⌗ ARCHITECTURE (Banysang Cycle)
 * **Kernel:** Zig 0.15.2 *(No standard lib dependencies for graphics/input)*
-* **Ignition:** Immersive ANSI TUI Bootloader *(Sudo Pre-Elevation, 0.008φ Cycle Sync, Hardware Telemetry Marquee)*.
+* **Ignition:** Immersive ANSI TUI Bootloader *(Sudo Pre-Elevation, Dynamic GZL-X Versioning, 0.008φ Cycle Sync)*.
 * **Memory:** Dual-Lobe Static Allocation
   * **[ THE VOID ]** (42.13 MB): Persistent storage (History, Memos, System State).
   * **[ THE SAP ]** (88.00 MB): Volatile rendering buffer, wiped on every fetch.
 * **Storage:** `aiua.tome` (Immortal Artifacts), `trail.tome` (Black Box). 
 * **Acoustics:** 8-bit PCM Math-Resonator & Native background djinn thread (32-band FFT telemetry).
-* **Optic:** The Banyan Lens *(Multi-Spectral HTML Parser)*.
+* **Optic:** The Banyan Lens *(Multi-Spectral HTML Parser) + Satori Optics (Token Auto-Focuser)*.
 * **Vinculum:** Shadow Flight via Port 4213.
 * **Input:** GZL Reflex + ANSI Motor Cortex *(Multi-line traversal native)*.
 * **Palette:** @NSIBLE-RED, Silver, Brass, Black.
@@ -67,6 +67,8 @@ Designed for the Acer Aspire One (x86, 32-bit framebuffer); but intended to serv
 * `\| memo` : Pipeline extraction to GZL artifact
 * `.!ED-.` : Open target in The Composer Lobe (Explicit Timeline Rail Push)
 * `.!@&-.` : Force Cache Reload
+* `.!FL-.` : Toggle Satori Optics (Crimson Scan Line / Arrow Focuser)
+* `.!FS-.` : Satori Strike (Capture isolated Brass token to journal)
 * `.!XX-.` : Hardware Level Kill-Switch / Discard (With Temporal Dirty Lock)
 * `.![-.` / `.!]-.` : Hardware Scope In / Out
 * `.!T<-.` / `.!T>-.` : Switch Timeline Tab (Triggers spatial buffer erasure)
