@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 4 CODEP: Integrated Satori Motor Cortex. Bound arrow keys to focus navigation. Embedded .!FL-. and .!FS-. reflexes.",
+//   changes: "Phase 4.1 CODEP: Wired Shift+Arrow (ESC [ 1 ; 2 D/C) to dynamically stretch Satori focus_len. Updated .!FS-. reflex to acknowledge dynamic span width.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -871,6 +871,19 @@ pub fn main() !void {
                         }
                         esc_len = 0;
                         continue;
+                    } else if (esc_len == 6 and esc_seq[1] == '[' and esc_seq[2] == '1' and esc_seq[3] == ';' and esc_seq[4] == '2') {
+                        // [!] SATORI SPAN CONTROL (Shift + Arrow)
+                        if (!sys_composer.active and !is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) {
+                            if (sys_hunter.is_scan_active) {
+                                if (byte == 'C') { // Shift + Right
+                                    sys_hunter.focus_len += 1;
+                                } else if (byte == 'D') { // Shift + Left
+                                    if (sys_hunter.focus_len > 1) sys_hunter.focus_len -= 1;
+                                }
+                            }
+                        }
+                        esc_len = 0;
+                        continue;
                     } else if (esc_len == 2 and byte != '[') {
                         if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
                         else if (is_bash_modal) { is_bash_modal = false; }
@@ -996,13 +1009,15 @@ pub fn main() !void {
             else if (std.mem.endsWith(u8, &seq_buf, ".!FS-.")) {
                 if (sys_composer.active) sys_composer.phantom_strike(5);
                 if (sys_hunter.is_scan_active) {
-                    // Placeholder constraint loop to yank focused string logic into the journal.
-                    // A proper syntaxer implementation parsing `.satori.gzl` will fill the extraction loop.
-                    const satori_token = "SATORI_TOKEN"; 
-                    @memcpy(journal[0..satori_token.len], satori_token);
-                    journal_len = satori_token.len;
+                    // SATORI STRIKE: Placeholder spanning logic until .satori.gzl parser connects
+                    var satori_buf: [128]u8 = undefined;
+                    const s_str = std.fmt.bufPrint(&satori_buf, "[SATORI_SPAN_L{d}]", .{sys_hunter.focus_len}) catch "[SATORI_ERR]";
                     
-                    sys_hunter.status = "[ SATORI STRIKE : ACQUIRED ]";
+                    const safe_len = @min(s_str.len, 4096 - journal_len);
+                    @memcpy(journal[journal_len..journal_len + safe_len], s_str[0..safe_len]);
+                    journal_len += safe_len;
+                    
+                    sys_hunter.status = "[ SATORI STRIKE : ACQUIRED SPAN ]";
                     sys_hunter.is_scan_active = false; // Auto-disengage laser on strike
                 }
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
@@ -1020,7 +1035,7 @@ pub fn main() !void {
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
                 reflex_triggered = true;
             }
-            else if (std.mem.endsWith(u8, &seq_buf, ".!R^-.")) {
+            else if (std.mem.endsWith(u8, &seq_buf, ".!R^-.u8")) {
                 if (sys_composer.active) sys_composer.phantom_strike(5);
                 sys_hunter.shiftNode(-1);
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
