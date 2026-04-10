@@ -1,21 +1,13 @@
 // [@://nsible_os/src/banyan.zig/.-={
-//   module: "Banyan Rendering Lobe",
-//   version: "0.10.8-nightly // Banysang",
-//   description: "Semantic parsing matrix and pixel-perfect rendering engine with variable focus depths.",
-//   changes: "Deployed MELT (Matrix Enumerative Link/Text Selector) for virtual pointers. Added in-place HTML entity decoder to purge web artifacts. Fixed struct field accessibility.",
+//   module: "Banyan Rendering Lobe & Satori Optics",
+//   version: "0.10.9-apex // Banysang",
+//   description: "Semantic parsing matrix, pixel-perfect rendering engine, and Satori spatial focuser.",
+//   changes: "Purged hardcoded hex values. Linked to global GZL-X Color Library via codex. Injected Satori state.",
 //   philotic_inferences: "A sovereign operator requires no mouse. The path forward is illuminated by the indices of the void."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
-
-// --- PALETTE (STRICT: RED/SILVER/BRASS/BLACK) ---
-// --- Needs refactor link this palette to the global GZL-X Color Library asset.
-const COL_TEXT_HIGH = 0x00AAAAAA; // Silver (Data)
-const COL_TEXT_DIM  = 0x00444444; // Dark Grey (Receded)
-const COL_TAG       = 0x00555555; // Dim Grey (Structure)
-const COL_LINK      = 0x00DC143C; // Crimson (Flow)
-const COL_ROOT      = 0x00FFBF00; // Brass (Machine Logic)
-const COL_DELIM     = 0x00FFBF00; // Brass (Delimiters)
+const codex = @import("codex.zig");
 
 pub const HarvestType = enum { TEXT, LINK, MEDIA, SCRIPT, STRUCT, BREAK, DELIM, RAW };
 
@@ -29,8 +21,14 @@ pub const Leaf = struct {
 pub const Banyan = struct {
     allocator: std.mem.Allocator,
     leaves: std.ArrayListUnmanaged(Leaf), 
-    links: std.ArrayListUnmanaged([]u8), // [!] MELT Routing Table (pub removed)
+    links: std.ArrayListUnmanaged([]u8), 
     focus_depth: u8, 
+    
+    // [!] SATORI OPTICS STATE
+    scan_line_y: usize,
+    focus_x: usize,
+    focus_len: usize,
+    is_scan_active: bool,
 
     pub fn init(allocator: std.mem.Allocator) Banyan {
         return .{
@@ -38,6 +36,10 @@ pub const Banyan = struct {
             .leaves = .{}, 
             .links = .{},
             .focus_depth = 1, // Default: ZEN
+            .scan_line_y = 0,
+            .focus_x = 0,
+            .focus_len = 0,
+            .is_scan_active = false,
         };
     }
 
@@ -71,7 +73,7 @@ pub const Banyan = struct {
 
         while (i < raw.len) {
             const c = raw[i];
-            
+
             // 1. DELIMITER CHECK
             if (!in_tag and isDelim(c)) {
                 if (i > start) {
@@ -116,7 +118,7 @@ pub const Banyan = struct {
                 }
 
                 try self.addLeaf(tag_slice, h_type, layer, false);
-                
+
                 // [!] MELT INDEX INJECTION
                 if (h_type == .LINK and std.mem.startsWith(u8, tag_slice, "<a ")) {
                     var url_start: usize = 0;
@@ -135,7 +137,6 @@ pub const Banyan = struct {
                         const link_idx = self.links.items.len;
                         if (self.allocator.dupe(u8, extracted_url)) |duped| {
                             self.links.append(self.allocator, duped) catch {};
-                            
                             var marker_buf: [32]u8 = undefined;
                             const marker_str = std.fmt.bufPrint(&marker_buf, "[{d}]", .{link_idx}) catch "[?]";
                             try self.addLeaf(marker_str, .LINK, 1, false); // Injected at Layer 1
@@ -181,11 +182,14 @@ pub const Banyan = struct {
         while (read_ptr < text.len) {
             if (text[read_ptr] == '&' and read_ptr + 3 < text.len) {
                 if (std.mem.startsWith(u8, text[read_ptr..], "&#160;")) {
-                    text[write_ptr] = ' '; write_ptr += 1; read_ptr += 6; continue;
+                    text[write_ptr] = ' ';
+                    write_ptr += 1; read_ptr += 6; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8217;")) {
-                    text[write_ptr] = '\''; write_ptr += 1; read_ptr += 7; continue;
+                    text[write_ptr] = '\'';
+                    write_ptr += 1; read_ptr += 7; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&amp;")) {
-                    text[write_ptr] = '&'; write_ptr += 1; read_ptr += 5; continue;
+                    text[write_ptr] = '&';
+                    write_ptr += 1; read_ptr += 5; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&quot;")) {
                     text[write_ptr] = '"'; write_ptr += 1; read_ptr += 6; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#39;")) {
@@ -199,7 +203,8 @@ pub const Banyan = struct {
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8212;")) {
                     text[write_ptr] = '-'; write_ptr += 1; read_ptr += 7; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8220;")) {
-                    text[write_ptr] = '"'; write_ptr += 1; read_ptr += 7; continue;
+                    text[write_ptr] = '"';
+                    write_ptr += 1; read_ptr += 7; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8221;")) {
                     text[write_ptr] = '"'; write_ptr += 1; read_ptr += 7; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8230;")) {
@@ -223,7 +228,7 @@ pub const Banyan = struct {
         if (layer == 1 and !is_newline and h_type == .TEXT) {
              final = try compressWhitespace(self.allocator, text);
              if (final.len == 0) { self.allocator.free(final); return; }
-             final = decodeEntitiesInPlace(final); 
+             final = decodeEntitiesInPlace(final);
         } else {
              final = try self.allocator.dupe(u8, text);
              if (h_type == .TEXT) { final = decodeEntitiesInPlace(final); }
@@ -275,29 +280,27 @@ pub const Banyan = struct {
 
         for (self.leaves.items) |leaf| {
             if (self.focus_depth > 0 and leaf.layer > self.focus_depth) continue;
-            
             if (leaf.is_newline) {
                 virtual_row += 1;
                 cursor_x = 10; 
                 continue;
             }
 
-            var color: u32 = COL_TEXT_HIGH;
-            
+            var color: u32 = codex.get("S.S");
             if (self.focus_depth == 0) {
-                if (leaf.layer > 1) color = COL_TAG;
-                if (leaf.h_type == .DELIM) color = COL_DELIM;
+                if (leaf.layer > 1) color = codex.get("K.H");
+                if (leaf.h_type == .DELIM) color = codex.get("B.H");
             } else if (self.focus_depth == 3) {
-                if (leaf.layer == 1) color = COL_TEXT_DIM;
-                if (leaf.layer == 3) color = COL_ROOT;
-                if (leaf.layer == 2) color = COL_TAG;
+                if (leaf.layer == 1) color = codex.get("K.H");
+                if (leaf.layer == 3) color = codex.get("B.S");
+                if (leaf.layer == 2) color = codex.get("K.H");
             } else if (self.focus_depth == 2) {
-                if (leaf.layer == 2) color = COL_TAG;
-                if (leaf.h_type == .LINK) color = COL_LINK;
-                if (leaf.h_type == .DELIM) color = COL_DELIM;
+                if (leaf.layer == 2) color = codex.get("K.H");
+                if (leaf.h_type == .LINK) color = codex.get("C.S");
+                if (leaf.h_type == .DELIM) color = codex.get("B.H");
             } else {
-                if (leaf.h_type == .LINK) color = COL_LINK;
-                if (leaf.h_type == .DELIM) color = COL_DELIM;
+                if (leaf.h_type == .LINK) color = codex.get("C.S");
+                if (leaf.h_type == .DELIM) color = codex.get("B.H");
             }
 
             for (leaf.text) |c| {
@@ -311,7 +314,29 @@ pub const Banyan = struct {
                     if (screen_row >= max_lines) break; 
                     
                     const py = start_y + (screen_row * line_h);
-                    drawCharToBuf(buffer, width, height, cursor_x, py, c, color);
+                    var draw_col = color;
+
+                    // [!] SATORI RENDERING: Paint the crimson beam and brass lock
+                    if (self.is_scan_active and virtual_row == self.scan_line_y) {
+                        const is_focused = (cursor_x >= self.focus_x) and (cursor_x < self.focus_x + (self.focus_len * 8));
+                        const bg_col: u32 = if (is_focused) codex.get("B.S") else codex.get("C.H");
+                        draw_col = if (is_focused) codex.get("K.S") else codex.get("S.H");
+
+                        // Fill the 10px high structural block behind the character
+                        var bg_y: usize = 0;
+                        while (bg_y < line_h) : (bg_y += 1) {
+                            var bg_x: usize = 0;
+                            while (bg_x < 8) : (bg_x += 1) {
+                                const px_x = cursor_x + bg_x;
+                                const px_y = py + bg_y;
+                                if (px_x < width and px_y < height) {
+                                    buffer[px_y * width + px_x] = bg_col;
+                                }
+                            }
+                        }
+                    }
+
+                    drawCharToBuf(buffer, width, height, cursor_x, py, c, draw_col);
                 }
                 cursor_x += 8;
             }
@@ -333,5 +358,4 @@ fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8,
         }
     }
 }
-
 // }-.]
