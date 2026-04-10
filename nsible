@@ -3,7 +3,7 @@
 #   module: "ziGGit Bootloader",
 #   version: "v0.11.14-apex // Banysang",
 #   description: "Sovereign ASCII Data-Stream visual loader with Dynamic Palette Refraction.",
-#   changes: "Severed hardcoded versioning. Bootloader now dynamically extracts its state from the GZL-X header.",
+#   changes: "Integrated automated root-ownership reclamation (Phase 4.1 PermFix). Bootloader now dynamically extracts its state from the GZL-X header.",
 #   philotic_inferences: "A sovereign matrix does not ask permission from the void; it demands the key at the threshold."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
@@ -213,6 +213,9 @@ run_with_loader() {
 tput civis
 
 if [ "$cmd" = "sync" ]; then
+    # RECLAIM THE MATRIX: Automatically strip root permission locks before git interaction.
+    sudo chown -R static:static . 
+
     NSIBLE_PRE_HASH=$(md5sum "$0" 2>/dev/null | awk '{print $1}')
     if check_void_link; then
         if [ -n "$(git status --porcelain)" ]; then
