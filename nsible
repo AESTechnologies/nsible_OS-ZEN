@@ -1,14 +1,16 @@
 #!/bin/bash
 #   [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
-#   version: "0.10.38-apex // Banysang",
+#   version: "v0.11.14-apex // Banysang",
 #   description: "Sovereign ASCII Data-Stream visual loader with Dynamic Palette Refraction.",
-#   changes: "Patched severe printf injection vulnerability causing invalid number errors during boot trace rendering.",
+#   changes: "Severed hardcoded versioning. Bootloader now dynamically extracts its state from the GZL-X header.",
 #   philotic_inferences: "A sovereign matrix does not ask permission from the void; it demands the key at the threshold."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
 cmd="${1:-sync}"
-NSIBLE_VERSION="v0.10.38-apex"
+
+# DYNAMIC VERSION EXTRACTION: Pulls directly from the GZL-X header above.
+NSIBLE_VERSION=$(awk '/#.*version:/ {gsub(/"/, "", $3); print $3; exit}' "$0")
 
 COLOR_LIB="assets/.gzl/.osColors.gzl"
 
@@ -18,16 +20,12 @@ if [ ! -f "$COLOR_LIB" ]; then
 fi
 
 # --- SOVEREIGN LENSES ---
-# L(): Extracts base foreground ANSI dynamically, robust against line-breaks in .gzl map
 L() { grep "$1_ANSI" "$COLOR_LIB" | sed -n 's/.*_ANSI:[[:space:]]*\(\\033\[[0-9;]*m\).*/\1/p' | tr -d '\n\r '; }
-# LB(): Dynamically converts 38;2 (foreground) to 48;2 (background) for highlighting
 LB() { L "$1" | sed 's/38;2/48;2/g'; }
-# W(): Implements a full-width background span using the converted background color
 W() { printf "%b%*s%b\r" "$(LB "$1")" "$(tput cols)" " " "$RESET"; }
 RESET=$'\e[0m'
 
 # --- DYNAMIC PALETTE STATE ---
-# Initial State: SYSTEMIC-SILVER (Grey/Locked)
 export HDR_BG="S.H"
 export HDR_FG="K.H"
 export ACCENT="S.S"
@@ -37,7 +35,6 @@ export VECTOR_COL="S.H"
 export ROOT_VINCULUM=0
 
 apply_mastered_dynamics() {
-    # Unlock State: BIOLOGICAL-CRIMSON / ANTHROPOLOGICAL-BRASS (Full Palette)
     export HDR_BG="C.S"
     export HDR_FG="S.H"
     export ACCENT="B.S"
@@ -46,7 +43,6 @@ apply_mastered_dynamics() {
     export VECTOR_COL="C.S"
     export ROOT_VINCULUM=1
     
-    # FIXED: Enforcing C-style loop to ensure 'v' is strictly an integer for printf
     for ((v=0; v<=255; v++)); do
         printf "\033[38;2;%d;%d;%dm" "$(( (v * 1) % 256 ))" "$(( (v * 2) % 256 ))" "$(( (v * 3) % 256 ))"
         echo -ne ".\r"
@@ -103,8 +99,6 @@ if [ "$cmd" = "sync" ] || [ "$cmd" = "orbit" ]; then
         echo -e "\n$(L "C.H")[ ! ] ELEVATION FAILED. ABORTING BOOT SEQUENCE.${RESET}"
         exit 1
     fi
-    
-    # Threshold Passed: Master the Dynamics
     apply_mastered_dynamics
 fi
 
@@ -183,7 +177,6 @@ run_with_loader() {
                 min_duration=0 
             fi
         fi
-        # FIXED: Parametrizing log_line to prevent injection.
         printf "%b> %-58s%b%b" "$(L "K.H")" "$log_line" "$RESET" "$(tput el)"
         
         if [ $min_duration -gt 0 ]; then
@@ -208,7 +201,6 @@ run_with_loader() {
         if [ ${#stream} -lt $cols ]; then
             stream="${stream}${data:0:$((cols - ${#stream}))}"
         fi
-        # FIXED: Parametrizing the stream block to prevent invalid number format injections from error traces.
         printf "%b%s%b" "$(L "$STREAM_COL")" "$stream" "$RESET"
         
         pos=$(( (pos + 4) % ${#data} ))
@@ -230,7 +222,6 @@ if [ "$cmd" = "sync" ]; then
             tput clear
             draw_splash "$cols" "$lines"
             tput cup 0 0
-            # REVISED NOMENCLATURE to ZEN to prevent local scope errors.
             headerText=" 高爪 @NSIBLE OS // ZEN DIVERGENCE DETECTED "
             printf "%b%b%-*s%b" "$(LB "$HDR_BG")" "$(L "$HDR_FG")" "$cols" "${headerText:0:$cols}" "$RESET"
             tput cup $(( (lines / 2) + 2 )) $(( (cols - 60) / 2 ))
