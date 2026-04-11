@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 4.1 CODEP FIX: Corrected Satori state routing. Satori Motor Cortex overrides established. MELT fetch and buffer truncation verified.",
+//   changes: "Phase 4.1 CODEP FIX: Satori Motor Cortex fully decoupled from strict ANSI. Viewport bound to scan line. Macro truncation stabilized.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -837,17 +837,24 @@ pub fn main() !void {
                     if (esc_len == 3 and esc_seq[1] == '[') {
                         if (byte == 'A' or byte == 'B' or byte == 'C' or byte == 'D') {
                             if (sys_hunter.lens.is_scan_active) {
-                                // [!] SATORI MOTOR CORTEX: Unconditional Override
+                                // [!] SATORI MOTOR CORTEX: Absolute Override + Viewport Scrolling
                                 if (byte == 'A') { 
-                                    if (sys_hunter.lens.scan_line_y > 0) sys_hunter.lens.scan_line_y -= 1;
+                                    if (sys_hunter.lens.scan_line_y > 0) {
+                                        sys_hunter.lens.scan_line_y -= 1;
+                                        if (sys_hunter.lens.scan_line_y < sys_hunter.scroll_y) {
+                                            sys_hunter.scroll_y = sys_hunter.lens.scan_line_y;
+                                        }
+                                    }
                                 } else if (byte == 'B') { 
                                     sys_hunter.lens.scan_line_y += 1;
+                                    const max_lines = (HEIGHT - 40) / 10;
+                                    if (sys_hunter.lens.scan_line_y >= sys_hunter.scroll_y + max_lines) {
+                                        sys_hunter.scroll_y = sys_hunter.lens.scan_line_y - max_lines + 1;
+                                    }
                                 } else if (byte == 'C') { 
                                     sys_hunter.lens.focus_x += 8; 
-                                    sys_hunter.lens.focus_len = 1;
                                 } else if (byte == 'D') { 
                                     if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8; 
-                                    sys_hunter.lens.focus_len = 1;
                                 }
                             } else if (sys_composer.active) {
                                 if (byte == 'A') { sys_composer.moveCursor(0, -1); }
@@ -892,8 +899,8 @@ pub fn main() !void {
                         }
                         esc_len = 0;
                         continue;
-                    } else if (esc_len == 6 and esc_seq[1] == '[' and esc_seq[2] == '1' and esc_seq[3] == ';' and esc_seq[4] == '2') {
-                        // [!] SATORI SPAN CONTROL (Shift + Arrow) Unrestricted
+                    } else if (esc_len == 6 and esc_seq[1] == '[' and esc_seq[2] == '1' and esc_seq[3] == ';') {
+                        // [!] SATORI SPAN CONTROL (Shift/Alt/Ctrl Modifier Agnostic)
                         if (sys_hunter.lens.is_scan_active) {
                             if (byte == 'C') { // Shift + Right
                                 sys_hunter.lens.focus_len += 1;
@@ -950,7 +957,7 @@ pub fn main() !void {
                     sys_composer.setStatus("SAVE CANCELLED");
                     reflex_triggered = true;
                 } else if (sys_composer.active) {
-                    sys_composer.undo_reflex(5);
+                    sys_composer.undo_reflex(6);
                     if (sys_composer.dirty) {
                         const now = std.time.milliTimestamp();
                         if (now - sys_composer.last_xx_ms < 3000) {
@@ -1018,9 +1025,9 @@ pub fn main() !void {
             // [!] SATORI REFLEXES
             else if (std.mem.endsWith(u8, &seq_buf, ".!FL-.")) {
                 if (sys_composer.active) {
-                    sys_composer.phantom_strike(5);
+                    sys_composer.phantom_strike(6);
                 } else {
-                    if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                    if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 }
                 sys_hunter.lens.is_scan_active = !sys_hunter.lens.is_scan_active;
                 if (sys_hunter.lens.is_scan_active) {
@@ -1035,16 +1042,14 @@ pub fn main() !void {
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!FS-.")) {
                 if (sys_composer.active) {
-                    sys_composer.phantom_strike(5);
+                    sys_composer.phantom_strike(6);
                 } else {
-                    // Prevent truncation corruption if we aren't in the composer
-                    if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                    if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 }
                 
                 if (sys_hunter.lens.is_scan_active) {
                     if (sys_hunter.lens.extractSatoriSpan(void_allocator, WIDTH)) |span| {
                         if (sys_composer.active) {
-                            // Draw Brass Selection directly into the Active Vessel
                             for (span) |c| { sys_composer.insert(c); }
                         } else {
                             const safe_len = @min(span.len, 4096 - journal_len);
@@ -1060,62 +1065,62 @@ pub fn main() !void {
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!T<-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(5);
+                if (sys_composer.active) sys_composer.phantom_strike(6);
                 switchTab(&sys_hunter, &sys_composer, -1, void_allocator);
-                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!T>-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(5);
+                if (sys_composer.active) sys_composer.phantom_strike(6);
                 switchTab(&sys_hunter, &sys_composer, 1, void_allocator);
-                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!R^-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(5);
+                if (sys_composer.active) sys_composer.phantom_strike(6);
                 sys_hunter.shiftNode(-1);
-                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!Rv-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(5);
+                if (sys_composer.active) sys_composer.phantom_strike(6);
                 sys_hunter.shiftNode(1);
-                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!C+-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(5);
+                if (sys_composer.active) sys_composer.phantom_strike(6);
                 sys_hunter.cycleNodeColor(1);
-                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.startsWith(u8, &seq_buf, ".~") and std.mem.endsWith(u8, &seq_buf, "-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(5);
+                if (sys_composer.active) sys_composer.phantom_strike(6);
                 sys_hunter.setNodeColor(seq_buf[2..4]);
-                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".![-.")) { 
-                if (sys_composer.active) sys_composer.phantom_strike(4);
+                if (sys_composer.active) sys_composer.phantom_strike(5);
                 sys_hunter.shiftScope(1);
-                if (journal_len >= 4) journal_len -= 4 else journal_len = 0; 
+                if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
                 reflex_triggered = true;
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!]-.")) { 
-                if (sys_composer.active) sys_composer.phantom_strike(4);
+                if (sys_composer.active) sys_composer.phantom_strike(5);
                 sys_hunter.shiftScope(-1);
-                if (journal_len >= 4) journal_len -= 4 else journal_len = 0; 
+                if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
                 reflex_triggered = true;
             } 
             else if (std.mem.endsWith(u8, &seq_buf, ".!@&-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(5);
+                if (sys_composer.active) sys_composer.phantom_strike(6);
                 sys_hunter.refresh() catch {};
-                if (journal_len >= 5) journal_len -= 5 else journal_len = 0; 
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0; 
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!VD-.")) {
                 if (!sys_composer.active) {
-                    if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                    if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                     var target_path = std.mem.trim(u8, journal[0..journal_len], " ");
 
                     var is_melt = target_path.len > 0;
@@ -1166,7 +1171,7 @@ pub fn main() !void {
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!ED-.")) {
                 if (!sys_composer.active) {
-                    if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                    if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                     var target_path_buf: [1024]u8 = undefined;
                     var target_path: []const u8 = std.mem.trim(u8, journal[0..journal_len], " ");
                     var editing_active_node = false;
@@ -1238,7 +1243,7 @@ pub fn main() !void {
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!SV-.")) {
                 if (sys_composer.active) {
-                    sys_composer.undo_reflex(5);
+                    sys_composer.undo_reflex(6);
                     var exp_exists = false;
                     sys_hunter.mutex.lock();
                     const c_path = sys_composer.filepath[0..sys_composer.filepath_len];
@@ -1270,14 +1275,14 @@ pub fn main() !void {
                 }
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!SR-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(5);
+                if (sys_composer.active) sys_composer.phantom_strike(6);
                 sys_hunter.hunt(".!SR-.") catch {};
-                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                if (journal_len >= 6) journal_len -= 6 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, "//-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(3);
-                if (journal_len >= 3) journal_len -= 3 else journal_len = 0;
+                if (sys_composer.active) sys_composer.phantom_strike(4);
+                if (journal_len >= 4) journal_len -= 4 else journal_len = 0;
                 const clean_slice = std.mem.trimRight(u8, journal[0..journal_len], " ");
                 @memcpy(pending_memo_content[0..clean_slice.len], clean_slice);
                 pending_memo_len = clean_slice.len;
@@ -1789,8 +1794,16 @@ pub fn main() !void {
                     }
                 } else if (byte >= 32 and byte <= 126) {
                     shed_lock = false;
-                    if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1;
+
+                    // SATORI FAILSAFE: If terminal eats modifiers entirely, use brackets to control the Brass lock
+                    if (sys_hunter.lens.is_scan_active) {
+                        if (byte == ']') { sys_hunter.lens.focus_len += 1; continue; }
+                        if (byte == '[') { if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1; continue; }
+                        if (byte == '}') { sys_hunter.lens.focus_x += 8; continue; }
+                        if (byte == '{') { if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8; continue; }
                     }
+
+                    if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
                 }
             }
         } else {
