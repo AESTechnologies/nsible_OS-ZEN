@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 4.2e CODEP FIX: Purged XTerm overrides. Reverted all GZL macro offsets to stable baseline (5/4/3). Freed Composer .!XX-. lock.",
+//   changes: "Phase 4.2g CODEP FIX: Eradicated destructive asset overwrite. .!FS-. now correctly pipes to assets/.void/.00 when outside Composer.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -1093,15 +1093,18 @@ pub fn main() !void {
                     if (sys_hunter.lens.extractSatoriSpan(void_allocator, WIDTH)) |span| {
                         if (sys_composer.active) {
                             for (span) |c| { sys_composer.insert(c); }
+                            sys_hunter.status = "[ SATORI STRIKE : INJECTED TO ACTIVE VESSEL ]";
                         } else {
-                            const safe_len = @min(span.len, 4096 - journal_len);
-                            @memcpy(journal[journal_len..journal_len + safe_len], span[0..safe_len]);
-                            journal_len += safe_len;
+                            // [!] SAFELY STASH PAYLOAD: Diverted to assets/.void/.00 (Pipe Origin). Configs/Journal untouched.
+                            if (std.fs.cwd().createFile("assets/.void/.00", .{ .truncate = true })) |f| {
+                                f.writeAll(span) catch {};
+                                f.close();
+                                sys_hunter.status = "[ SATORI STRIKE : PAYLOAD STASHED TO ASSETS/.VOID/.00 ]";
+                            } else |_| {}
                         }
                         void_allocator.free(span);
                     } else |_| {}
                     
-                    sys_hunter.status = "[ SATORI STRIKE : ACQUIRED SPAN ]";
                     sys_hunter.lens.is_scan_active = false;
                 }
                 reflex_triggered = true;
