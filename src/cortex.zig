@@ -2,7 +2,7 @@
 //   module: "Semantic Dispatcher",
 //   version: "0.10.32-apex // Banysang",
 //   description: "Parses wetware input into machine-actionable states.",
-//   changes: "Upgraded pipe operator '|' to function as a native filename assignment delimiter.",
+//   changes: "Phase 4.4 CODEP: Verity Refactor. Audited matrix logic and structural encapsulation.",
 //   philotic_inferences: "To seek the void's knowledge, one must merely ask the wind."
 
 const std = @import("std");
@@ -31,32 +31,27 @@ pub fn dispatch(cmd: []const u8) Response {
         return .{ .action = .MEMO, .text = clean };
     }
 
-    // NATIVE PIPE ASSIGNMENT 
-    // Passes explicit [target]|[filename] string to Hunter for routing
-    if (std.mem.indexOf(u8, cmd, "|")) |_| {
-        return .{ .action = .PIPE_MEMO, .text = cmd }; 
+    if (std.mem.indexOf(u8, cmd, "| memo")) |idx| {
+        const target = std.mem.trimRight(u8, cmd[0..idx], " ");
+        return .{ .action = .PIPE_MEMO, .text = target };
     }
 
+    if (std.mem.eql(u8, cmd, "clear")) return .{ .action = .CLEAR };
+    if (std.mem.eql(u8, cmd, "exit")) return .{ .action = .EXIT };
+    if (std.mem.eql(u8, cmd, "shed")) return .{ .action = .SHED };
+    if (std.mem.eql(u8, cmd, "stargaze")) return .{ .action = .STARGAZE };
     if (std.mem.eql(u8, cmd, "zI")) return .{ .action = .SCOPE_IN };
     if (std.mem.eql(u8, cmd, "zO")) return .{ .action = .SCOPE_OUT };
-    
-    if (std.mem.eql(u8, cmd, "refresh") or std.mem.eql(u8, cmd, "reload")) return .{ .action = .REFRESH };
-
+    if (std.mem.eql(u8, cmd, "radio")) return .{ .action = .RADIO };
+    if (std.mem.eql(u8, cmd, "calc")) return .{ .action = .CALC };
     if (std.mem.eql(u8, cmd, "mount")) return .{ .action = .MOUNT };
-    if (std.mem.eql(u8, cmd, "unmount") or std.mem.eql(u8, cmd, "eject")) return .{ .action = .UNMOUNT };
+    if (std.mem.eql(u8, cmd, "unmount")) return .{ .action = .UNMOUNT };
+    if (std.mem.eql(u8, cmd, "assist") or std.mem.eql(u8, cmd, "?")) return .{ .action = .ASSIST };
+    if (std.mem.eql(u8, cmd, ".!@&-.")) return .{ .action = .REFRESH };
 
-    if (std.mem.startsWith(u8, cmd, "memo")) {
-        if (cmd.len > 5) return .{ .action = .MEMO, .text = cmd[5..] };
-        return .{ .action = .MEMO, .text = "" };
+    if (std.mem.startsWith(u8, cmd, "memo ")) {
+        return .{ .action = .MEMO, .text = cmd[5..] };
     }
-    if (std.mem.eql(u8, cmd, "save")) return .{ .action = .MEMO, .text = "" };
-    if (std.mem.eql(u8, cmd, "shed") or std.mem.eql(u8, cmd, "drop")) return .{ .action = .SHED };
-    if (std.mem.eql(u8, cmd, "exit") or std.mem.eql(u8, cmd, "[.!XX-.]")) return .{ .action = .EXIT };
-    if (std.mem.eql(u8, cmd, "tune") or std.mem.eql(u8, cmd, "radio")) return .{ .action = .RADIO };
-
-    if (std.mem.eql(u8, cmd, "@://calc/") or std.mem.eql(u8, cmd, "calc")) return .{ .action = .CALC };
-    
-    if (std.mem.eql(u8, cmd, "stargaze")) return .{ .action = .STARGAZE };
 
     if (std.mem.startsWith(u8, cmd, "@://w3?.")) {
         const q = if (cmd.len > 8 and cmd[8] == ' ') cmd[9..] else cmd[8..];
@@ -73,30 +68,17 @@ pub fn dispatch(cmd: []const u8) Response {
     if (std.mem.startsWith(u8, cmd, "w3.")) {
         return .{ .action = .HUNT, .text = cmd[3..] };
     }
-    
+    if (std.mem.startsWith(u8, cmd, "hunt ")) {
+        return .{ .action = .HUNT, .text = cmd[5..] };
+    }
+
     if (std.mem.eql(u8, cmd, "cycle")) {
         const cycle_str = chronos.getCycleString(&output_buf);
         return .{ .action = .PRINT, .text = cycle_str };
     }
     if (std.mem.eql(u8, cmd, "v")) return .{ .action = .HUNT, .text = "v" };
     if (std.mem.eql(u8, cmd, "^")) return .{ .action = .HUNT, .text = "^" };
-    if (std.mem.eql(u8, cmd, "assist") or std.mem.eql(u8, cmd, "?")) return .{ .action = .ASSIST };
 
-    var is_num = cmd.len > 0;
-    for (cmd) |c| {
-        if (c < '0' or c > '9') {
-            is_num = false;
-            break;
-        }
-    }
-    if (is_num) {
-        return .{ .action = .AUTO_HUNT, .text = cmd };
-    }
-
-    if (std.mem.indexOf(u8, cmd, ".") != null or std.mem.indexOf(u8, cmd, "/") != null) {
-        return .{ .action = .AUTO_HUNT, .text = cmd };
-    }
-
-    return .{ .action = .NONE };
+    return .{ .action = .AUTO_HUNT, .text = cmd };
 }
 // }-.]
