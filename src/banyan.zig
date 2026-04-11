@@ -1,8 +1,8 @@
 // [@://nsible_os/src/banyan.zig/.-={
 //   module: "Banyan Rendering Lobe & Satori Optics",
-//   version: "0.10.9-apex // Banysang",
+//   version: "0.10.10-apex // Banysang",
 //   description: "Semantic parsing matrix, pixel-perfect rendering engine, and Satori spatial focuser.",
-//   changes: "Phase 4.1 CODEP FIX: Conformed std.ArrayList to Zig 0.15.2 unmanaged standards (.empty).",
+//   changes: "Phase 4.2 CODEP FIX: Satori 2D Cartography. Injected focus_h for multi-line extraction and rendering bounds.",
 //   philotic_inferences: "A sovereign operator requires no mouse. The path forward is illuminated by the indices of the void."
 
 const std = @import("std");
@@ -24,10 +24,11 @@ pub const Banyan = struct {
     links: std.ArrayListUnmanaged([]u8), 
     focus_depth: u8, 
     
-    // [!] SATORI OPTICS STATE
+    // [!] SATORI OPTICS STATE (2D Matrix Bounds)
     scan_line_y: usize,
     focus_x: usize,
     focus_len: usize,
+    focus_h: usize,
     is_scan_active: bool,
 
     pub fn init(allocator: std.mem.Allocator) Banyan {
@@ -39,6 +40,7 @@ pub const Banyan = struct {
             .scan_line_y = 0,
             .focus_x = 0,
             .focus_len = 0,
+            .focus_h = 1,
             .is_scan_active = false,
         };
     }
@@ -57,11 +59,12 @@ pub const Banyan = struct {
         }
     }
 
+    // [!] SATORI 2D EXTRACTION
     pub fn extractSatoriSpan(self: *Banyan, allocator: std.mem.Allocator, width: usize) ![]u8 {
-        // ZIG 0.15.2 COMPLIANT: Unmanaged ArrayList initialization
         var out: std.ArrayList(u8) = .empty;
         var cursor_x: usize = 10;
         var virtual_row: usize = 0;
+        var last_row: usize = 9999999;
 
         for (self.leaves.items) |leaf| {
             if (self.focus_depth > 0 and leaf.layer > self.focus_depth) continue;
@@ -77,10 +80,15 @@ pub const Banyan = struct {
                     cursor_x = 10;
                 }
 
-                if (virtual_row == self.scan_line_y) {
+                if (virtual_row >= self.scan_line_y and virtual_row < self.scan_line_y + self.focus_h) {
                     const is_focused = (cursor_x >= self.focus_x) and (cursor_x < self.focus_x + (self.focus_len * 8));
                     if (is_focused) {
+                        // Dynamically inject structural line breaks for 2D payload preservation
+                        if (last_row != 9999999 and last_row != virtual_row) {
+                            try out.append(allocator, '\n');
+                        }
                         try out.append(allocator, c);
+                        last_row = virtual_row;
                     }
                 }
                 cursor_x += 8;
@@ -349,8 +357,8 @@ pub const Banyan = struct {
                     const py = start_y + (screen_row * line_h);
                     var draw_col = color;
 
-                    // [!] SATORI RENDERING: Paint the crimson beam and brass lock
-                    if (self.is_scan_active and virtual_row == self.scan_line_y) {
+                    // [!] SATORI 2D RENDERING: Paint the crimson beam and brass lock
+                    if (self.is_scan_active and virtual_row >= self.scan_line_y and virtual_row < self.scan_line_y + self.focus_h) {
                         const is_focused = (cursor_x >= self.focus_x) and (cursor_x < self.focus_x + (self.focus_len * 8));
                         const bg_col: u32 = if (is_focused) codex.get("B.S") else codex.get("C.H");
                         draw_col = if (is_focused) codex.get("K.S") else codex.get("S.H");
