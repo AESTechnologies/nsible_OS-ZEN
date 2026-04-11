@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 4.1 CODEP FIX: Corrected Satori state routing. All spatial optic variables are now properly routed through sys_hunter.lens.",
+//   changes: "Phase 4.1 CODEP FIX: Corrected Satori state routing. Satori Motor Cortex overrides established. MELT fetch and buffer truncation verified.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -161,7 +161,6 @@ fn switchTab(h: *hunter.Hunter, c: *composer.Composer, dir: i32, allocator: std.
         return;
     };
     h.mutex.unlock();
-    
     if (c.active or is_open) {
         var loaded_exp = false;
         if (getExpPath(allocator, new_uri)) |exp_path| {
@@ -313,7 +312,6 @@ fn drawHeader(is_high: bool) void {
     const active_host = if (sys_host_id_len > 0) sys_host_id[0..sys_host_id_len] else "mchn:anon";
     const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, active_host}) catch "HEADER_ERR";
     print(10, 6, header, codex.get("S.H"));
-
     //^::INVERSE HEADER VFX<<dev:archx m_txr.Gem3P>>\.
     if (@"aud.state.io".is_active) {
         const aud_w = 480;
@@ -324,7 +322,6 @@ fn drawHeader(is_high: bool) void {
         var display_name = t_name;
         if (t_name.len > 28) display_name = t_name[0..28];
         print(aud_x + 10, 6, display_name, codex.get("C.S"));
-
         const num_bands = 32;
         const band_w = 3;
         const band_space = 2;
@@ -346,13 +343,14 @@ fn drawHeader(is_high: bool) void {
         drawChar(aud_x + aud_w - 65, 6, 0x18, shf_color);
         drawChar(aud_x + aud_w - 50, 6, 0x1D, rpt_color); 
         drawChar(aud_x + aud_w - 35, 6, status_glyph, status_color);
-        
         // Stacked Horizontal Volume Bands
         const vol_p = @"aud.state.io".vol_level * 100.0;
         var v_i: usize = 0;
         while (v_i < 8) : (v_i += 1) {
-            const band_val = @as(f32, @floatFromInt(v_i + 1)) * 15.0; // Zones: 15..120
-            var b_color: u32 = codex.get("K.S"); // Inactive dark grey
+            const band_val = @as(f32, @floatFromInt(v_i + 1)) * 15.0;
+            // Zones: 15..120
+            var b_color: u32 = codex.get("K.S");
+            // Inactive dark grey
             if (vol_p >= band_val - 7.0) {
                 if (band_val <= 42.0) { b_color = codex.get("K.H"); }
                 else if (band_val <= 80.0) { b_color = codex.get("C.S"); }
@@ -640,8 +638,10 @@ pub fn main() !void {
     var sa = std.mem.zeroes(linux.Sigaction);
     sa.handler = .{ .handler = @as(?*const fn (i32) callconv(.c) void, @ptrFromInt(1)) };
     _ = linux.sigaction(2, &sa, null);  // Lock SIGINT  (^C)
-    _ = linux.sigaction(3, &sa, null);  // Lock SIGQUIT (^\)
-    _ = linux.sigaction(20, &sa, null); // Lock SIGTSTP (^Z)
+    _ = linux.sigaction(3, &sa, null);
+    // Lock SIGQUIT (^\)
+    _ = linux.sigaction(20, &sa, null);
+    // Lock SIGTSTP (^Z)
     //:X
 
     const fs = std.fs.cwd();
@@ -697,7 +697,6 @@ pub fn main() !void {
         file.close();
     } else |_| {}
     const mchn_str = if (mchn_len > 0) mchn_buf[0..mchn_len] else "mchn";
-    
     var soc_buf: [64]u8 = .{0} ** 64;
     var soc_len: usize = 0;
     if (fs.openFile("timeline/.aiua.tome", .{})) |file| {
@@ -731,7 +730,8 @@ pub fn main() !void {
 
     var sys_composer = composer.Composer.init();
     var is_tabula_rasa: bool = false;
-    if (sys_hunter.history.items.len == 0) { is_tabula_rasa = true; } 
+    if (sys_hunter.history.items.len == 0) { is_tabula_rasa = true;
+    } 
     else {
         const first_entry = sys_hunter.history.items[0].uri;
         if (!std.mem.startsWith(u8, first_entry, "@AVIUM_RESONANCE:")) { is_tabula_rasa = true; }
@@ -770,7 +770,6 @@ pub fn main() !void {
     var blink_timer: usize = 0;
     var is_high_cycle: bool = true;
     var dirty: bool = true;
-
     while (true) {
         try sys_hunter.tick();
         if (pulse_timer > 0) {
@@ -781,13 +780,20 @@ pub fn main() !void {
         if (esc_len == 1) {
             esc_timer += 1;
             if (esc_timer > 5000) {
-                if (is_calc_modal) { is_calc_modal = false; }
-                else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
-                else if (is_memo_modal) { is_memo_modal = false; }
-                else if (is_trail_modal) { is_trail_modal = false; }
-                else if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
-                else if (is_bash_modal) { is_bash_modal = false; }
-                else if (is_void_modal) { is_void_modal = false; }
+                if (is_calc_modal) { is_calc_modal = false;
+                }
+                else if (is_radio_modal) { is_radio_modal = false;
+                saveResonance(); pulse_timer = PULSE_MAX; }
+                else if (is_memo_modal) { is_memo_modal = false;
+                }
+                else if (is_trail_modal) { is_trail_modal = false;
+                }
+                else if (is_bash_pipe) { is_bash_pipe = false;
+                journal_len = 0; }
+                else if (is_bash_modal) { is_bash_modal = false;
+                }
+                else if (is_void_modal) { is_void_modal = false;
+                }
                 
                 esc_len = 0;
                 esc_timer = 0;
@@ -798,6 +804,25 @@ pub fn main() !void {
         if (codex.transcieve(vinculum_fd)) |byte| {
             dirty = true;
             last_rx_ms = std.time.milliTimestamp();
+
+            // [!] SATORI MELT FETCH INTERCEPT
+            if ((byte == '\n' or byte == '\r') and sys_hunter.lens.is_scan_active) {
+                if (sys_hunter.lens.extractSatoriSpan(void_allocator, WIDTH)) |span| {
+                    defer void_allocator.free(span);
+                    if (span.len >= 3 and span[0] == '[' and span[span.len - 1] == ']') {
+                        const inner = span[1..span.len - 1];
+                        var is_num = true;
+                        for (inner) |c| { if (c < '0' or c > '9') is_num = false; }
+                        if (is_num) {
+                            sys_hunter.lens.is_scan_active = false;
+                            sys_hunter.hunt(inner) catch { sys_hunter.mutex.lock(); sys_hunter.status = "FETCH_ERR"; sys_hunter.mutex.unlock(); };
+                            journal_len = 0;
+                            continue;
+                        }
+                    }
+                } else |_| {}
+            }
+
             if (byte == 27) {
                 esc_len = 1;
                 esc_seq[0] = byte;
@@ -811,7 +836,20 @@ pub fn main() !void {
                     
                     if (esc_len == 3 and esc_seq[1] == '[') {
                         if (byte == 'A' or byte == 'B' or byte == 'C' or byte == 'D') {
-                            if (sys_composer.active) {
+                            if (sys_hunter.lens.is_scan_active) {
+                                // [!] SATORI MOTOR CORTEX: Unconditional Override
+                                if (byte == 'A') { 
+                                    if (sys_hunter.lens.scan_line_y > 0) sys_hunter.lens.scan_line_y -= 1;
+                                } else if (byte == 'B') { 
+                                    sys_hunter.lens.scan_line_y += 1;
+                                } else if (byte == 'C') { 
+                                    sys_hunter.lens.focus_x += 8; 
+                                    sys_hunter.lens.focus_len = 1;
+                                } else if (byte == 'D') { 
+                                    if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8; 
+                                    sys_hunter.lens.focus_len = 1;
+                                }
+                            } else if (sys_composer.active) {
                                 if (byte == 'A') { sys_composer.moveCursor(0, -1); }
                                 else if (byte == 'B') { sys_composer.moveCursor(0, 1); }
                                 else if (byte == 'C') { sys_composer.moveCursor(1, 0); }
@@ -832,27 +870,10 @@ pub fn main() !void {
                                 if (byte == 'A') { if (bash_scroll_y > 0) bash_scroll_y -= 1; }
                                 else if (byte == 'B') { bash_scroll_y += 1; }
                             } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) {
-                                
-                                // [!] SATORI MOTOR CORTEX: Hook arrow keys if laser is active
-                                if (sys_hunter.lens.is_scan_active) {
-                                    if (byte == 'A') { 
-                                        if (sys_hunter.lens.scan_line_y > 0) sys_hunter.lens.scan_line_y -= 1; 
-                                    } else if (byte == 'B') { 
-                                        sys_hunter.lens.scan_line_y += 1; 
-                                    } else if (byte == 'C') { 
-                                        sys_hunter.lens.focus_x += 8; // Snap Right 
-                                        sys_hunter.lens.focus_len = 1; 
-                                    } else if (byte == 'D') { 
-                                        if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8; // Snap Left
-                                        sys_hunter.lens.focus_len = 1; 
-                                    }
-                                } else {
-                                    // STANDARD HUNTER GLIDE
-                                    if (byte == 'A') { sys_hunter.scrollBy(-1); }
-                                    else if (byte == 'B') { sys_hunter.scrollBy(1); }
-                                    else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; }
-                                    else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; }
-                                }
+                                if (byte == 'A') { sys_hunter.scrollBy(-1); }
+                                else if (byte == 'B') { sys_hunter.scrollBy(1); }
+                                else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; }
+                                else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; }
                             }
                             esc_len = 0;
                         }
@@ -872,14 +893,12 @@ pub fn main() !void {
                         esc_len = 0;
                         continue;
                     } else if (esc_len == 6 and esc_seq[1] == '[' and esc_seq[2] == '1' and esc_seq[3] == ';' and esc_seq[4] == '2') {
-                        // [!] SATORI SPAN CONTROL (Shift + Arrow)
-                        if (!sys_composer.active and !is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) {
-                            if (sys_hunter.lens.is_scan_active) {
-                                if (byte == 'C') { // Shift + Right
-                                    sys_hunter.lens.focus_len += 1;
-                                } else if (byte == 'D') { // Shift + Left
-                                    if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1;
-                                }
+                        // [!] SATORI SPAN CONTROL (Shift + Arrow) Unrestricted
+                        if (sys_hunter.lens.is_scan_active) {
+                            if (byte == 'C') { // Shift + Right
+                                sys_hunter.lens.focus_len += 1;
+                            } else if (byte == 'D') { // Shift + Left
+                                if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1;
                             }
                         }
                         esc_len = 0;
@@ -983,17 +1002,26 @@ pub fn main() !void {
 					is_bash_pipe = false;
 					journal_len = 0;
 					reflex_triggered = true;
-                } else if (is_calc_modal) { is_calc_modal = false; journal_len = 0; reflex_triggered = true; }
-                else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; journal_len = 0; reflex_triggered = true; }
-                else if (is_memo_modal) { is_memo_modal = false; journal_len = 0; reflex_triggered = true; }
-                else if (is_trail_modal) { is_trail_modal = false; journal_len = 0; reflex_triggered = true; }
+                } else if (is_calc_modal) { is_calc_modal = false; journal_len = 0; reflex_triggered = true;
+                }
+                else if (is_radio_modal) { is_radio_modal = false;
+                saveResonance(); pulse_timer = PULSE_MAX; journal_len = 0; reflex_triggered = true;
+                }
+                else if (is_memo_modal) { is_memo_modal = false;
+                journal_len = 0; reflex_triggered = true; }
+                else if (is_trail_modal) { is_trail_modal = false;
+                journal_len = 0; reflex_triggered = true; }
                 else {
                     exitSequence();
                 }
             } 
             // [!] SATORI REFLEXES
             else if (std.mem.endsWith(u8, &seq_buf, ".!FL-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(5);
+                if (sys_composer.active) {
+                    sys_composer.phantom_strike(5);
+                } else {
+                    if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                }
                 sys_hunter.lens.is_scan_active = !sys_hunter.lens.is_scan_active;
                 if (sys_hunter.lens.is_scan_active) {
                     sys_hunter.lens.scan_line_y = sys_hunter.scroll_y;
@@ -1003,24 +1031,32 @@ pub fn main() !void {
                 } else {
                     sys_hunter.status = "[ SATORI OPTICS : OFFLINE ]";
                 }
-                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!FS-.")) {
-                if (sys_composer.active) sys_composer.phantom_strike(5);
+                if (sys_composer.active) {
+                    sys_composer.phantom_strike(5);
+                } else {
+                    // Prevent truncation corruption if we aren't in the composer
+                    if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+                }
+                
                 if (sys_hunter.lens.is_scan_active) {
-                    // SATORI STRIKE: Placeholder spanning logic until .satori.gzl parser connects
-                    var satori_buf: [128]u8 = undefined;
-                    const s_str = std.fmt.bufPrint(&satori_buf, "[SATORI_SPAN_L{d}]", .{sys_hunter.lens.focus_len}) catch "[SATORI_ERR]";
-                    
-                    const safe_len = @min(s_str.len, 4096 - journal_len);
-                    @memcpy(journal[journal_len..journal_len + safe_len], s_str[0..safe_len]);
-                    journal_len += safe_len;
+                    if (sys_hunter.lens.extractSatoriSpan(void_allocator, WIDTH)) |span| {
+                        if (sys_composer.active) {
+                            // Draw Brass Selection directly into the Active Vessel
+                            for (span) |c| { sys_composer.insert(c); }
+                        } else {
+                            const safe_len = @min(span.len, 4096 - journal_len);
+                            @memcpy(journal[journal_len..journal_len + safe_len], span[0..safe_len]);
+                            journal_len += safe_len;
+                        }
+                        void_allocator.free(span);
+                    } else |_| {}
                     
                     sys_hunter.status = "[ SATORI STRIKE : ACQUIRED SPAN ]";
-                    sys_hunter.lens.is_scan_active = false; // Auto-disengage laser on strike
+                    sys_hunter.lens.is_scan_active = false;
                 }
-                if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
                 reflex_triggered = true;
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!T<-.")) {
@@ -1392,6 +1428,7 @@ pub fn main() !void {
             else if (is_calc_modal) {
                 if (byte == '\n' or byte == '\r') {
                     if (calc_len > 0) {
+                        
                         const expr = calc_input[0..calc_len];
                         const rcl = synapse.manageSynapseMemory(null);
                         const res = synapse.AST.evaluate(expr, rcl);
@@ -1462,6 +1499,7 @@ pub fn main() !void {
                 }
             }
             else if (is_void_modal) {
+                
                 if (byte == 'y' or byte == 'Y') {
                     sys_hunter.banishToVoid(void_target_path[0..void_target_len]) catch {};
                     sys_hunter.mutex.lock();
@@ -1488,6 +1526,7 @@ pub fn main() !void {
             }
             else {
                 if (byte == '\n' or byte == '\r') {
+     
                     const raw_cmd = journal[0..journal_len];
                     const cmd_slice = std.mem.trim(u8, raw_cmd, " ");
                     
@@ -1535,6 +1574,7 @@ pub fn main() !void {
                             
                             if (std.mem.eql(u8, aud_action, "play")) {
                                 if (!@"aud.state.io".is_active) {
+   
                                     @"aud.state.io".is_active = true;
                                     @"aud.state.io".is_paused = false;
                                     const djinn_thread = std.Thread.spawn(.{}, djinn.invoke, .{&@"aud.state.io"}) catch null;
@@ -1601,6 +1641,7 @@ pub fn main() !void {
                             while (i < response.text.len) : (i += 1) {
                                 if (response.text[i] == '"') {
                                     in_quotes = !in_quotes;
+                  
                                 } else if (response.text[i] == '/' and !in_quotes) {
                                     const arg = std.mem.trim(u8, response.text[start_idx..i], "\" ");
                                     if (arg.len > 0) args.append(void_allocator, arg) catch {};
@@ -1610,16 +1651,21 @@ pub fn main() !void {
                             const final_arg = std.mem.trim(u8, response.text[start_idx..], "\" ");
                             if (final_arg.len > 0) args.append(void_allocator, final_arg) catch {};
 
-                            if (args.items.len > 0) {
+   
+                             if (args.items.len > 0) {
                                 var agent = std.process.Child.init(args.items, void_allocator);
                                 agent.stdin_behavior = .Ignore;
+ 
                                 agent.stdout_behavior = .Pipe;
                                 agent.stderr_behavior = .Pipe;
                             
+     
                                 if (agent.spawn()) |_| {
                                    if (std.fs.cwd().createFile("assets/.void/.00", .{}) catch null) |f| {
+                             
                                         if (agent.stdout) |stdout| {
                                             const out_data = stdout.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
+                                  
                                             f.writeAll(out_data) catch {};
                                             void_allocator.free(out_data);
                                         }
@@ -1639,10 +1685,14 @@ pub fn main() !void {
                         },
                         .CLEAR => {}, 
                         .EXIT => exitSequence(), 
-                        .CALC => { is_calc_modal = !is_calc_modal; journal_len = 0; },
-                        .SHED => { sys_hunter.shed(); journal_len = 0; },
-                        .SCOPE_IN => { sys_hunter.shiftScope(1); journal_len = 0; },
-                        .SCOPE_OUT => { sys_hunter.shiftScope(-1); journal_len = 0; },
+                        .CALC => { is_calc_modal = !is_calc_modal;
+                        journal_len = 0; },
+                        .SHED => { sys_hunter.shed();
+                        journal_len = 0; },
+                        .SCOPE_IN => { sys_hunter.shiftScope(1);
+                        journal_len = 0; },
+                        .SCOPE_OUT => { sys_hunter.shiftScope(-1);
+                        journal_len = 0; },
                         .MEMO => { 
                             const txt = if (response.text.len > 0) response.text else cmd_slice;
                             @memcpy(pending_memo_content[0..txt.len], txt);
@@ -1691,14 +1741,18 @@ pub fn main() !void {
                             };
                             journal_len = 0; 
                         },
-                        .RADIO => { is_radio_modal = true; journal_len = 0; },
+                        .RADIO => { is_radio_modal = true;
+                        journal_len = 0; },
                         .PRINT => {
                             journal_len = 0;
-                            for (response.text) |c| { if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; } }
+                            for (response.text) |c| { if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1;
+                            } }
                         },
                         .HUNT => {
-                            if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scrollBy(1); }
-                            else if (std.mem.eql(u8, response.text, "^")) { sys_hunter.scrollBy(-1); }
+                            if (std.mem.eql(u8, response.text, "v")) { sys_hunter.scrollBy(1);
+                            }
+                            else if (std.mem.eql(u8, response.text, "^")) { sys_hunter.scrollBy(-1);
+                            }
                             else {
                                 var target = response.text;
                                 if (std.mem.startsWith(u8, target, "hunt ")) target = target[5..];
@@ -1720,7 +1774,8 @@ pub fn main() !void {
                             sys_hunter.unmountDrives();
                             journal_len = 0;
                         },
-                        .NONE => { journal_len = 0; }
+                        .NONE => { journal_len = 0;
+                        }
                     }
                 } else if (byte == 127 or byte == 8) {
                     if (journal_len > 0) {
@@ -1734,7 +1789,8 @@ pub fn main() !void {
                     }
                 } else if (byte >= 32 and byte <= 126) {
                     shed_lock = false;
-                    if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
+                    if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1;
+                    }
                 }
             }
         } else {
@@ -1746,12 +1802,14 @@ pub fn main() !void {
         }
 
         blink_timer += 1;
-        if (blink_timer > 35) { is_high_cycle = !is_high_cycle; blink_timer = 0; dirty = true; }
+        if (blink_timer > 35) { is_high_cycle = !is_high_cycle; blink_timer = 0; dirty = true;
+        }
 
         if (dirty) {
             clear(codex.get("K.S"));
             if (sys_composer.active) {
-                drawHeader(is_high_cycle); // Global OS header parity overlay
+                drawHeader(is_high_cycle);
+                // Global OS header parity overlay
                 sys_composer.render(&back_buffer, WIDTH, HEIGHT);
                 sys_hunter.renderTimeline(&back_buffer, WIDTH, HEIGHT);
                 
@@ -1854,22 +1912,26 @@ pub fn main() !void {
                     const c_f0 = if (radio_sel == 0) codex.get("S.H") else codex.get("S.S");
                     const str_f0 = std.fmt.bufPrint(&radio_buf, "Song (Hz)  : {d:.1}", .{radio_f0}) catch "";
                     print(mx + 20, my + 60, str_f0, c_f0);
-                    if (radio_sel == 0) { drawChar(mx + 8, my + 60, 0x1A, codex.get("B.S")); }
+                    if (radio_sel == 0) { drawChar(mx + 8, my + 60, 0x1A, codex.get("B.S"));
+                    }
 
                     const c_dec = if (radio_sel == 1) codex.get("S.H") else codex.get("S.S");
                     const str_dec = std.fmt.bufPrint(&radio_buf, "Decay (d)  : {d:.2}", .{radio_decay}) catch "";
                     print(mx + 20, my + 80, str_dec, c_dec);
-                    if (radio_sel == 1) { drawChar(mx + 8, my + 80, 0x1A, codex.get("B.S")); }
+                    if (radio_sel == 1) { drawChar(mx + 8, my + 80, 0x1A, codex.get("B.S"));
+                    }
 
                     const c_diss = if (radio_sel == 2) codex.get("S.H") else codex.get("S.S");
                     const str_diss = std.fmt.bufPrint(&radio_buf, "Diss. (m)  : {d:.2}", .{radio_diss}) catch "";
                     print(mx + 260, my + 60, str_diss, c_diss);
-                    if (radio_sel == 2) { drawChar(mx + 248, my + 60, 0x1A, codex.get("B.S")); }
+                    if (radio_sel == 2) { drawChar(mx + 248, my + 60, 0x1A, codex.get("B.S"));
+                    }
 
                     const c_phi = if (radio_sel == 3) codex.get("S.H") else codex.get("S.S");
                     const str_phi = std.fmt.bufPrint(&radio_buf, "\xED\x1E-off (P) : {d:.3}", .{radio_phi}) catch "";
                     print(mx + 260, my + 80, str_phi, c_phi);
-                    if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, codex.get("B.S")); }
+                    if (radio_sel == 3) { drawChar(mx + 248, my + 80, 0x1A, codex.get("B.S"));
+                    }
 
                     print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", codex.get("K.H"));
                     drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
@@ -1971,4 +2033,4 @@ pub fn main() !void {
         codex.zen(0.000004);
     }
 }
-// }-.]
+// }-]
