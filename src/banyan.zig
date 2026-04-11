@@ -77,12 +77,15 @@ pub const Banyan = struct {
         self.parseSutraLine(content, "`THE_STILLNESS`");
 
         if (std.mem.indexOf(u8, content, "`SEVER_THE_SERPENT`  » true") != null) { self.sutra_sever_serpent = true; } else { self.sutra_sever_serpent = false; }
-        if (std.mem.indexOf(u8, content, "`THE_ENDLESS_PATH`   » true") != null) { self.sutra_endless_path = true; } else { self.sutra_endless_path = false; }
-        if (std.mem.indexOf(u8, content, "`THE_PAINTED_FORM`   » true") != null) { self.sutra_painted_form = true; } else { self.sutra_painted_form = false; }
+        if (std.mem.indexOf(u8, content, "`THE_ENDLESS_PATH`   » true") != null) { self.sutra_endless_path = true;
+        } else { self.sutra_endless_path = false; }
+        if (std.mem.indexOf(u8, content, "`THE_PAINTED_FORM`   » true") != null) { self.sutra_painted_form = true;
+        } else { self.sutra_painted_form = false; }
     }
 
     fn parseSutraLine(self: *Banyan, content: []const u8, keyword: []const u8) void {
-        if (std.mem.indexOf(u8, content, keyword)) |idx| {
+        if (std.mem.indexOf(u8, content, keyword)) |idx|
+        {
             var i: usize = idx + keyword.len;
             var in_quotes = false;
             while (i < content.len and content[i] != '\n') : (i += 1) {
@@ -111,7 +114,8 @@ pub const Banyan = struct {
         var cursor_x: usize = 10;
         var virtual_row: usize = 0;
 
-        for (self.leaves.items) |leaf| {
+        for (self.leaves.items) |leaf|
+        {
             if (self.focus_depth > 0 and leaf.layer > self.focus_depth) continue;
             if (leaf.is_newline) {
                 virtual_row += 1;
@@ -119,7 +123,8 @@ pub const Banyan = struct {
                 continue;
             }
 
-            for (leaf.text) |c| {
+            for (leaf.text) |c|
+            {
                 if (cursor_x >= width - 20) {
                     virtual_row += 1;
                     cursor_x = 10;
@@ -136,12 +141,10 @@ pub const Banyan = struct {
         }
 
         if (row_len == 0) return;
-        
         // ZIG 0.15.2 COMPLIANT: Pure unsigned boundary evaluation
         if (self.focus_x < 10) return;
         var c_idx = (self.focus_x - 10) / 8;
         if (c_idx >= row_len) c_idx = row_len - 1;
-
         var l = c_idx;
         var r = c_idx;
 
@@ -195,7 +198,8 @@ pub const Banyan = struct {
     }
 
     pub fn deinit(self: *Banyan) void {
-        for (self.leaves.items) |*leaf| self.allocator.free(leaf.text);
+        for (self.leaves.items) |*leaf|
+        self.allocator.free(leaf.text);
         self.leaves.deinit(self.allocator); 
         for (self.links.items) |link| self.allocator.free(link);
         self.links.deinit(self.allocator);
@@ -214,7 +218,8 @@ pub const Banyan = struct {
         var virtual_row: usize = 0;
         var last_row: usize = 9999999;
 
-        for (self.leaves.items) |leaf| {
+        for (self.leaves.items) |leaf|
+        {
             if (self.focus_depth > 0 and leaf.layer > self.focus_depth) continue;
             if (leaf.is_newline) {
                 virtual_row += 1;
@@ -222,7 +227,8 @@ pub const Banyan = struct {
                 continue;
             }
 
-            for (leaf.text) |c| {
+            for (leaf.text) |c|
+            {
                 if (cursor_x >= width - 20) {
                     virtual_row += 1;
                     cursor_x = 10;
@@ -245,7 +251,8 @@ pub const Banyan = struct {
     }
 
     pub fn absorb(self: *Banyan, raw: []const u8) !void {
-        for (self.leaves.items) |*leaf| self.allocator.free(leaf.text);
+        for (self.leaves.items) |*leaf|
+        self.allocator.free(leaf.text);
         self.leaves.clearRetainingCapacity();
         
         for (self.links.items) |link| self.allocator.free(link);
@@ -257,10 +264,8 @@ pub const Banyan = struct {
         
         var in_script = false;
         var in_style = false;
-
         while (i < raw.len) {
             const c = raw[i];
-
             if (!in_tag and isDelim(c)) {
                 if (i > start) {
                     const layer: u8 = if (in_script or in_style) 3 else 1;
@@ -288,7 +293,6 @@ pub const Banyan = struct {
                 var h_type: HarvestType = .STRUCT;
                 var layer: u8 = 2; // Matrix
                 const tag_slice = raw[start..i+1];
-
                 if (contains(tag_slice, "<script")) in_script = true;
                 if (contains(tag_slice, "</script")) in_script = false;
                 if (contains(tag_slice, "<style")) in_style = true;
@@ -302,7 +306,6 @@ pub const Banyan = struct {
                 }
 
                 try self.addLeaf(tag_slice, h_type, layer, false);
-
                 // [!] MELT INDEX INJECTION
                 if (h_type == .LINK and std.mem.startsWith(u8, tag_slice, "<a ")) {
                     var url_start: usize = 0;
@@ -310,10 +313,13 @@ pub const Banyan = struct {
                     
                     if (std.mem.indexOf(u8, tag_slice, "href=\"")) |idx| {
                         url_start = idx + 6;
-                        if (std.mem.indexOfScalarPos(u8, tag_slice, url_start, '"')) |e_idx| { url_end = e_idx; }
-                    } else if (std.mem.indexOf(u8, tag_slice, "href='")) |idx| {
+                        if (std.mem.indexOfScalarPos(u8, tag_slice, url_start, '"')) |e_idx|
+                        { url_end = e_idx; }
+                    } else if (std.mem.indexOf(u8, tag_slice, "href='")) |idx|
+                    {
                         url_start = idx + 6;
-                        if (std.mem.indexOfScalarPos(u8, tag_slice, url_start, '\'')) |e_idx| { url_end = e_idx; }
+                        if (std.mem.indexOfScalarPos(u8, tag_slice, url_start, '\'')) |e_idx| { url_end = e_idx;
+                        }
                     }
 
                     if (url_end > url_start) {
@@ -325,7 +331,8 @@ pub const Banyan = struct {
                             const marker_str = std.fmt.bufPrint(&marker_buf, "[{d}]", .{link_idx}) catch "[?]";
                             try self.addLeaf(marker_str, .LINK, 1, false);
                             // Injected at Layer 1
-                        } else |_| {}
+                        } else |_|
+                        {}
                     }
                 }
 
@@ -378,25 +385,30 @@ pub const Banyan = struct {
                     text[write_ptr] = '"'; write_ptr += 1; read_ptr += 6; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#39;")) {
                     text[write_ptr] = '\''; write_ptr += 1; read_ptr += 5; continue;
-                } else if (std.mem.startsWith(u8, text[read_ptr..], "&lt;")) {
+       
+                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&lt;")) {
                     text[write_ptr] = '<'; write_ptr += 1; read_ptr += 4; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&gt;")) {
                     text[write_ptr] = '>'; write_ptr += 1; read_ptr += 4; continue;
+     
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8211;")) {
                     text[write_ptr] = '-'; write_ptr += 1; read_ptr += 7; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8212;")) {
                     text[write_ptr] = '-'; write_ptr += 1; read_ptr += 7; continue;
-                } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8220;")) {
+   
+                  } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8220;")) {
                     text[write_ptr] = '"';
                     write_ptr += 1; read_ptr += 7; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8221;")) {
                     text[write_ptr] = '"'; write_ptr += 1; read_ptr += 7; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8230;")) {
                     text[write_ptr] = '.'; write_ptr += 1;
+           
                     if (write_ptr < text.len) { text[write_ptr] = '.'; write_ptr += 1; }
                     if (write_ptr < text.len) { text[write_ptr] = '.'; write_ptr += 1; }
                     read_ptr += 7; continue;
                 }
+          
             }
             text[write_ptr] = text[read_ptr];
             write_ptr += 1;
@@ -407,7 +419,7 @@ pub const Banyan = struct {
 
     fn addLeaf(self: *Banyan, text: []const u8, h_type: HarvestType, layer: u8, is_newline: bool) !void {
         if (text.len == 0 and !is_newline) return;
-        
+    
         var final: []u8 = undefined;
         if (layer == 1 and !is_newline and h_type == .TEXT) {
              final = try compressWhitespace(self.allocator, text);
@@ -487,7 +499,8 @@ pub const Banyan = struct {
                 if (leaf.h_type == .DELIM) color = codex.get("B.H");
             }
 
-            for (leaf.text) |c| {
+            for (leaf.text) |c|
+            {
                 if (cursor_x >= width - 20) {
                     virtual_row += 1;
                     cursor_x = 10;
@@ -499,7 +512,6 @@ pub const Banyan = struct {
                     
                     const py = start_y + (screen_row * line_h);
                     var draw_col = color;
-
                     // [!] SATORI RENDERING: Paint the crimson beam and brass lock
                     if (self.is_scan_active and virtual_row >= self.scan_line_y and virtual_row < self.scan_line_y + self.focus_h) {
                         const is_focused = (cursor_x >= self.focus_x) and (cursor_x < self.focus_x + (self.focus_len * 8));
@@ -536,7 +548,8 @@ fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8,
             if ((bitmap[y] & (@as(u8, 1) << @intCast(7 - x))) != 0) {
                 const sx = px + x;
                 const sy = py + y;
-                if (sx < w and sy < h) { buf[sy * w + sx] = color; }
+                if (sx < w and sy < h) { buf[sy * w + sx] = color;
+                }
             }
         }
     }
