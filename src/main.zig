@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 4.1 CODEP FIX: Satori Motor Cortex fully decoupled from strict ANSI. Viewport bound to scan line. Macro truncation stabilized.",
+//   changes: "Phase 4.1 CODEP FIX: Implemented Terminator ANSI Parser. Injected Diagnostic Trap for unknown terminal sequences.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -96,7 +96,7 @@ fn getExpPath(allocator: std.mem.Allocator, uri: []const u8) ?[]u8 {
     
     var base_name: []const u8 = file;
     if (std.mem.lastIndexOfScalar(u8, file, '.')) |dot_idx| {
-        if (dot_idx > 0) { // Strip existing extension for .exp swap
+        if (dot_idx > 0) {
             base_name = file[0..dot_idx];
         }
     }
@@ -312,6 +312,7 @@ fn drawHeader(is_high: bool) void {
     const active_host = if (sys_host_id_len > 0) sys_host_id[0..sys_host_id_len] else "mchn:anon";
     const header = std.fmt.bufPrint(&buf, "{s} // {s} // {s}", .{SYSTEM_NAME, VERSION, active_host}) catch "HEADER_ERR";
     print(10, 6, header, codex.get("S.H"));
+    
     //^::INVERSE HEADER VFX<<dev:archx m_txr.Gem3P>>\.
     if (@"aud.state.io".is_active) {
         const aud_w = 480;
@@ -343,14 +344,12 @@ fn drawHeader(is_high: bool) void {
         drawChar(aud_x + aud_w - 65, 6, 0x18, shf_color);
         drawChar(aud_x + aud_w - 50, 6, 0x1D, rpt_color); 
         drawChar(aud_x + aud_w - 35, 6, status_glyph, status_color);
-        // Stacked Horizontal Volume Bands
+        
         const vol_p = @"aud.state.io".vol_level * 100.0;
         var v_i: usize = 0;
         while (v_i < 8) : (v_i += 1) {
             const band_val = @as(f32, @floatFromInt(v_i + 1)) * 15.0;
-            // Zones: 15..120
             var b_color: u32 = codex.get("K.S");
-            // Inactive dark grey
             if (vol_p >= band_val - 7.0) {
                 if (band_val <= 42.0) { b_color = codex.get("K.H"); }
                 else if (band_val <= 80.0) { b_color = codex.get("C.S"); }
@@ -361,7 +360,6 @@ fn drawHeader(is_high: bool) void {
         }
     } //:X
     
-    // highClaw Mark
     const glyph: u8 = if (is_high) 127 else 128;
     drawChar(1001, 6, glyph, codex.get("S.H"));
 }
@@ -609,7 +607,6 @@ fn bootSplash(allocator: std.mem.Allocator) void {
         sik_file.close();
     } else |_| {}
 
-	// AEQUATUS EVOCATUS SALARARIUS :: VAE VICTIS
     print(WIDTH / 2 - 80, center_y - 60, "\xC6\xA7   T E C H N O L O G I E S", codex.get("S.H"));
     print(WIDTH / 2 - 40, center_y + 30, "SYSTEM WAKING...", codex.get("S.S"));
     print(WIDTH / 2 - 40, center_y + 45, "[ ALCNDNOM ]", codex.get("B.S")); 
@@ -637,11 +634,9 @@ pub fn main() !void {
     //^:: BLAST DOORS - THE SIGINT/SIGTSTP KERNEL TRAP<<dev:archx m_txr.Gem3P>>\.
     var sa = std.mem.zeroes(linux.Sigaction);
     sa.handler = .{ .handler = @as(?*const fn (i32) callconv(.c) void, @ptrFromInt(1)) };
-    _ = linux.sigaction(2, &sa, null);  // Lock SIGINT  (^C)
+    _ = linux.sigaction(2, &sa, null);
     _ = linux.sigaction(3, &sa, null);
-    // Lock SIGQUIT (^\)
     _ = linux.sigaction(20, &sa, null);
-    // Lock SIGTSTP (^Z)
     //:X
 
     const fs = std.fs.cwd();
@@ -651,7 +646,6 @@ pub fn main() !void {
     fs.makeDir("assets/aud.io") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("assets/assist") catch |err| { if (err != error.PathAlreadyExists) {} };
 
-    // <<dev:archx-MMXXVINIVNII:IVNXLIV>>: Refactor to anchor timeline/.aiua.tome in the timeline dir.
     if (fs.access("timeline/.aiua.tome", .{})) |_| {} else |_| { 
         if (fs.createFile("timeline/.aiua.tome", .{})) |f| { f.close(); } else |_| {} 
     }
@@ -731,8 +725,7 @@ pub fn main() !void {
     var sys_composer = composer.Composer.init();
     var is_tabula_rasa: bool = false;
     if (sys_hunter.history.items.len == 0) { is_tabula_rasa = true;
-    } 
-    else {
+    } else {
         const first_entry = sys_hunter.history.items[0].uri;
         if (!std.mem.startsWith(u8, first_entry, "@AVIUM_RESONANCE:")) { is_tabula_rasa = true; }
     }
@@ -763,13 +756,14 @@ pub fn main() !void {
     var last_rx_ms: i64 = 0;      
     var shed_lock: bool = false;  
     
-    var esc_seq: [8]u8 = undefined;
+    var esc_seq: [16]u8 = undefined;
     var esc_len: usize = 0;
     var esc_timer: usize = 0; 
     var seq_buf: [6]u8 = .{0} ** 6;
     var blink_timer: usize = 0;
     var is_high_cycle: bool = true;
     var dirty: bool = true;
+    
     while (true) {
         try sys_hunter.tick();
         if (pulse_timer > 0) {
@@ -780,20 +774,13 @@ pub fn main() !void {
         if (esc_len == 1) {
             esc_timer += 1;
             if (esc_timer > 5000) {
-                if (is_calc_modal) { is_calc_modal = false;
-                }
-                else if (is_radio_modal) { is_radio_modal = false;
-                saveResonance(); pulse_timer = PULSE_MAX; }
-                else if (is_memo_modal) { is_memo_modal = false;
-                }
-                else if (is_trail_modal) { is_trail_modal = false;
-                }
-                else if (is_bash_pipe) { is_bash_pipe = false;
-                journal_len = 0; }
-                else if (is_bash_modal) { is_bash_modal = false;
-                }
-                else if (is_void_modal) { is_void_modal = false;
-                }
+                if (is_calc_modal) { is_calc_modal = false; }
+                else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
+                else if (is_memo_modal) { is_memo_modal = false; }
+                else if (is_trail_modal) { is_trail_modal = false; }
+                else if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
+                else if (is_bash_modal) { is_bash_modal = false; }
+                else if (is_void_modal) { is_void_modal = false; }
                 
                 esc_len = 0;
                 esc_timer = 0;
@@ -823,6 +810,7 @@ pub fn main() !void {
                 } else |_| {}
             }
 
+            // [!] TERMINATOR ANSI PARSER
             if (byte == 27) {
                 esc_len = 1;
                 esc_seq[0] = byte;
@@ -830,103 +818,76 @@ pub fn main() !void {
                 continue;
             } else if (esc_len > 0) {
                 esc_timer = 0;
-                if (esc_len < 8) {
+                if (esc_len < 16) {
                     esc_seq[esc_len] = byte;
                     esc_len += 1;
-                    
-                    if (esc_len == 3 and esc_seq[1] == '[') {
-                        if (byte == 'A' or byte == 'B' or byte == 'C' or byte == 'D') {
-                            if (sys_hunter.lens.is_scan_active) {
-                                // [!] SATORI MOTOR CORTEX: Absolute Override + Viewport Scrolling
-                                if (byte == 'A') { 
-                                    if (sys_hunter.lens.scan_line_y > 0) {
-                                        sys_hunter.lens.scan_line_y -= 1;
-                                        if (sys_hunter.lens.scan_line_y < sys_hunter.scroll_y) {
-                                            sys_hunter.scroll_y = sys_hunter.lens.scan_line_y;
-                                        }
-                                    }
-                                } else if (byte == 'B') { 
-                                    sys_hunter.lens.scan_line_y += 1;
-                                    const max_lines = (HEIGHT - 40) / 10;
-                                    if (sys_hunter.lens.scan_line_y >= sys_hunter.scroll_y + max_lines) {
-                                        sys_hunter.scroll_y = sys_hunter.lens.scan_line_y - max_lines + 1;
-                                    }
-                                } else if (byte == 'C') { 
-                                    sys_hunter.lens.focus_x += 8; 
-                                } else if (byte == 'D') { 
-                                    if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8; 
-                                }
-                            } else if (sys_composer.active) {
-                                if (byte == 'A') { sys_composer.moveCursor(0, -1); }
-                                else if (byte == 'B') { sys_composer.moveCursor(0, 1); }
-                                else if (byte == 'C') { sys_composer.moveCursor(1, 0); }
-                                else if (byte == 'D') { sys_composer.moveCursor(-1, 0); }
-                            } else if (is_radio_modal) {
-                                if (byte == 'D') {
-                                    if (radio_sel == 0) { radio_f0 -= 5.0; }
-                                    else if (radio_sel == 1) { radio_decay -= 0.1; }
-                                    else if (radio_sel == 2) { radio_diss -= 0.05; }
-                                    else if (radio_sel == 3) { radio_phi -= 0.05; }
-                                } else if (byte == 'C') {
-                                    if (radio_sel == 0) { radio_f0 += 5.0; }
-                                    else if (radio_sel == 1) { radio_decay += 0.1; }
-                                    else if (radio_sel == 2) { radio_diss += 0.05; }
-                                    else if (radio_sel == 3) { radio_phi += 0.05; }
-                                }
-                            } else if (is_bash_modal and !is_bash_pipe) {
-                                if (byte == 'A') { if (bash_scroll_y > 0) bash_scroll_y -= 1; }
-                                else if (byte == 'B') { bash_scroll_y += 1; }
-                            } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) {
-                                if (byte == 'A') { sys_hunter.scrollBy(-1); }
-                                else if (byte == 'B') { sys_hunter.scrollBy(1); }
-                                else if (byte == 'C') { sys_hunter.navigateHistory(1) catch {}; }
-                                else if (byte == 'D') { sys_hunter.navigateHistory(-1) catch {}; }
-                            }
-                            esc_len = 0;
-                        }
-                        continue;
-                    } else if (esc_len == 4 and esc_seq[1] == '[' and esc_seq[2] >= '0' and esc_seq[2] <= '9' and byte == '~') {
-                        if (sys_composer.active) {
-                            if (esc_seq[2] == '3') { sys_composer.deleteChar(); }
-                            else if (esc_seq[2] == '5') { sys_composer.moveCursor(0, -15); }
-                            else if (esc_seq[2] == '6') { sys_composer.moveCursor(0, 15); }
-                        } else if (is_bash_modal and !is_bash_pipe) {
-                            if (esc_seq[2] == '5') { if (bash_scroll_y > 15) bash_scroll_y -= 15 else bash_scroll_y = 0; }
-                            else if (esc_seq[2] == '6') { bash_scroll_y += 15; }
-                        } else if (!is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) {
-                            if (esc_seq[2] == '5') { sys_hunter.scrollBy(-15); }
-                            else if (esc_seq[2] == '6') { sys_hunter.scrollBy(15); }
-                        }
-                        esc_len = 0;
-                        continue;
-                    } else if (esc_len == 6 and esc_seq[1] == '[' and esc_seq[2] == '1' and esc_seq[3] == ';') {
-                        // [!] SATORI SPAN CONTROL (Shift/Alt/Ctrl Modifier Agnostic)
+
+                    // A sequence is only evaluated when a terminal character is reached
+                    const is_terminator = (byte >= 'A' and byte <= 'Z') or (byte >= 'a' and byte <= 'z') or byte == '~';
+                    if (!is_terminator) continue;
+
+                    const seq = esc_seq[1..esc_len];
+
+                    if (std.mem.eql(u8, seq, "[A")) {
                         if (sys_hunter.lens.is_scan_active) {
-                            if (byte == 'C') { // Shift + Right
-                                sys_hunter.lens.focus_len += 1;
-                            } else if (byte == 'D') { // Shift + Left
-                                if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1;
+                            if (sys_hunter.lens.scan_line_y > 0) {
+                                sys_hunter.lens.scan_line_y -= 1;
+                                if (sys_hunter.lens.scan_line_y < sys_hunter.scroll_y) sys_hunter.scroll_y = sys_hunter.lens.scan_line_y;
                             }
-                        }
-                        esc_len = 0;
-                        continue;
-                    } else if (esc_len == 2 and byte != '[') {
-                        if (is_bash_pipe) { is_bash_pipe = false; journal_len = 0; }
-                        else if (is_bash_modal) { is_bash_modal = false; }
-                        else if (is_calc_modal) { is_calc_modal = false; }
-                        else if (is_radio_modal) { is_radio_modal = false; saveResonance(); pulse_timer = PULSE_MAX; }
-                        else if (is_memo_modal) { is_memo_modal = false; }
-                        else if (is_trail_modal) { is_trail_modal = false; }
-                        else if (is_void_modal) { 
-                            is_void_modal = false;
-                            sys_hunter.status = "[ VOID CANCELLED ]"; 
-                            journal_len = 0; 
-                        }
-                        esc_len = 0;
-                        continue;
+                        } else if (sys_composer.active) { sys_composer.moveCursor(0, -1); }
+                        else if (is_bash_modal and !is_bash_pipe) { if (bash_scroll_y > 0) bash_scroll_y -= 1; }
+                        else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.scrollBy(-1); }
+                    } else if (std.mem.eql(u8, seq, "[B")) {
+                        if (sys_hunter.lens.is_scan_active) {
+                            sys_hunter.lens.scan_line_y += 1;
+                            const max_lines = (HEIGHT - 40) / 10;
+                            if (sys_hunter.lens.scan_line_y >= sys_hunter.scroll_y + max_lines) {
+                                sys_hunter.scroll_y = sys_hunter.lens.scan_line_y - max_lines + 1;
+                            }
+                        } else if (sys_composer.active) { sys_composer.moveCursor(0, 1); }
+                        else if (is_bash_modal and !is_bash_pipe) { bash_scroll_y += 1; }
+                        else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.scrollBy(1); }
+                    } else if (std.mem.eql(u8, seq, "[C")) {
+                        if (sys_hunter.lens.is_scan_active) { sys_hunter.lens.focus_x += 8; }
+                        else if (sys_composer.active) { sys_composer.moveCursor(1, 0); }
+                        else if (is_radio_modal) {
+                            if (radio_sel == 0) { radio_f0 += 5.0; } else if (radio_sel == 1) { radio_decay += 0.1; }
+                            else if (radio_sel == 2) { radio_diss += 0.05; } else if (radio_sel == 3) { radio_phi += 0.05; }
+                        } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.navigateHistory(1) catch {}; }
+                    } else if (std.mem.eql(u8, seq, "[D")) {
+                        if (sys_hunter.lens.is_scan_active) { if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8; }
+                        else if (sys_composer.active) { sys_composer.moveCursor(-1, 0); }
+                        else if (is_radio_modal) {
+                            if (radio_sel == 0) { radio_f0 -= 5.0; } else if (radio_sel == 1) { radio_decay -= 0.1; }
+                            else if (radio_sel == 2) { radio_diss -= 0.05; } else if (radio_sel == 3) { radio_phi -= 0.05; }
+                        } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.navigateHistory(-1) catch {}; }
+                    } else if (std.mem.eql(u8, seq, "[1;2C") or std.mem.eql(u8, seq, "[1;5C") or std.mem.eql(u8, seq, "[c") or std.mem.eql(u8, seq, "O2C")) {
+                        // SATORI SHIFT+RIGHT
+                        if (sys_hunter.lens.is_scan_active) sys_hunter.lens.focus_len += 1;
+                    } else if (std.mem.eql(u8, seq, "[1;2D") or std.mem.eql(u8, seq, "[1;5D") or std.mem.eql(u8, seq, "[d") or std.mem.eql(u8, seq, "O2D")) {
+                        // SATORI SHIFT+LEFT
+                        if (sys_hunter.lens.is_scan_active) { if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1; }
+                    } else if (std.mem.eql(u8, seq, "[3~")) {
+                        if (sys_composer.active) sys_composer.deleteChar();
+                    } else if (std.mem.eql(u8, seq, "[5~")) {
+                        if (sys_composer.active) { sys_composer.moveCursor(0, -15); }
+                        else if (is_bash_modal and !is_bash_pipe) { if (bash_scroll_y > 15) bash_scroll_y -= 15 else bash_scroll_y = 0; }
+                        else if (!is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.scrollBy(-15); }
+                    } else if (std.mem.eql(u8, seq, "[6~")) {
+                        if (sys_composer.active) { sys_composer.moveCursor(0, 15); }
+                        else if (is_bash_modal and !is_bash_pipe) { bash_scroll_y += 15; }
+                        else if (!is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.scrollBy(15); }
                     } else {
-                        continue;
+                        // [!] DIAGNOSTIC TRAP: If a sequence drops here while scanning, print it to Journal to map it.
+                        if (sys_hunter.lens.is_scan_active) {
+                            const diag = "[ANSI:";
+                            for (diag) |c| { if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; } }
+                            for (seq) |c| { if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; } }
+                            if (journal_len < 4096) { journal[journal_len] = ']'; journal_len += 1; }
+                        }
                     }
+                    esc_len = 0;
+                    continue;
                 } else {
                     esc_len = 0;
                     continue;
