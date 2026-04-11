@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 4.2b CODEP FIX: 2D Matrix Y-Axis Wiring. Shift+Up/Down expands focus_h. Alt+Up/Down contracts focus_h during scan.",
+//   changes: "Phase 4.2c CODEP FIX: Injected XTerm modifyOtherKeys level 2 to force terminal emulator to pass Shift/Alt modifier bytes.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -521,7 +521,9 @@ fn exitSequence() noreturn {
     drawChar(stamp_x, stamp_y, 127, codex.get("C.S"));
     drawChar(stamp_x + 8, stamp_y, 128, codex.get("C.S")); 
     @memcpy(fb_pixels[0..(WIDTH * HEIGHT)], &back_buffer);
-    const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
+    
+    // Reset Terminal State & modifyOtherKeys override
+    const term_reset = "\x1b[2J\x1b[H\x1b[?25h\x1b[>4;m";
     _ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
     std.process.exit(0);
 }
@@ -640,6 +642,11 @@ fn bootSplash(allocator: std.mem.Allocator) void {
 }
 
 pub fn main() !void {
+    // [!] TERMINAL MODIFIER OVERRIDE (XTERM modifyOtherKeys Level 2)
+    // Force the terminal emulator to stop swallowing Shift/Alt modifiers
+    const term_init = "\x1b[>4;2m";
+    _ = linux.syscall3(.write, 1, @intFromPtr(term_init), term_init.len);
+
     //^:: BLAST DOORS - THE SIGINT/SIGTSTP KERNEL TRAP<<dev:archx m_txr.Gem3P>>\.
     var sa = std.mem.zeroes(linux.Sigaction);
     sa.handler = .{ .handler = @as(?*const fn (i32) callconv(.c) void, @ptrFromInt(1)) };
@@ -996,13 +1003,13 @@ pub fn main() !void {
             var reflex_triggered = false;
             //^::@OS GZL-X<<dev:archx m_txr.Gem3P>>\.
 			if (std.mem.eql(u8, &seq_buf, ".!..-.")) {
-				const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
+				const term_reset = "\x1b[2J\x1b[H\x1b[?25h\x1b[>4;m";
 				_ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
 				_ = std.process.Child.run(.{ .allocator = void_allocator, .argv = &[_] []const u8{ "shutdown", "now" } }) catch {};
 				std.process.exit(0);
 			}
 			else if (std.mem.eql(u8, &seq_buf, ".!./-.")) {
-				const term_reset = "\x1b[2J\x1b[H\x1b[?25h";
+				const term_reset = "\x1b[2J\x1b[H\x1b[?25h\x1b[>4;m";
 				_ = linux.syscall3(.write, 1, @intFromPtr(term_reset), term_reset.len);
 				_ = std.process.Child.run(.{ .allocator = void_allocator, .argv = &[_] []const u8{ "reboot" } }) catch {};
 				std.process.exit(0);
@@ -1860,7 +1867,7 @@ pub fn main() !void {
                 } else if (byte >= 32 and byte <= 126) {
                     shed_lock = false;
 
-                    // SATORI FAILSAFE: If terminal eats modifiers entirely, use brackets to control the Brass lock
+                    // SATORI FAILSAFE: Manual brackets for terminal emulators strictly dropping modifiers
                     if (sys_hunter.lens.is_scan_active) {
                         if (byte == ']') { sys_hunter.lens.focus_len += 1; continue; }
                         if (byte == '[') { if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1; continue; }
