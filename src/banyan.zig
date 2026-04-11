@@ -2,7 +2,7 @@
 //   module: "Banyan Rendering Lobe & Satori Optics",
 //   version: "0.10.9-apex // Banysang",
 //   description: "Semantic parsing matrix, pixel-perfect rendering engine, and Satori spatial focuser.",
-//   changes: "Purged hardcoded hex values. Linked to global GZL-X Color Library via codex. Injected Satori state.",
+//   changes: "Purged hardcoded hex values. Linked to global GZL-X Color Library via codex. Injected Satori state. Added extractSatoriSpan.",
 //   philotic_inferences: "A sovereign operator requires no mouse. The path forward is illuminated by the indices of the void."
 
 const std = @import("std");
@@ -55,6 +55,37 @@ pub const Banyan = struct {
         if (d_int >= 0 and d_int <= 3) {
             self.focus_depth = @intCast(d_int);
         }
+    }
+
+    pub fn extractSatoriSpan(self: *Banyan, allocator: std.mem.Allocator, width: usize) ![]u8 {
+        var out = std.ArrayList(u8).init(allocator);
+        var cursor_x: usize = 10;
+        var virtual_row: usize = 0;
+
+        for (self.leaves.items) |leaf| {
+            if (self.focus_depth > 0 and leaf.layer > self.focus_depth) continue;
+            if (leaf.is_newline) {
+                virtual_row += 1;
+                cursor_x = 10; 
+                continue;
+            }
+
+            for (leaf.text) |c| {
+                if (cursor_x >= width - 20) {
+                    virtual_row += 1;
+                    cursor_x = 10;
+                }
+
+                if (virtual_row == self.scan_line_y) {
+                    const is_focused = (cursor_x >= self.focus_x) and (cursor_x < self.focus_x + (self.focus_len * 8));
+                    if (is_focused) {
+                        try out.append(c);
+                    }
+                }
+                cursor_x += 8;
+            }
+        }
+        return out.toOwnedSlice();
     }
 
     pub fn absorb(self: *Banyan, raw: []const u8) !void {
@@ -139,7 +170,8 @@ pub const Banyan = struct {
                             self.links.append(self.allocator, duped) catch {};
                             var marker_buf: [32]u8 = undefined;
                             const marker_str = std.fmt.bufPrint(&marker_buf, "[{d}]", .{link_idx}) catch "[?]";
-                            try self.addLeaf(marker_str, .LINK, 1, false); // Injected at Layer 1
+                            try self.addLeaf(marker_str, .LINK, 1, false);
+                            // Injected at Layer 1
                         } else |_| {}
                     }
                 }
