@@ -1,8 +1,8 @@
 // [@://nsible_os/src/banyan.zig/.-={
 //   module: "Banyan Rendering Lobe & Satori Optics",
-//   version: "0.10.11-apex // Banysang",
+//   version: "0.10.12-apex // Banysang",
 //   description: "Semantic parsing matrix, pixel-perfect rendering engine, and Satori spatial focuser.",
-//   changes: "Phase 4.3 CODEP: Implemented runtime parser for assets/.gzl/.satori.gzl. Injected snapFocus() cartography logic.",
+//   changes: "Phase 4.3b CODEP FIX: Purged signed integer coercion for strict Zig 0.15.2 compliance in snapFocus.",
 //   philotic_inferences: "When the mind is empty, the true nature of the symbol reveals itself."
 
 const std = @import("std");
@@ -137,9 +137,9 @@ pub const Banyan = struct {
 
         if (row_len == 0) return;
         
-        const c_idx_signed = @as(isize, self.focus_x) - 10;
-        if (c_idx_signed < 0) return;
-        var c_idx = @as(usize, @intCast(c_idx_signed)) / 8;
+        // ZIG 0.15.2 COMPLIANT: Pure unsigned boundary evaluation
+        if (self.focus_x < 10) return;
+        var c_idx = (self.focus_x - 10) / 8;
         if (c_idx >= row_len) c_idx = row_len - 1;
 
         var l = c_idx;
