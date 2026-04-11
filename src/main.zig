@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 4.3 CODEP: Bound Satori Sutra cartography (snapFocus) to [TAB] key.",
+//   changes: "Phase 4.4 CODEP: Verity Refactor. Audited matrix logic and structural encapsulation.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -653,6 +653,7 @@ pub fn main() !void {
     fs.makeDir("timeline") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("timeline/mems") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("assets") catch |err| { if (err != error.PathAlreadyExists) {} };
+    fs.makeDir("assets/.void") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("assets/aud.io") catch |err| { if (err != error.PathAlreadyExists) {} };
     fs.makeDir("assets/assist") catch |err| { if (err != error.PathAlreadyExists) {} };
 
@@ -802,11 +803,12 @@ pub fn main() !void {
             dirty = true;
             last_rx_ms = std.time.milliTimestamp();
 
-            // [!] SATORI MELT FETCH INTERCEPT
+            // [!] SATORI MELT & PIPE INTERCEPT
             if ((byte == '\n' or byte == '\r') and sys_hunter.lens.is_scan_active) {
                 if (sys_hunter.lens.extractSatoriSpan(void_allocator, WIDTH)) |span| {
                     defer void_allocator.free(span);
                     
+                    var is_melt = false;
                     var start_idx: ?usize = null;
                     var end_idx: ?usize = null;
                     for (span, 0..) |c, i| {
@@ -816,11 +818,47 @@ pub fn main() !void {
                     
                     if (start_idx != null and end_idx != null and end_idx.? > start_idx.? + 1) {
                         const inner = span[start_idx.? + 1 .. end_idx.?];
-                        var is_num = true;
-                        for (inner) |c| { if (c < '0' or c > '9') is_num = false; }
-                        if (is_num) {
+                        is_melt = true;
+                        for (inner) |c| { if (c < '0' or c > '9') is_melt = false; }
+                        if (is_melt) {
                             sys_hunter.lens.is_scan_active = false;
                             sys_hunter.hunt(inner) catch { sys_hunter.mutex.lock(); sys_hunter.status = "FETCH_ERR"; sys_hunter.mutex.unlock(); };
+                            journal_len = 0;
+                            continue;
+                        }
+                    }
+
+                    // Not a MELT index. Check for Direct Satori Pipe (>> destination)
+                    if (!is_melt) {
+                        const raw_cmd = journal[0..journal_len];
+                        const cmd_slice = std.mem.trim(u8, raw_cmd, " ");
+                        if (std.mem.startsWith(u8, cmd_slice, ">>")) {
+                            const dest = std.mem.trim(u8, cmd_slice[2..], " ");
+                            if (dest.len > 0) {
+                                if (std.mem.lastIndexOfScalar(u8, dest, '/')) |last_slash| {
+                                    std.fs.cwd().makePath(dest[0..last_slash]) catch {};
+                                }
+                                if (std.fs.cwd().createFile(dest, .{})) |dst| {
+                                    var parsed_ext: []const u8 = "";
+                                    if (std.mem.lastIndexOfScalar(u8, dest, '.')) |dot_idx| {
+                                        parsed_ext = dest[dot_idx..];
+                                    }
+                                    const syn = sys_root.resolveGzlSyntax(parsed_ext);
+                                    var header_buf: [1024]u8 = undefined;
+                                    const header = sys_root.buildHeader(header_buf[0..], syn, dest, "Operator Artifact (Satori Pipe)", null, "Extracted via Satori Matrix Pipe.");
+                                    dst.writeAll(header) catch {};
+                                    dst.writeAll(span) catch {};
+                                    var footer_buf: [128]u8 = undefined;
+                                    const footer = sys_root.buildFooter(footer_buf[0..], syn);
+                                    dst.writeAll(footer) catch {};
+                                    dst.close();
+                                    
+                                    sys_hunter.mutex.lock();
+                                    sys_hunter.status = "[ SATORI PIPE : ARTIFACT FORGED ]";
+                                    sys_hunter.mutex.unlock();
+                                } else |_| {}
+                            }
+                            sys_hunter.lens.is_scan_active = false;
                             journal_len = 0;
                             continue;
                         }
@@ -2108,4 +2146,4 @@ pub fn main() !void {
         codex.zen(0.000004);
     }
 }
-// }-]
+// }-.]
