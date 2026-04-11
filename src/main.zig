@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 4.1 CODEP FIX: Implemented Terminator ANSI Parser. Injected Diagnostic Trap for unknown terminal sequences.",
+//   changes: "Phase 4.2 CODEP FIX: Satori Expansion/Contraction constraints bound. Alt-History ring buffer injected. Resilient MELT Enter fetch active.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -43,6 +43,13 @@ var radio_phi: f32 = 1.618;
 var radio_sel: u8 = 0;
 var pulse_timer: usize = 0; 
 const PULSE_MAX: usize = 120;
+
+// Command History Ring Buffer
+var cmd_history: [16][256]u8 = undefined;
+var cmd_history_lens: [16]usize = .{0} ** 16;
+var cmd_history_head: usize = 0;
+var cmd_history_nav: usize = 0;
+var journal_color_state: u8 = 0; // 0: K.S, 1: K.H, 2: C.S
 
 //^::SEEDED AUD.IO STATE<<dev:archx m_txr.Gem3P>>\.
 const djinn = @import("djinn");
@@ -96,7 +103,7 @@ fn getExpPath(allocator: std.mem.Allocator, uri: []const u8) ?[]u8 {
     
     var base_name: []const u8 = file;
     if (std.mem.lastIndexOfScalar(u8, file, '.')) |dot_idx| {
-        if (dot_idx > 0) {
+        if (dot_idx > 0) { // Strip existing extension for .exp swap
             base_name = file[0..dot_idx];
         }
     }
@@ -391,13 +398,15 @@ fn getUriBarY(input_len: usize, current_url: []const u8) usize {
     return if (bar_height < HEIGHT) HEIGHT - bar_height else 0;
 }
 
-fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) void {
+fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8, color_state: u8) void {
     const char_w = 8;
     const line_h = 10; const padding = 6;
     const start_y = getUriBarY(input_len, current_url);
     const bar_height = HEIGHT - start_y;
     drawRect(0, start_y, WIDTH, bar_height, codex.get("C.S"));
     
+    const text_color = if (color_state == 1) codex.get("K.H") else if (color_state == 2) codex.get("C.S") else codex.get("K.S");
+
     var cursor_x: usize = 10; var cursor_y: usize = start_y + padding;
     if (input_len == 0) {
         var display_url = current_url;
@@ -425,19 +434,19 @@ fn drawUriBar(input_buf: []const u8, input_len: usize, current_url: []const u8) 
         }
     } else {
         for (URI_PREFIX) |char| { 
-            drawChar(cursor_x, cursor_y, char, codex.get("K.S")); 
+            drawChar(cursor_x, cursor_y, char, text_color); 
             cursor_x += char_w;
             if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; } 
         }
         var i: usize = 0;
         while (i < input_len) : (i += 1) {
             const char = input_buf[i];
-            drawChar(cursor_x, cursor_y, char, codex.get("K.S"));
+            drawChar(cursor_x, cursor_y, char, text_color);
             cursor_x += char_w;
             if (cursor_x >= WIDTH - 10) { cursor_x = 10; cursor_y += line_h; }
         }
     }
-    drawChar(cursor_x, cursor_y, 0xDB, codex.get("K.S"));
+    drawChar(cursor_x, cursor_y, 0xDB, text_color);
 }
 
 fn strikeRadio(allocator: std.mem.Allocator) void {
@@ -796,8 +805,16 @@ pub fn main() !void {
             if ((byte == '\n' or byte == '\r') and sys_hunter.lens.is_scan_active) {
                 if (sys_hunter.lens.extractSatoriSpan(void_allocator, WIDTH)) |span| {
                     defer void_allocator.free(span);
-                    if (span.len >= 3 and span[0] == '[' and span[span.len - 1] == ']') {
-                        const inner = span[1..span.len - 1];
+                    
+                    var start_idx: ?usize = null;
+                    var end_idx: ?usize = null;
+                    for (span, 0..) |c, i| {
+                        if (c == '[') start_idx = i;
+                        if (c == ']' and start_idx != null) { end_idx = i; break; }
+                    }
+                    
+                    if (start_idx != null and end_idx != null and end_idx.? > start_idx.? + 1) {
+                        const inner = span[start_idx.? + 1 .. end_idx.?];
                         var is_num = true;
                         for (inner) |c| { if (c < '0' or c > '9') is_num = false; }
                         if (is_num) {
@@ -822,7 +839,6 @@ pub fn main() !void {
                     esc_seq[esc_len] = byte;
                     esc_len += 1;
 
-                    // A sequence is only evaluated when a terminal character is reached
                     const is_terminator = (byte >= 'A' and byte <= 'Z') or (byte >= 'a' and byte <= 'z') or byte == '~';
                     if (!is_terminator) continue;
 
@@ -861,12 +877,65 @@ pub fn main() !void {
                             if (radio_sel == 0) { radio_f0 -= 5.0; } else if (radio_sel == 1) { radio_decay -= 0.1; }
                             else if (radio_sel == 2) { radio_diss -= 0.05; } else if (radio_sel == 3) { radio_phi -= 0.05; }
                         } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.navigateHistory(-1) catch {}; }
+                    } else if (std.mem.eql(u8, seq, "[1;2A") or std.mem.eql(u8, seq, "[1;5A") or std.mem.eql(u8, seq, "[a") or std.mem.eql(u8, seq, "O2A")) {
+                        // SATORI SHIFT+UP: Requires 2D Area Extraction in Banyan.zig Phase 2. Vertical fallthrough applied.
+                        if (sys_hunter.lens.is_scan_active) {
+                            if (sys_hunter.lens.scan_line_y > 0) {
+                                sys_hunter.lens.scan_line_y -= 1;
+                                if (sys_hunter.lens.scan_line_y < sys_hunter.scroll_y) sys_hunter.scroll_y = sys_hunter.lens.scan_line_y;
+                            }
+                        }
+                    } else if (std.mem.eql(u8, seq, "[1;2B") or std.mem.eql(u8, seq, "[1;5B") or std.mem.eql(u8, seq, "[b") or std.mem.eql(u8, seq, "O2B")) {
+                        // SATORI SHIFT+DOWN: Requires 2D Area Extraction in Banyan.zig Phase 2. Vertical fallthrough applied.
+                        if (sys_hunter.lens.is_scan_active) {
+                            sys_hunter.lens.scan_line_y += 1;
+                            const max_lines = (HEIGHT - 40) / 10;
+                            if (sys_hunter.lens.scan_line_y >= sys_hunter.scroll_y + max_lines) {
+                                sys_hunter.scroll_y = sys_hunter.lens.scan_line_y - max_lines + 1;
+                            }
+                        }
                     } else if (std.mem.eql(u8, seq, "[1;2C") or std.mem.eql(u8, seq, "[1;5C") or std.mem.eql(u8, seq, "[c") or std.mem.eql(u8, seq, "O2C")) {
                         // SATORI SHIFT+RIGHT
                         if (sys_hunter.lens.is_scan_active) sys_hunter.lens.focus_len += 1;
                     } else if (std.mem.eql(u8, seq, "[1;2D") or std.mem.eql(u8, seq, "[1;5D") or std.mem.eql(u8, seq, "[d") or std.mem.eql(u8, seq, "O2D")) {
                         // SATORI SHIFT+LEFT
-                        if (sys_hunter.lens.is_scan_active) { if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1; }
+                        if (sys_hunter.lens.is_scan_active) {
+                            if (sys_hunter.lens.focus_x > 10) {
+                                sys_hunter.lens.focus_x -= 8;
+                                sys_hunter.lens.focus_len += 1;
+                            }
+                        }
+                    } else if (std.mem.eql(u8, seq, "[1;3A") or std.mem.eql(u8, seq, "[1;5A") or std.mem.eql(u8, seq, "O3A")) {
+                        // ALT+UP: History Reprime
+                        if (cmd_history_nav == 0) cmd_history_nav = 15 else cmd_history_nav -= 1;
+                        if (cmd_history_lens[cmd_history_nav] > 0) {
+                            journal_len = cmd_history_lens[cmd_history_nav];
+                            @memcpy(journal[0..journal_len], cmd_history[cmd_history_nav][0..journal_len]);
+                        }
+                    } else if (std.mem.eql(u8, seq, "[1;3B") or std.mem.eql(u8, seq, "[1;5B") or std.mem.eql(u8, seq, "O3B")) {
+                        // ALT+DOWN: Cycle History -> Cycle Color
+                        cmd_history_nav = (cmd_history_nav + 1) % 16;
+                        if (cmd_history_nav == cmd_history_head or cmd_history_lens[cmd_history_nav] == 0) {
+                            journal_color_state = (journal_color_state + 1) % 3;
+                            journal_len = 0;
+                            cmd_history_nav = cmd_history_head;
+                        } else {
+                            journal_len = cmd_history_lens[cmd_history_nav];
+                            @memcpy(journal[0..journal_len], cmd_history[cmd_history_nav][0..journal_len]);
+                        }
+                    } else if (std.mem.eql(u8, seq, "[1;3C") or std.mem.eql(u8, seq, "[1;5C") or std.mem.eql(u8, seq, "O3C")) {
+                        // ALT+RIGHT
+                        if (sys_hunter.lens.is_scan_active) {
+                            if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1;
+                        }
+                    } else if (std.mem.eql(u8, seq, "[1;3D") or std.mem.eql(u8, seq, "[1;5D") or std.mem.eql(u8, seq, "O3D")) {
+                        // ALT+LEFT
+                        if (sys_hunter.lens.is_scan_active) {
+                            if (sys_hunter.lens.focus_len > 1) {
+                                sys_hunter.lens.focus_x += 8;
+                                sys_hunter.lens.focus_len -= 1;
+                            }
+                        }
                     } else if (std.mem.eql(u8, seq, "[3~")) {
                         if (sys_composer.active) sys_composer.deleteChar();
                     } else if (std.mem.eql(u8, seq, "[5~")) {
@@ -878,7 +947,7 @@ pub fn main() !void {
                         else if (is_bash_modal and !is_bash_pipe) { bash_scroll_y += 15; }
                         else if (!is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.scrollBy(15); }
                     } else {
-                        // [!] DIAGNOSTIC TRAP: If a sequence drops here while scanning, print it to Journal to map it.
+                        // DIAGNOSTIC TRAP: Print unknown ANSI modifiers
                         if (sys_hunter.lens.is_scan_active) {
                             const diag = "[ANSI:";
                             for (diag) |c| { if (journal_len < 4096) { journal[journal_len] = c; journal_len += 1; } }
@@ -1495,6 +1564,14 @@ pub fn main() !void {
      
                     const raw_cmd = journal[0..journal_len];
                     const cmd_slice = std.mem.trim(u8, raw_cmd, " ");
+
+                    // Save Command to Ring Buffer (Only if it has substance)
+                    if (journal_len > 0 and journal_len < 256) {
+                        @memcpy(cmd_history[cmd_history_head][0..journal_len], journal[0..journal_len]);
+                        cmd_history_lens[cmd_history_head] = journal_len;
+                        cmd_history_head = (cmd_history_head + 1) % 16;
+                        cmd_history_nav = cmd_history_head;
+                    }
                     
 //^:: AUD.IO DJINN LAMP & COMPOUND MELT INTERCEPTION<<dev:archx m_txr.Gem3P>>\.
                     var aud_idx_prefix: ?usize = null;
@@ -1859,7 +1936,7 @@ pub fn main() !void {
                     }
 
                     print(mx + 20, my + mh - 30, ">> Type 'shed' or empty [ENTER] to clear memory.", codex.get("B.S"));
-                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url, journal_color_state);
                 }
                 else if (is_memo_modal) {
                     const mw = 460;
@@ -1908,7 +1985,7 @@ pub fn main() !void {
                     }
 
                     print(mx + 20, my + 120, "[TAB] Sel  [< / >] Dial  [SPC] Strike  [ENT] Commit", codex.get("K.H"));
-                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url, journal_color_state);
                 } else if (is_calc_modal) {
                     const cw = WIDTH - 40;
                     const ch: usize = if (is_calc_graph) 200 else 30;
@@ -1930,7 +2007,7 @@ pub fn main() !void {
                         print(cx + 10, cy + 45, "[ GRAPH MODULE : AWAITING PHASE 4 TENSORS ]", codex.get("K.H"));
                         print(cx + 10, cy + ch - 20, "[TAB] Toggle Graph  [ENTER] Evaluate (Empty to Dismiss)", codex.get("S.S"));
                     }
-                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url, journal_color_state);
                 } else if (is_bash_modal) {
                     const mw = WIDTH - 40;
                     const mh = 300; 
@@ -1973,7 +2050,7 @@ pub fn main() !void {
                         print(122, p_y + 6, journal[0..journal_len], codex.get("K.S"));
                         if (is_high_cycle) drawChar(122 + (journal_len * 8), p_y + 6, 0xDB, codex.get("K.S"));
                     } else {
-                        drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+                        drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url, journal_color_state);
                     }
                 } else if (is_void_modal) {
                     const mw = 640;
@@ -1995,9 +2072,9 @@ pub fn main() !void {
                     drawRect(mx + 20, my + 95, mw - 40, 1, codex.get("K.H"));
                     print(mx + 20, my + 110, "EXECUTE BANISHMENT? [Y] CONFIRM  /  [N] CANCEL", codex.get("B.S"));
                     
-                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url, journal_color_state);
                 } else {
-                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url);
+                    drawUriBar(journal[0..journal_len], journal_len, sys_hunter.url, journal_color_state);
                 }
             }
             
