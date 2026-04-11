@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 4.1 CODEP: Wired Shift+Arrow (ESC [ 1 ; 2 D/C) to dynamically stretch Satori focus_len. Updated .!FS-. reflex to acknowledge dynamic span width.",
+//   changes: "Phase 4.1 CODEP FIX: Corrected Satori state routing. All spatial optic variables are now properly routed through sys_hunter.lens.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -834,17 +834,17 @@ pub fn main() !void {
                             } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) {
                                 
                                 // [!] SATORI MOTOR CORTEX: Hook arrow keys if laser is active
-                                if (sys_hunter.is_scan_active) {
+                                if (sys_hunter.lens.is_scan_active) {
                                     if (byte == 'A') { 
-                                        if (sys_hunter.scan_line_y > 0) sys_hunter.scan_line_y -= 1; 
+                                        if (sys_hunter.lens.scan_line_y > 0) sys_hunter.lens.scan_line_y -= 1; 
                                     } else if (byte == 'B') { 
-                                        sys_hunter.scan_line_y += 1; 
+                                        sys_hunter.lens.scan_line_y += 1; 
                                     } else if (byte == 'C') { 
-                                        sys_hunter.focus_x += 8; // Snap Right 
-                                        sys_hunter.focus_len = 1; 
+                                        sys_hunter.lens.focus_x += 8; // Snap Right 
+                                        sys_hunter.lens.focus_len = 1; 
                                     } else if (byte == 'D') { 
-                                        if (sys_hunter.focus_x > 10) sys_hunter.focus_x -= 8; // Snap Left
-                                        sys_hunter.focus_len = 1; 
+                                        if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8; // Snap Left
+                                        sys_hunter.lens.focus_len = 1; 
                                     }
                                 } else {
                                     // STANDARD HUNTER GLIDE
@@ -874,11 +874,11 @@ pub fn main() !void {
                     } else if (esc_len == 6 and esc_seq[1] == '[' and esc_seq[2] == '1' and esc_seq[3] == ';' and esc_seq[4] == '2') {
                         // [!] SATORI SPAN CONTROL (Shift + Arrow)
                         if (!sys_composer.active and !is_radio_modal and !is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) {
-                            if (sys_hunter.is_scan_active) {
+                            if (sys_hunter.lens.is_scan_active) {
                                 if (byte == 'C') { // Shift + Right
-                                    sys_hunter.focus_len += 1;
+                                    sys_hunter.lens.focus_len += 1;
                                 } else if (byte == 'D') { // Shift + Left
-                                    if (sys_hunter.focus_len > 1) sys_hunter.focus_len -= 1;
+                                    if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1;
                                 }
                             }
                         }
@@ -994,11 +994,11 @@ pub fn main() !void {
             // [!] SATORI REFLEXES
             else if (std.mem.endsWith(u8, &seq_buf, ".!FL-.")) {
                 if (sys_composer.active) sys_composer.phantom_strike(5);
-                sys_hunter.is_scan_active = !sys_hunter.is_scan_active;
-                if (sys_hunter.is_scan_active) {
-                    sys_hunter.scan_line_y = sys_hunter.scroll_y;
-                    sys_hunter.focus_x = 10;
-                    sys_hunter.focus_len = 1;
+                sys_hunter.lens.is_scan_active = !sys_hunter.lens.is_scan_active;
+                if (sys_hunter.lens.is_scan_active) {
+                    sys_hunter.lens.scan_line_y = sys_hunter.scroll_y;
+                    sys_hunter.lens.focus_x = 10;
+                    sys_hunter.lens.focus_len = 1;
                     sys_hunter.status = "[ SATORI OPTICS : ACTIVE ]";
                 } else {
                     sys_hunter.status = "[ SATORI OPTICS : OFFLINE ]";
@@ -1008,17 +1008,17 @@ pub fn main() !void {
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!FS-.")) {
                 if (sys_composer.active) sys_composer.phantom_strike(5);
-                if (sys_hunter.is_scan_active) {
+                if (sys_hunter.lens.is_scan_active) {
                     // SATORI STRIKE: Placeholder spanning logic until .satori.gzl parser connects
                     var satori_buf: [128]u8 = undefined;
-                    const s_str = std.fmt.bufPrint(&satori_buf, "[SATORI_SPAN_L{d}]", .{sys_hunter.focus_len}) catch "[SATORI_ERR]";
+                    const s_str = std.fmt.bufPrint(&satori_buf, "[SATORI_SPAN_L{d}]", .{sys_hunter.lens.focus_len}) catch "[SATORI_ERR]";
                     
                     const safe_len = @min(s_str.len, 4096 - journal_len);
                     @memcpy(journal[journal_len..journal_len + safe_len], s_str[0..safe_len]);
                     journal_len += safe_len;
                     
                     sys_hunter.status = "[ SATORI STRIKE : ACQUIRED SPAN ]";
-                    sys_hunter.is_scan_active = false; // Auto-disengage laser on strike
+                    sys_hunter.lens.is_scan_active = false; // Auto-disengage laser on strike
                 }
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
                 reflex_triggered = true;
@@ -1035,7 +1035,7 @@ pub fn main() !void {
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
                 reflex_triggered = true;
             }
-            else if (std.mem.endsWith(u8, &seq_buf, ".!R^-.u8")) {
+            else if (std.mem.endsWith(u8, &seq_buf, ".!R^-.")) {
                 if (sys_composer.active) sys_composer.phantom_strike(5);
                 sys_hunter.shiftNode(-1);
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
