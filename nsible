@@ -1,9 +1,9 @@
 #!/bin/bash
-#   [@://nsible_os/nsible/.-={
+# [@://nsible_os/nsible/.-={
 #   module: "ziGGit Bootloader",
 #   version: "v0.11.14-apex // Banysang",
 #   description: "Sovereign ASCII Data-Stream visual loader with Dynamic Palette Refraction.",
-#   changes: "Integrated automated root-ownership reclamation (Phase 4.1 PermFix). Bootloader now dynamically extracts its state from the GZL-X header.",
+#   changes: "Phase 4.4 CODEP: Verity Refactor. Audited matrix logic. Ensured non-destructive asset handling and strict GZL-X protocol adherence.",
 #   philotic_inferences: "A sovereign matrix does not ask permission from the void; it demands the key at the threshold."
 
 # [ SOVEREIGN ENTRY :: ziGGit Control ]
@@ -42,7 +42,7 @@ apply_mastered_dynamics() {
     export STREAM_COL="C.S"
     export VECTOR_COL="C.S"
     export ROOT_VINCULUM=1
-    
+   
     for ((v=0; v<=255; v++)); do
         printf "\033[38;2;%d;%d;%dm" "$(( (v * 1) % 256 ))" "$(( (v * 2) % 256 ))" "$(( (v * 3) % 256 ))"
         echo -ne ".\r"
@@ -70,7 +70,7 @@ draw_splash() {
     tput cup $(( (lines / 2) - 7 )) $(( (cols - 60) / 2 ))
     echo -e "${s_col} / __ \  / | / /  / ___/  /  _/  / __ )  / /      / ____/${RESET}"
     tput cup $(( (lines / 2) - 6 )) $(( (cols - 60) / 2 ))
-    echo -e "${s_col}/ /_/ _/ /  |/ /   \__ \   / /   / __  | / /      / __/   ${RESET}"
+    echo -e "${s_col}/ /_/ _/ /  |/ /   \__ \   / /   / __  | / /      / __/  ${RESET}"
     tput cup $(( (lines / 2) - 5 )) $(( (cols - 60) / 2 ))
     echo -e "${s_col}\__/ /  / /|  /   ___/ / _/ /   / /_/ / / /___   / /___   ${RESET}"
     tput cup $(( (lines / 2) - 4 )) $(( (cols - 60) / 2 ))
