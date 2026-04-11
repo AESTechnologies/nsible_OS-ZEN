@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 4.2g CODEP FIX: Eradicated destructive asset overwrite. .!FS-. now correctly pipes to assets/.void/.00 when outside Composer.",
+//   changes: "Phase 4.3 CODEP: Bound Satori Sutra cartography (snapFocus) to [TAB] key.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -828,6 +828,12 @@ pub fn main() !void {
                 } else |_| {}
             }
 
+            // [!] SATORI SUTRA CARTOGRAPHY SNAP
+            if (byte == '\t' and sys_hunter.lens.is_scan_active) {
+                sys_hunter.lens.snapFocus(WIDTH);
+                continue;
+            }
+
             // [!] TERMINATOR ANSI PARSER
             if (byte == 27) {
                 esc_len = 1;
@@ -1095,7 +1101,6 @@ pub fn main() !void {
                             for (span) |c| { sys_composer.insert(c); }
                             sys_hunter.status = "[ SATORI STRIKE : INJECTED TO ACTIVE VESSEL ]";
                         } else {
-                            // [!] SAFELY STASH PAYLOAD: Diverted to assets/.void/.00 (Pipe Origin). Configs/Journal untouched.
                             if (std.fs.cwd().createFile("assets/.void/.00", .{ .truncate = true })) |f| {
                                 f.writeAll(span) catch {};
                                 f.close();
