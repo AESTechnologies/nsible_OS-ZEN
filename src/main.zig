@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 4.2 CODEP FIX: Satori Expansion/Contraction constraints bound. Alt-History ring buffer injected. Resilient MELT Enter fetch active.",
+//   changes: "Phase 4.2b CODEP FIX: 2D Matrix Y-Axis Wiring. Shift+Up/Down expands focus_h. Alt+Up/Down contracts focus_h during scan.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -846,6 +846,8 @@ pub fn main() !void {
 
                     if (std.mem.eql(u8, seq, "[A")) {
                         if (sys_hunter.lens.is_scan_active) {
+                            sys_hunter.lens.focus_h = 1;
+                            sys_hunter.lens.focus_len = 1;
                             if (sys_hunter.lens.scan_line_y > 0) {
                                 sys_hunter.lens.scan_line_y -= 1;
                                 if (sys_hunter.lens.scan_line_y < sys_hunter.scroll_y) sys_hunter.scroll_y = sys_hunter.lens.scan_line_y;
@@ -855,6 +857,8 @@ pub fn main() !void {
                         else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.scrollBy(-1); }
                     } else if (std.mem.eql(u8, seq, "[B")) {
                         if (sys_hunter.lens.is_scan_active) {
+                            sys_hunter.lens.focus_h = 1;
+                            sys_hunter.lens.focus_len = 1;
                             sys_hunter.lens.scan_line_y += 1;
                             const max_lines = (HEIGHT - 40) / 10;
                             if (sys_hunter.lens.scan_line_y >= sys_hunter.scroll_y + max_lines) {
@@ -864,34 +868,43 @@ pub fn main() !void {
                         else if (is_bash_modal and !is_bash_pipe) { bash_scroll_y += 1; }
                         else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.scrollBy(1); }
                     } else if (std.mem.eql(u8, seq, "[C")) {
-                        if (sys_hunter.lens.is_scan_active) { sys_hunter.lens.focus_x += 8; }
+                        if (sys_hunter.lens.is_scan_active) { 
+                            sys_hunter.lens.focus_h = 1;
+                            sys_hunter.lens.focus_len = 1;
+                            sys_hunter.lens.focus_x += 8; 
+                        }
                         else if (sys_composer.active) { sys_composer.moveCursor(1, 0); }
                         else if (is_radio_modal) {
                             if (radio_sel == 0) { radio_f0 += 5.0; } else if (radio_sel == 1) { radio_decay += 0.1; }
                             else if (radio_sel == 2) { radio_diss += 0.05; } else if (radio_sel == 3) { radio_phi += 0.05; }
                         } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.navigateHistory(1) catch {}; }
                     } else if (std.mem.eql(u8, seq, "[D")) {
-                        if (sys_hunter.lens.is_scan_active) { if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8; }
+                        if (sys_hunter.lens.is_scan_active) { 
+                            sys_hunter.lens.focus_h = 1;
+                            sys_hunter.lens.focus_len = 1;
+                            if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8; 
+                        }
                         else if (sys_composer.active) { sys_composer.moveCursor(-1, 0); }
                         else if (is_radio_modal) {
                             if (radio_sel == 0) { radio_f0 -= 5.0; } else if (radio_sel == 1) { radio_decay -= 0.1; }
                             else if (radio_sel == 2) { radio_diss -= 0.05; } else if (radio_sel == 3) { radio_phi -= 0.05; }
                         } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) { sys_hunter.navigateHistory(-1) catch {}; }
                     } else if (std.mem.eql(u8, seq, "[1;2A") or std.mem.eql(u8, seq, "[1;5A") or std.mem.eql(u8, seq, "[a") or std.mem.eql(u8, seq, "O2A")) {
-                        // SATORI SHIFT+UP: Requires 2D Area Extraction in Banyan.zig Phase 2. Vertical fallthrough applied.
+                        // SATORI SHIFT+UP: Expand Y-Axis Upward
                         if (sys_hunter.lens.is_scan_active) {
                             if (sys_hunter.lens.scan_line_y > 0) {
                                 sys_hunter.lens.scan_line_y -= 1;
+                                sys_hunter.lens.focus_h += 1;
                                 if (sys_hunter.lens.scan_line_y < sys_hunter.scroll_y) sys_hunter.scroll_y = sys_hunter.lens.scan_line_y;
                             }
                         }
                     } else if (std.mem.eql(u8, seq, "[1;2B") or std.mem.eql(u8, seq, "[1;5B") or std.mem.eql(u8, seq, "[b") or std.mem.eql(u8, seq, "O2B")) {
-                        // SATORI SHIFT+DOWN: Requires 2D Area Extraction in Banyan.zig Phase 2. Vertical fallthrough applied.
+                        // SATORI SHIFT+DOWN: Expand Y-Axis Downward
                         if (sys_hunter.lens.is_scan_active) {
-                            sys_hunter.lens.scan_line_y += 1;
+                            sys_hunter.lens.focus_h += 1;
                             const max_lines = (HEIGHT - 40) / 10;
-                            if (sys_hunter.lens.scan_line_y >= sys_hunter.scroll_y + max_lines) {
-                                sys_hunter.scroll_y = sys_hunter.lens.scan_line_y - max_lines + 1;
+                            if (sys_hunter.lens.scan_line_y + sys_hunter.lens.focus_h > sys_hunter.scroll_y + max_lines) {
+                                sys_hunter.scroll_y += 1;
                             }
                         }
                     } else if (std.mem.eql(u8, seq, "[1;2C") or std.mem.eql(u8, seq, "[1;5C") or std.mem.eql(u8, seq, "[c") or std.mem.eql(u8, seq, "O2C")) {
@@ -906,30 +919,43 @@ pub fn main() !void {
                             }
                         }
                     } else if (std.mem.eql(u8, seq, "[1;3A") or std.mem.eql(u8, seq, "[1;5A") or std.mem.eql(u8, seq, "O3A")) {
-                        // ALT+UP: History Reprime
-                        if (cmd_history_nav == 0) cmd_history_nav = 15 else cmd_history_nav -= 1;
-                        if (cmd_history_lens[cmd_history_nav] > 0) {
-                            journal_len = cmd_history_lens[cmd_history_nav];
-                            @memcpy(journal[0..journal_len], cmd_history[cmd_history_nav][0..journal_len]);
+                        // ALT+UP: Contract Y-Axis (Top) OR History Reprime
+                        if (sys_hunter.lens.is_scan_active) {
+                            if (sys_hunter.lens.focus_h > 1) {
+                                sys_hunter.lens.scan_line_y += 1;
+                                sys_hunter.lens.focus_h -= 1;
+                            }
+                        } else {
+                            if (cmd_history_nav == 0) cmd_history_nav = 15 else cmd_history_nav -= 1;
+                            if (cmd_history_lens[cmd_history_nav] > 0) {
+                                journal_len = cmd_history_lens[cmd_history_nav];
+                                @memcpy(journal[0..journal_len], cmd_history[cmd_history_nav][0..journal_len]);
+                            }
                         }
                     } else if (std.mem.eql(u8, seq, "[1;3B") or std.mem.eql(u8, seq, "[1;5B") or std.mem.eql(u8, seq, "O3B")) {
-                        // ALT+DOWN: Cycle History -> Cycle Color
-                        cmd_history_nav = (cmd_history_nav + 1) % 16;
-                        if (cmd_history_nav == cmd_history_head or cmd_history_lens[cmd_history_nav] == 0) {
-                            journal_color_state = (journal_color_state + 1) % 3;
-                            journal_len = 0;
-                            cmd_history_nav = cmd_history_head;
+                        // ALT+DOWN: Contract Y-Axis (Bottom) OR Cycle History
+                        if (sys_hunter.lens.is_scan_active) {
+                            if (sys_hunter.lens.focus_h > 1) {
+                                sys_hunter.lens.focus_h -= 1;
+                            }
                         } else {
-                            journal_len = cmd_history_lens[cmd_history_nav];
-                            @memcpy(journal[0..journal_len], cmd_history[cmd_history_nav][0..journal_len]);
+                            cmd_history_nav = (cmd_history_nav + 1) % 16;
+                            if (cmd_history_nav == cmd_history_head or cmd_history_lens[cmd_history_nav] == 0) {
+                                journal_color_state = (journal_color_state + 1) % 3;
+                                journal_len = 0;
+                                cmd_history_nav = cmd_history_head;
+                            } else {
+                                journal_len = cmd_history_lens[cmd_history_nav];
+                                @memcpy(journal[0..journal_len], cmd_history[cmd_history_nav][0..journal_len]);
+                            }
                         }
                     } else if (std.mem.eql(u8, seq, "[1;3C") or std.mem.eql(u8, seq, "[1;5C") or std.mem.eql(u8, seq, "O3C")) {
-                        // ALT+RIGHT
+                        // ALT+RIGHT: Contract X-Axis Right
                         if (sys_hunter.lens.is_scan_active) {
                             if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1;
                         }
                     } else if (std.mem.eql(u8, seq, "[1;3D") or std.mem.eql(u8, seq, "[1;5D") or std.mem.eql(u8, seq, "O3D")) {
-                        // ALT+LEFT
+                        // ALT+LEFT: Contract X-Axis Left
                         if (sys_hunter.lens.is_scan_active) {
                             if (sys_hunter.lens.focus_len > 1) {
                                 sys_hunter.lens.focus_x += 8;
@@ -1064,6 +1090,7 @@ pub fn main() !void {
                     sys_hunter.lens.scan_line_y = sys_hunter.scroll_y;
                     sys_hunter.lens.focus_x = 10;
                     sys_hunter.lens.focus_len = 1;
+                    sys_hunter.lens.focus_h = 1;
                     sys_hunter.status = "[ SATORI OPTICS : ACTIVE ]";
                 } else {
                     sys_hunter.status = "[ SATORI OPTICS : OFFLINE ]";
@@ -1839,6 +1866,10 @@ pub fn main() !void {
                         if (byte == '[') { if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1; continue; }
                         if (byte == '}') { sys_hunter.lens.focus_x += 8; continue; }
                         if (byte == '{') { if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8; continue; }
+                        if (byte == '=') { sys_hunter.lens.focus_h += 1; continue; }
+                        if (byte == '-') { if (sys_hunter.lens.focus_h > 1) sys_hunter.lens.focus_h -= 1; continue; }
+                        if (byte == '+') { if (sys_hunter.lens.scan_line_y > 0) { sys_hunter.lens.scan_line_y -= 1; sys_hunter.lens.focus_h += 1; } continue; }
+                        if (byte == '_') { if (sys_hunter.lens.focus_h > 1) { sys_hunter.lens.scan_line_y += 1; sys_hunter.lens.focus_h -= 1; } continue; }
                     }
 
                     if (journal_len < 4096) { journal[journal_len] = byte; journal_len += 1; }
