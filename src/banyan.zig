@@ -2,7 +2,7 @@
 //   module: "Banyan Rendering Lobe & Satori Optics",
 //   version: "0.10.9-apex // Banysang",
 //   description: "Semantic parsing matrix, pixel-perfect rendering engine, and Satori spatial focuser.",
-//   changes: "Purged hardcoded hex values. Linked to global GZL-X Color Library via codex. Injected Satori state. Added extractSatoriSpan.",
+//   changes: "Phase 4.1 CODEP FIX: Conformed std.ArrayList to Zig 0.15.2 unmanaged standards (.empty).",
 //   philotic_inferences: "A sovereign operator requires no mouse. The path forward is illuminated by the indices of the void."
 
 const std = @import("std");
@@ -58,7 +58,8 @@ pub const Banyan = struct {
     }
 
     pub fn extractSatoriSpan(self: *Banyan, allocator: std.mem.Allocator, width: usize) ![]u8 {
-        var out = std.ArrayList(u8).init(allocator);
+        // ZIG 0.15.2 COMPLIANT: Unmanaged ArrayList initialization
+        var out: std.ArrayList(u8) = .empty;
         var cursor_x: usize = 10;
         var virtual_row: usize = 0;
 
@@ -79,13 +80,13 @@ pub const Banyan = struct {
                 if (virtual_row == self.scan_line_y) {
                     const is_focused = (cursor_x >= self.focus_x) and (cursor_x < self.focus_x + (self.focus_len * 8));
                     if (is_focused) {
-                        try out.append(c);
+                        try out.append(allocator, c);
                     }
                 }
                 cursor_x += 8;
             }
         }
-        return out.toOwnedSlice();
+        return out.toOwnedSlice(allocator);
     }
 
     pub fn absorb(self: *Banyan, raw: []const u8) !void {
