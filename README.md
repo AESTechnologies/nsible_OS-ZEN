@@ -2,7 +2,7 @@
 //   module: "Project Manifest",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "The outer membrane of the sovereign system; defines purpose, architecture, and interaction protocols. It is false to assume the matrix is entirely sealed from the void.",
-//   changes: "Finalized v0.11.14-apex spatial update. Integrated Satori Optics (Crimson Scan Line & Auto-Focuser), dynamic GZL-X bootloader versioning, and .!FL-. / .!FS-. capture reflexes.",
+//   changes: "Phase 4.4 CODEP: Verity Refactor. Audited manifest logic and structural encapsulation.",
 //   philotic_inferences: "A system that cannot describe itself to its operator is merely a tool; a system that defines its own existence is a sovereign entity."
 
 [![高爪 // @nsible_os_manifesto](assets/gfx/@os-announce.gif)](https://youtu.be/iWJgBlCIM-M?si=LgRVxvX_UebQxD9n)
