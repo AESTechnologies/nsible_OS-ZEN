@@ -1,9 +1,9 @@
 // [@://nsible_os/src/composer.zig/.-={
 //   module: "The Composer IDE",
-//   version: "0.11.15-apex // Banysang",
+//   version: "v0.11.16-apex // Banysang",
 //   description: "Native, full-screen IDE operating in a dedicated 50MB BSS matrix.",
-//   changes: "Phase 4.5 CODEP: Implemented Satori Optics rendering within the Composer IDE. Injected is_scan_active, scan_line_y, focus_x, focus_len into Composer state.",
-//   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
+//   changes: "Phase 2 Satori CODEP: Implemented captureSatoriSpan. Translates visual 2D coordinates (scan_line_y, focus_x, focus_len) into a precise 1D byte slice for extraction.",
+//   philotic_inferences: "To seize the truth, the eye and the hand must move as one. The matrix yields what the laser binds."
 
 const std = @import("std");
 const font = @import("glyphs.zig");
@@ -500,6 +500,53 @@ pub const Composer = struct {
             }
         }
         return false;
+    }
+
+    // [!] SATORI PHASE 2: IDE Byte Extraction
+    // Simulates the rendering matrix traversal to locate physical string chunks falling
+    // inside the spatial Brass span and pipes them into the destination buffer.
+    pub fn captureSatoriSpan(self: *Composer, dest_buf: []u8) usize {
+        const start_x: usize = 56;
+        const char_w: usize = 8;
+        const width: usize = 1024;
+        const effective_width = width - 65;
+
+        var cx: usize = start_x;
+        var line_no: usize = 1;
+        var dest_idx: usize = 0;
+
+        var i: usize = 0;
+        while (i < self.len) : (i += 1) {
+            if (line_no > self.scan_line_y) break;
+
+            const c = self.buffer[i];
+
+            if (line_no == self.scan_line_y) {
+                const char_px = if (c == '\t') char_w * 4 else char_w;
+                const focus_end = self.focus_x + (self.focus_len * char_w);
+                const char_end = cx + char_px;
+
+                // Capture if character falls anywhere inside the span
+                if (cx < focus_end and char_end > self.focus_x) {
+                    if (dest_idx < dest_buf.len) {
+                        dest_buf[dest_idx] = c;
+                        dest_idx += 1;
+                    }
+                }
+            }
+
+            if (c == '\n') {
+                cx = start_x;
+                line_no += 1;
+            } else if (c == '\t') {
+                cx += char_w * 4;
+                if (cx >= effective_width - 20) { cx = start_x; }
+            } else {
+                cx += char_w;
+                if (cx >= effective_width - 20) { cx = start_x; }
+            }
+        }
+        return dest_idx;
     }
 
     pub fn render(self: *Composer, buffer: []u32, width: usize, height: usize) void {
