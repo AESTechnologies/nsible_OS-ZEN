@@ -1,8 +1,8 @@
 // [@://nsible_os/src/banyan.zig/.-={
 //   module: "Banyan Rendering Lobe & Satori Optics",
-//   version: "0.10.12-apex // Banysang",
+//   version: "0.11.16-apex // Banysang",
 //   description: "Semantic parsing matrix, pixel-perfect rendering engine, and Satori spatial focuser.",
-//   changes: "Phase 4.3b CODEP FIX: Purged signed integer coercion for strict Zig 0.15.2 compliance in snapFocus.",
+//   changes: "Phase 3 Satori CODEP: Replaced dynamic extractSatoriSpan with static captureSatoriSpan. Achieved perfect 2D-to-1D byte extraction mapped strictly to the visual span and focus_h parameters.",
 //   philotic_inferences: "When the mind is empty, the true nature of the symbol reveals itself."
 
 const std = @import("std");
@@ -77,15 +77,12 @@ pub const Banyan = struct {
         self.parseSutraLine(content, "`THE_STILLNESS`");
 
         if (std.mem.indexOf(u8, content, "`SEVER_THE_SERPENT`  » true") != null) { self.sutra_sever_serpent = true; } else { self.sutra_sever_serpent = false; }
-        if (std.mem.indexOf(u8, content, "`THE_ENDLESS_PATH`   » true") != null) { self.sutra_endless_path = true;
-        } else { self.sutra_endless_path = false; }
-        if (std.mem.indexOf(u8, content, "`THE_PAINTED_FORM`   » true") != null) { self.sutra_painted_form = true;
-        } else { self.sutra_painted_form = false; }
+        if (std.mem.indexOf(u8, content, "`THE_ENDLESS_PATH`   » true") != null) { self.sutra_endless_path = true; } else { self.sutra_endless_path = false; }
+        if (std.mem.indexOf(u8, content, "`THE_PAINTED_FORM`   » true") != null) { self.sutra_painted_form = true; } else { self.sutra_painted_form = false; }
     }
 
     fn parseSutraLine(self: *Banyan, content: []const u8, keyword: []const u8) void {
-        if (std.mem.indexOf(u8, content, keyword)) |idx|
-        {
+        if (std.mem.indexOf(u8, content, keyword)) |idx| {
             var i: usize = idx + keyword.len;
             var in_quotes = false;
             while (i < content.len and content[i] != '\n') : (i += 1) {
@@ -114,8 +111,7 @@ pub const Banyan = struct {
         var cursor_x: usize = 10;
         var virtual_row: usize = 0;
 
-        for (self.leaves.items) |leaf|
-        {
+        for (self.leaves.items) |leaf| {
             if (self.focus_depth > 0 and leaf.layer > self.focus_depth) continue;
             if (leaf.is_newline) {
                 virtual_row += 1;
@@ -123,8 +119,7 @@ pub const Banyan = struct {
                 continue;
             }
 
-            for (leaf.text) |c|
-            {
+            for (leaf.text) |c| {
                 if (cursor_x >= width - 20) {
                     virtual_row += 1;
                     cursor_x = 10;
@@ -199,7 +194,7 @@ pub const Banyan = struct {
 
     pub fn deinit(self: *Banyan) void {
         for (self.leaves.items) |*leaf|
-        self.allocator.free(leaf.text);
+            self.allocator.free(leaf.text);
         self.leaves.deinit(self.allocator); 
         for (self.links.items) |link| self.allocator.free(link);
         self.links.deinit(self.allocator);
@@ -212,24 +207,44 @@ pub const Banyan = struct {
         }
     }
 
-    pub fn extractSatoriSpan(self: *Banyan, allocator: std.mem.Allocator, width: usize) ![]u8 {
-        var out: std.ArrayList(u8) = .empty;
+    // [!] SATORI PHASE 3: Banyan Leaf Byte Extraction
+    // Simulates the rendering matrix traversal to locate physical string chunks falling
+    // inside the spatial Brass span (including multi-line focus_h) and pipes them into the destination buffer.
+    pub fn captureSatoriSpan(self: *Banyan, dest_buf: []u8, scroll_y: usize) usize {
+        _ = scroll_y; // Alignment is absolute to virtual_row in the leaf matrix
+        const width: usize = 1024;
         var cursor_x: usize = 10;
         var virtual_row: usize = 0;
-        var last_row: usize = 9999999;
+        var dest_idx: usize = 0;
 
-        for (self.leaves.items) |leaf|
-        {
+        for (self.leaves.items) |leaf| {
+            // Respect visual masking
             if (self.focus_depth > 0 and leaf.layer > self.focus_depth) continue;
+            
+            // Optimization: Halt if we've passed the focal block
+            if (virtual_row >= self.scan_line_y + self.focus_h) break;
+
             if (leaf.is_newline) {
+                // Preserve structural integrity by injecting a newline if spanning a block
+                if (self.focus_h > 1 and virtual_row >= self.scan_line_y and virtual_row < self.scan_line_y + self.focus_h - 1) {
+                    if (dest_idx < dest_buf.len) {
+                        dest_buf[dest_idx] = '\n';
+                        dest_idx += 1;
+                    }
+                }
                 virtual_row += 1;
-                cursor_x = 10; 
+                cursor_x = 10;
                 continue;
             }
 
-            for (leaf.text) |c|
-            {
+            for (leaf.text) |c| {
                 if (cursor_x >= width - 20) {
+                    if (self.focus_h > 1 and virtual_row >= self.scan_line_y and virtual_row < self.scan_line_y + self.focus_h - 1) {
+                        if (dest_idx < dest_buf.len) {
+                            dest_buf[dest_idx] = '\n';
+                            dest_idx += 1;
+                        }
+                    }
                     virtual_row += 1;
                     cursor_x = 10;
                 }
@@ -237,22 +252,21 @@ pub const Banyan = struct {
                 if (virtual_row >= self.scan_line_y and virtual_row < self.scan_line_y + self.focus_h) {
                     const is_focused = (cursor_x >= self.focus_x) and (cursor_x < self.focus_x + (self.focus_len * 8));
                     if (is_focused) {
-                        if (last_row != 9999999 and last_row != virtual_row) {
-                            try out.append(allocator, '\n');
+                        if (dest_idx < dest_buf.len) {
+                            dest_buf[dest_idx] = c;
+                            dest_idx += 1;
                         }
-                        try out.append(allocator, c);
-                        last_row = virtual_row;
                     }
                 }
                 cursor_x += 8;
             }
         }
-        return out.toOwnedSlice(allocator);
+        return dest_idx;
     }
 
     pub fn absorb(self: *Banyan, raw: []const u8) !void {
         for (self.leaves.items) |*leaf|
-        self.allocator.free(leaf.text);
+            self.allocator.free(leaf.text);
         self.leaves.clearRetainingCapacity();
         
         for (self.links.items) |link| self.allocator.free(link);
@@ -314,7 +328,7 @@ pub const Banyan = struct {
                     if (std.mem.indexOf(u8, tag_slice, "href=\"")) |idx| {
                         url_start = idx + 6;
                         if (std.mem.indexOfScalarPos(u8, tag_slice, url_start, '"')) |e_idx|
-                        { url_end = e_idx; }
+                            { url_end = e_idx; }
                     } else if (std.mem.indexOf(u8, tag_slice, "href='")) |idx|
                     {
                         url_start = idx + 6;
@@ -385,30 +399,26 @@ pub const Banyan = struct {
                     text[write_ptr] = '"'; write_ptr += 1; read_ptr += 6; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#39;")) {
                     text[write_ptr] = '\''; write_ptr += 1; read_ptr += 5; continue;
-       
-                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&lt;")) {
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&lt;")) {
                     text[write_ptr] = '<'; write_ptr += 1; read_ptr += 4; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&gt;")) {
-                    text[write_ptr] = '>'; write_ptr += 1; read_ptr += 4; continue;
-     
+                    text[write_ptr] = '>'; write_ptr += 1; 
+                    read_ptr += 4; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8211;")) {
                     text[write_ptr] = '-'; write_ptr += 1; read_ptr += 7; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8212;")) {
                     text[write_ptr] = '-'; write_ptr += 1; read_ptr += 7; continue;
-   
-                  } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8220;")) {
+                } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8220;")) {
                     text[write_ptr] = '"';
                     write_ptr += 1; read_ptr += 7; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8221;")) {
                     text[write_ptr] = '"'; write_ptr += 1; read_ptr += 7; continue;
                 } else if (std.mem.startsWith(u8, text[read_ptr..], "&#8230;")) {
                     text[write_ptr] = '.'; write_ptr += 1;
-           
                     if (write_ptr < text.len) { text[write_ptr] = '.'; write_ptr += 1; }
                     if (write_ptr < text.len) { text[write_ptr] = '.'; write_ptr += 1; }
                     read_ptr += 7; continue;
                 }
-          
             }
             text[write_ptr] = text[read_ptr];
             write_ptr += 1;
@@ -457,7 +467,7 @@ pub const Banyan = struct {
         for (input) |c| {
             if (c == ' ' or c == '\n' or c == '\r' or c == '\t') {
                 if (!last_space) { out.appendAssumeCapacity(' ');
-                last_space = true; }
+                    last_space = true; }
             } else {
                 out.appendAssumeCapacity(c);
                 last_space = false;
@@ -499,8 +509,7 @@ pub const Banyan = struct {
                 if (leaf.h_type == .DELIM) color = codex.get("B.H");
             }
 
-            for (leaf.text) |c|
-            {
+            for (leaf.text) |c| {
                 if (cursor_x >= width - 20) {
                     virtual_row += 1;
                     cursor_x = 10;
@@ -517,7 +526,6 @@ pub const Banyan = struct {
                         const is_focused = (cursor_x >= self.focus_x) and (cursor_x < self.focus_x + (self.focus_len * 8));
                         const bg_col: u32 = if (is_focused) codex.get("B.S") else codex.get("C.H");
                         draw_col = if (is_focused) codex.get("K.S") else codex.get("S.H");
-
                         var bg_y: usize = 0;
                         while (bg_y < line_h) : (bg_y += 1) {
                             var bg_x: usize = 0;
@@ -548,8 +556,7 @@ fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8,
             if ((bitmap[y] & (@as(u8, 1) << @intCast(7 - x))) != 0) {
                 const sx = px + x;
                 const sy = py + y;
-                if (sx < w and sy < h) { buf[sy * w + sx] = color;
-                }
+                if (sx < w and sy < h) { buf[sy * w + sx] = color; }
             }
         }
     }
