@@ -2,7 +2,7 @@
 //   module: "The Composer IDE",
 //   version: "v0.11.16-apex // Banysang",
 //   description: "Native, full-screen IDE operating in a dedicated 50MB BSS matrix.",
-//   changes: "Phase 2 Satori CODEP: Implemented captureSatoriSpan. Translates visual 2D coordinates (scan_line_y, focus_x, focus_len) into a precise 1D byte slice for extraction.",
+//   changes: "Phase 2 Satori CODEP: Achieved structural parity with Banyan Lens. Injected focus_h, sutra_boundaries, and sutra_serpent state. Implemented snapFocus cartography and 2D-to-1D byte extraction (captureSatoriSpan).",
 //   philotic_inferences: "To seize the truth, the eye and the hand must move as one. The matrix yields what the laser binds."
 
 const std = @import("std");
@@ -52,8 +52,19 @@ pub const Composer = struct {
     scan_line_y: usize,
     focus_x: usize,
     focus_len: usize,
+    focus_h: usize,
+
+    // [!] SUTRA RULESET
+    sutra_boundaries: [256]bool,
+    sutra_serpent: bool,
 
     pub fn init() Composer {
+        // [!] Initialize Sutra boundaries per .satori.gzl
+        var bounds = [_]bool{false} ** 256;
+        for (" \t\n\r<>[](){}=+-*/|&!?:.,;\"'`~\\_") |c| {
+            bounds[c] = true;
+        }
+
         return .{
             .buffer = &composer_global_buffer,
             .len = 0,
@@ -84,6 +95,9 @@ pub const Composer = struct {
             .scan_line_y = 1,
             .focus_x = 56, // Anchor at start_x
             .focus_len = 1,
+            .focus_h = 1,
+            .sutra_boundaries = bounds,
+            .sutra_serpent = true,
         };
     }
 
@@ -120,6 +134,7 @@ pub const Composer = struct {
         self.scan_line_y = 1;
         self.focus_x = 56;
         self.focus_len = 1;
+        self.focus_h = 1;
         
         const p_len = @min(path.len, 256);
         @memcpy(self.filepath[0..p_len], path[0..p_len]);
@@ -130,8 +145,7 @@ pub const Composer = struct {
         } else if (std.mem.startsWith(u8, clean_path, "mchn/")) {
             clean_path = clean_path[5..];
         } else if (std.mem.startsWith(u8, clean_path, "@://")) {
-            if (std.mem.indexOfScalar(u8, clean_path[4..], '/')) |idx|
-            {
+            if (std.mem.indexOfScalar(u8, clean_path[4..], '/')) |idx| {
                 clean_path = clean_path[4 + idx + 1..];
             }
         }
@@ -153,8 +167,7 @@ pub const Composer = struct {
         const is_abs = std.mem.startsWith(u8, clean_path, "/");
         const file_opt = if (is_abs) std.fs.openFileAbsolute(clean_path, .{}) else std.fs.cwd().openFile(clean_path, .{});
 
-        if (file_opt) |file|
-        {
+        if (file_opt) |file| {
             self.len = file.readAll(self.buffer) catch 0;
             file.close();
             self.setStatus("FILE LOADED");
@@ -182,8 +195,7 @@ pub const Composer = struct {
         } else if (std.mem.startsWith(u8, clean_path, "mchn/")) {
             clean_path = clean_path[5..];
         } else if (std.mem.startsWith(u8, clean_path, "@://")) {
-            if (std.mem.indexOfScalar(u8, clean_path[4..], '/')) |idx|
-            {
+            if (std.mem.indexOfScalar(u8, clean_path[4..], '/')) |idx| {
                 clean_path = clean_path[4 + idx + 1..];
             }
         }
@@ -192,8 +204,7 @@ pub const Composer = struct {
             clean_path = "jour.nal";
         }
         
-        if (std.mem.lastIndexOfScalar(u8, clean_path, '/')) |last_slash|
-        {
+        if (std.mem.lastIndexOfScalar(u8, clean_path, '/')) |last_slash| {
             const dir_path = clean_path[0..last_slash];
             std.fs.cwd().makePath(dir_path) catch {};
         }
@@ -201,8 +212,7 @@ pub const Composer = struct {
         const is_abs = std.mem.startsWith(u8, clean_path, "/");
         const file_opt = if (is_abs) std.fs.createFileAbsolute(clean_path, .{}) else std.fs.cwd().createFile(clean_path, .{});
 
-        if (file_opt) |file|
-        {
+        if (file_opt) |file| {
             file.writeAll(self.buffer[0..self.len]) catch {
                 self.setStatus("SAVE FAILED");
                 return;
@@ -211,8 +221,7 @@ pub const Composer = struct {
             self.dirty = false;
             self.edits_since_save = 0;
             self.setStatus("FILE SAVED");
-        } else |_|
-        {
+        } else |_| {
             self.setStatus("SAVE FAILED: IO ERR");
         }
     }
@@ -247,8 +256,7 @@ pub const Composer = struct {
             .SEEK => {
                 const query = self.input_buf[0..self.input_len];
                 if (query.len > 0) {
-                    if (std.mem.indexOf(u8, self.buffer[self.cursor_idx..self.len], query)) |idx|
-                    {
+                    if (std.mem.indexOf(u8, self.buffer[self.cursor_idx..self.len], query)) |idx| {
                         self.cursor_idx += idx;
                         self.setStatus("TARGET ACQUIRED");
                     } else if (std.mem.indexOf(u8, self.buffer[0..self.cursor_idx], query)) |idx| {
@@ -275,8 +283,7 @@ pub const Composer = struct {
                     while (std.mem.indexOf(u8, self.buffer[search_start..self.len], query)) |idx| {
                         const abs_idx = search_start + idx;
                         const shift: isize = @as(isize, @intCast(repl.len)) - @as(isize, @intCast(query.len));
-                        if (@as(isize, @intCast(self.len)) + shift > @as(isize, @intCast(self.buffer.len))) { break;
-                        }
+                        if (@as(isize, @intCast(self.len)) + shift > @as(isize, @intCast(self.buffer.len))) { break; }
                         
                         if (shift > 0) {
                             const ushift = @as(usize, @intCast(shift));
@@ -306,8 +313,7 @@ pub const Composer = struct {
                         while (std.mem.indexOf(u8, self.buffer[search_start..search_end], query)) |idx| {
                             const abs_idx = search_start + idx;
                             const shift: isize = @as(isize, @intCast(repl.len)) - @as(isize, @intCast(query.len));
-                            if (@as(isize, @intCast(self.len)) + shift > @as(isize, @intCast(self.buffer.len))) { break;
-                            }
+                            if (@as(isize, @intCast(self.len)) + shift > @as(isize, @intCast(self.buffer.len))) { break; }
                             
                             if (shift > 0) {
                                 const ushift = @as(usize, @intCast(shift));
@@ -378,10 +384,8 @@ pub const Composer = struct {
             return;
         }
 
-        if (self.len >= self.buffer.len) { return;
-        }
-        if (c < 32 and c != '\n' and c != '\t') { return;
-        }
+        if (self.len >= self.buffer.len) { return; }
+        if (c < 32 and c != '\n' and c != '\t') { return; }
         
         var i: usize = self.len;
         while (i > self.cursor_idx) : (i -= 1) {
@@ -422,12 +426,10 @@ pub const Composer = struct {
 
     pub fn backspace(self: *Composer) void {
         if (self.mode != .EDIT) {
-            if (self.input_len > 0) { self.input_len -= 1;
-            }
+            if (self.input_len > 0) { self.input_len -= 1; }
             return;
         }
-        if (self.cursor_idx == 0) { return;
-        }
+        if (self.cursor_idx == 0) { return; }
         var i: usize = self.cursor_idx;
         while (i < self.len) : (i += 1) {
             self.buffer[i - 1] = self.buffer[i];
@@ -439,10 +441,8 @@ pub const Composer = struct {
     }
     
     pub fn deleteChar(self: *Composer) void {
-        if (self.mode != .EDIT) { return;
-        }
-        if (self.cursor_idx >= self.len) { return;
-        }
+        if (self.mode != .EDIT) { return; }
+        if (self.cursor_idx >= self.len) { return; }
         var i: usize = self.cursor_idx + 1;
         while (i < self.len) : (i += 1) {
             self.buffer[i - 1] = self.buffer[i];
@@ -453,12 +453,9 @@ pub const Composer = struct {
     }
 
     pub fn moveCursor(self: *Composer, dx: isize, dy: isize) void {
-        if (self.mode != .EDIT) { return;
-        }
-        if (dx < 0 and self.cursor_idx > 0) { self.cursor_idx -= 1;
-        }
-        if (dx > 0 and self.cursor_idx < self.len) { self.cursor_idx += 1;
-        }
+        if (self.mode != .EDIT) { return; }
+        if (dx < 0 and self.cursor_idx > 0) { self.cursor_idx -= 1; }
+        if (dx > 0 and self.cursor_idx < self.len) { self.cursor_idx += 1; }
         if (dy < 0) {
             const lines_to_jump = @as(usize, @intCast(-dy));
             var lines_jumped: usize = 0;
@@ -481,8 +478,7 @@ pub const Composer = struct {
             
             while (lines_jumped < lines_to_jump and i < self.len) {
                 while (i < self.len and self.buffer[i] != '\n') : (i += 1) {}
-                if (i < self.len) { i += 1;
-                }
+                if (i < self.len) { i += 1; }
                 lines_jumped += 1;
             }
             self.cursor_idx = i;
@@ -496,10 +492,85 @@ pub const Composer = struct {
     fn isKeyword(word: []const u8) bool {
         const keywords = [_][]const u8{ "pub", "fn", "const", "var", "if", "else", "return", "struct", "enum", "while", "for", "switch", "catch", "try", "true", "false", "undefined", "and", "or", "void", "null", "@://" };
         for (keywords) |kw| {
-            if (std.mem.eql(u8, word, kw)) { return true;
-            }
+            if (std.mem.eql(u8, word, kw)) { return true; }
         }
         return false;
+    }
+
+    // [!] SATORI PHASE 2: IDE Sutra Cartography Snap
+    // Navigates the rendering matrix to snap the laser focus onto the next semantic 
+    // boundary based on the rules established in .satori.gzl
+    pub fn snapFocus(self: *Composer, screen_width: usize) void {
+        const start_x: usize = 56;
+        const char_w: usize = 8;
+        const effective_width = screen_width - 65;
+
+        var cx: usize = start_x;
+        var line_no: usize = 1;
+        var target_idx: ?usize = null;
+        var found_x: usize = start_x;
+        var found_line: usize = 1;
+
+        for (self.buffer[0..self.len], 0..) |c, i| {
+            if (line_no == self.scan_line_y and cx >= self.focus_x) {
+                target_idx = i;
+                found_x = cx;
+                found_line = line_no;
+                break;
+            }
+            if (c == '\n') {
+                cx = start_x;
+                line_no += 1;
+            } else if (c == '\t') {
+                cx += char_w * 4;
+                if (cx >= effective_width - 20) { cx = start_x; line_no += 1; }
+            } else {
+                cx += char_w;
+                if (cx >= effective_width - 20) { cx = start_x; line_no += 1; }
+            }
+        }
+
+        if (target_idx) |start_i| {
+            var i = start_i;
+            var current_cx = found_x;
+            var current_line = found_line;
+
+            while (i < self.len and self.sutra_boundaries[self.buffer[i]]) : (i += 1) {
+                const c = self.buffer[i];
+                if (c == '\n') {
+                    current_cx = start_x;
+                    current_line += 1;
+                } else if (c == '\t') {
+                    current_cx += char_w * 4;
+                    if (current_cx >= effective_width - 20) { current_cx = start_x; current_line += 1; }
+                } else {
+                    current_cx += char_w;
+                    if (current_cx >= effective_width - 20) { current_cx = start_x; current_line += 1; }
+                }
+            }
+
+            self.focus_x = current_cx;
+            self.scan_line_y = current_line;
+            self.focus_len = 0;
+
+            while (i < self.len and !self.sutra_boundaries[self.buffer[i]]) : (i += 1) {
+                const c = self.buffer[i];
+                if (c == '\n') break; 
+                
+                if (c == '\t') {
+                    self.focus_len += 4;
+                    current_cx += char_w * 4;
+                } else {
+                    self.focus_len += 1;
+                    current_cx += char_w;
+                }
+                
+                if (current_cx >= effective_width - 20) break;
+            }
+
+            if (self.focus_len == 0) self.focus_len = 1;
+            self.focus_h = 1; 
+        }
     }
 
     // [!] SATORI PHASE 2: IDE Byte Extraction
@@ -517,16 +588,15 @@ pub const Composer = struct {
 
         var i: usize = 0;
         while (i < self.len) : (i += 1) {
-            if (line_no > self.scan_line_y) break;
+            if (line_no >= self.scan_line_y + self.focus_h) break;
 
             const c = self.buffer[i];
 
-            if (line_no == self.scan_line_y) {
+            if (line_no >= self.scan_line_y and line_no < self.scan_line_y + self.focus_h) {
                 const char_px = if (c == '\t') char_w * 4 else char_w;
                 const focus_end = self.focus_x + (self.focus_len * char_w);
                 const char_end = cx + char_px;
 
-                // Capture if character falls anywhere inside the span
                 if (cx < focus_end and char_end > self.focus_x) {
                     if (dest_idx < dest_buf.len) {
                         dest_buf[dest_idx] = c;
@@ -538,12 +608,19 @@ pub const Composer = struct {
             if (c == '\n') {
                 cx = start_x;
                 line_no += 1;
+                // Preserve structural integrity by injecting a newline if spanning a block.
+                if (self.focus_h > 1 and line_no > self.scan_line_y and line_no < self.scan_line_y + self.focus_h) {
+                    if (dest_idx < dest_buf.len) {
+                        dest_buf[dest_idx] = '\n';
+                        dest_idx += 1;
+                    }
+                }
             } else if (c == '\t') {
                 cx += char_w * 4;
-                if (cx >= effective_width - 20) { cx = start_x; }
+                if (cx >= effective_width - 20) { cx = start_x; line_no += 1; }
             } else {
                 cx += char_w;
-                if (cx >= effective_width - 20) { cx = start_x; }
+                if (cx >= effective_width - 20) { cx = start_x; line_no += 1; }
             }
         }
         return dest_idx;
@@ -575,8 +652,7 @@ pub const Composer = struct {
         const help_str = ".!XX-. Discard   .!SV-. Save to Disk";
         var h_cx = (width - 5) - (help_str.len * 8) - 10;
         if (h_cx > head_cx + 10) { 
-            for (help_str) |c|
-            { 
+            for (help_str) |c| { 
                 drawCharToBuf(buffer, width, height, h_cx, 26, c, codex.get("K.S"));
                 h_cx += 8; 
             }
@@ -597,12 +673,10 @@ pub const Composer = struct {
                 cy += line_h; line_no += 1;
             } else if (c == '\t') {
                 cx += char_w * 4;
-                if (cx >= effective_width - 20) { cx = start_x; cy += line_h;
-                }
+                if (cx >= effective_width - 20) { cx = start_x; cy += line_h; }
             } else {
                 cx += char_w;
-                if (cx >= effective_width - 20) { cx = start_x; cy += line_h;
-                }
+                if (cx >= effective_width - 20) { cx = start_x; cy += line_h; }
             }
         }
         cursor_px = cx;
@@ -660,12 +734,10 @@ pub const Composer = struct {
                 var ended = false;
                 if (self.comment_suf_len > 0 and i + 1 >= self.comment_suf_len) {
                     if (std.mem.eql(u8, self.buffer[i + 1 - self.comment_suf_len .. i + 1], self.comment_suf[0..self.comment_suf_len])) {
-       
                         ended = true;
                     }
                 }
                 if (!ended and i > 0 and self.buffer[i-1] == '*' and c == '/') {
- 
                     ended = true;
                 }
                 if (ended) in_multi_comment = false;
@@ -680,12 +752,10 @@ pub const Composer = struct {
                 in_string = false;
             } else if (c == '\t') {
                 cx += char_w * 4;
-                if (cx >= effective_width - 20) { cx = start_x; cy += line_h;
-                }
+                if (cx >= effective_width - 20) { cx = start_x; cy += line_h; }
             } else {
                 cx += char_w;
-                if (cx >= effective_width - 20) { cx = start_x; cy += line_h;
-                }
+                if (cx >= effective_width - 20) { cx = start_x; cy += line_h; }
             }
         }
 
@@ -695,28 +765,25 @@ pub const Composer = struct {
 
         i = draw_start_idx;
         while (i <= self.len) : (i += 1) {
-            if (cy > visible_bottom) { break;
-            } 
+            if (cy > visible_bottom) { break; } 
             
             if (is_start_of_line) {
                 var num_buf: [8]u8 = undefined;
                 const num_str = std.fmt.bufPrint(&num_buf, "{d: >4}", .{line_no}) catch "   0";
                 var nx: usize = 8;
-                for (num_str) |nc|
-                { 
+                for (num_str) |nc| { 
                     drawCharToBuf(buffer, width, height, nx, cy - pixel_scroll_y, nc, codex.get("K.H"));
                     nx += char_w; 
                 }
                 drawCharToBuf(buffer, width, height, nx + 4, cy - pixel_scroll_y, 0xB3, codex.get("K.H"));
 
-                // [!] SATORI OPTICS: Paint full crimson beam
-                if (self.is_scan_active and line_no == self.scan_line_y) {
+                // [!] SATORI OPTICS: Paint full crimson beam bridging Phase 2 focus_h expansion
+                if (self.is_scan_active and line_no >= self.scan_line_y and line_no < self.scan_line_y + self.focus_h) {
                     drawRect(buffer, width, height, start_x, cy - pixel_scroll_y, effective_width - start_x, line_h, codex.get("C.H"));
                 }
             }
 
-            if (i == self.len) { break;
-            }
+            if (i == self.len) { break; }
             const c = self.buffer[i];
             
             var just_started_single = false;
@@ -783,7 +850,7 @@ pub const Composer = struct {
                 in_single_comment = false;
                 in_string = false;
             } else if (c == '\t') {
-                if (self.is_scan_active and line_no == self.scan_line_y) {
+                if (self.is_scan_active and line_no >= self.scan_line_y and line_no < self.scan_line_y + self.focus_h) {
                     var tab_x = cx;
                     while (tab_x < cx + (char_w * 4)) : (tab_x += char_w) {
                         const is_focused = (tab_x >= self.focus_x) and (tab_x < self.focus_x + (self.focus_len * 8));
@@ -795,7 +862,7 @@ pub const Composer = struct {
                 cx += char_w * 4;
                 if (cx >= effective_width - 20) { cx = start_x; cy += line_h; }
             } else {
-                if (self.is_scan_active and line_no == self.scan_line_y) {
+                if (self.is_scan_active and line_no >= self.scan_line_y and line_no < self.scan_line_y + self.focus_h) {
                     const is_focused = (cx >= self.focus_x) and (cx < self.focus_x + (self.focus_len * 8));
                     if (is_focused) {
                         drawRect(buffer, width, height, cx, cy - pixel_scroll_y, char_w, line_h, codex.get("B.S"));
@@ -834,8 +901,7 @@ pub const Composer = struct {
                 drawCharToBuf(buffer, width, height, mx, height - 34, c, codex.get("K.S"));
                 mx += 8; 
             }
-            for (self.input_buf[0..self.input_len]) |c|
-            { 
+            for (self.input_buf[0..self.input_len]) |c| { 
                 drawCharToBuf(buffer, width, height, mx, height - 34, c, codex.get("S.H"));
                 mx += 8; 
             }
@@ -856,8 +922,7 @@ pub const Composer = struct {
         b_cx += 24;
         var byte_buf: [64]u8 = undefined;
         const byte_str = std.fmt.bufPrint(&byte_buf, "L:{d} | B:{d}/{d}", .{cursor_line, self.cursor_idx, self.len}) catch "";
-        for (byte_str) |c|
-        { 
+        for (byte_str) |c| { 
             drawCharToBuf(buffer, width, height, b_cx, height - 14, c, codex.get("B.S"));
             b_cx += 8; 
         }
@@ -873,8 +938,7 @@ fn drawCharToBuf(buf: []u32, w: usize, h: usize, px: usize, py: usize, char: u8,
             if ((bitmap[y] & (@as(u8, 1) << @intCast(7 - x))) != 0) {
                 const screen_x = px + x;
                 const screen_y = py + y;
-                if (screen_x < w and screen_y < h) { buf[screen_y * w + screen_x] = color;
-                }
+                if (screen_x < w and screen_y < h) { buf[screen_y * w + screen_x] = color; }
             }
         }
     }
@@ -887,8 +951,7 @@ fn drawRect(buf: []u32, bw: usize, bh: usize, x: usize, y: usize, w: usize, h: u
         while (dx < w) : (dx += 1) {
             const sx = x + dx;
             const sy = y + dy;
-            if (sx < bw and sy < bh) { buf[sy * bw + sx] = color;
-            }
+            if (sx < bw and sy < bh) { buf[sy * bw + sx] = color; }
         }
     }
 }
