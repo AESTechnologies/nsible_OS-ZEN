@@ -1,8 +1,8 @@
 // [@://nsible_os/src/composer.zig/.-={
 //   module: "The Composer IDE",
-//   version: "0.11.12-apex // Banysang",
+//   version: "0.11.15-apex // Banysang",
 //   description: "Native, full-screen IDE operating in a dedicated 50MB BSS matrix.",
-//   changes: "Phase 4.4 CODEP: Verity Refactor. Audited matrix logic and structural encapsulation.",
+//   changes: "Phase 4.5 CODEP: Implemented Satori Optics rendering within the Composer IDE. Injected is_scan_active, scan_line_y, focus_x, focus_len into Composer state.",
 //   philotic_inferences: "The matrix must protect the operator's unsealed thoughts from the void."
 
 const std = @import("std");
@@ -47,6 +47,12 @@ pub const Composer = struct {
     has_pending_cmd: bool,
     seq_buf: [6]u8,
 
+    // [!] SATORI OPTICS STATE
+    is_scan_active: bool,
+    scan_line_y: usize,
+    focus_x: usize,
+    focus_len: usize,
+
     pub fn init() Composer {
         return .{
             .buffer = &composer_global_buffer,
@@ -74,6 +80,10 @@ pub const Composer = struct {
             .pending_cmd_len = 0,
             .has_pending_cmd = false,
             .seq_buf = .{0} ** 6,
+            .is_scan_active = false,
+            .scan_line_y = 1,
+            .focus_x = 56, // Anchor at start_x
+            .focus_len = 1,
         };
     }
 
@@ -106,6 +116,11 @@ pub const Composer = struct {
         self.edits_since_save = 0;
         self.last_xx_ms = 0;
         self.has_pending_cmd = false;
+        self.is_scan_active = false;
+        self.scan_line_y = 1;
+        self.focus_x = 56;
+        self.focus_len = 1;
+        
         const p_len = @min(path.len, 256);
         @memcpy(self.filepath[0..p_len], path[0..p_len]);
         self.filepath_len = p_len;
@@ -598,13 +613,13 @@ pub const Composer = struct {
                 var ended = false;
                 if (self.comment_suf_len > 0 and i + 1 >= self.comment_suf_len) {
                     if (std.mem.eql(u8, self.buffer[i + 1 - self.comment_suf_len .. i + 1], self.comment_suf[0..self.comment_suf_len])) {
-              
+       
                         ended = true;
                     }
                 }
                 if (!ended and i > 0 and self.buffer[i-1] == '*' and c == '/') {
-                    ended = 
-true;
+ 
+                    ended = true;
                 }
                 if (ended) in_multi_comment = false;
             } else if (in_string and !just_started_string and c == '"') {
@@ -646,6 +661,11 @@ true;
                     nx += char_w; 
                 }
                 drawCharToBuf(buffer, width, height, nx + 4, cy - pixel_scroll_y, 0xB3, codex.get("K.H"));
+
+                // [!] SATORI OPTICS: Paint full crimson beam
+                if (self.is_scan_active and line_no == self.scan_line_y) {
+                    drawRect(buffer, width, height, start_x, cy - pixel_scroll_y, effective_width - start_x, line_h, codex.get("C.H"));
+                }
             }
 
             if (i == self.len) { break;
@@ -676,24 +696,20 @@ true;
             }
 
             if (in_multi_comment or in_single_comment) {
-   
                 current_color = codex.get("B.S"); 
             } else if (in_string) {
                 current_color = codex.get("S.H"); 
             } else if (keyword_countdown > 0) {
                 current_color = codex.get("C.S"); 
-            
-    keyword_countdown -= 1;
+                keyword_countdown -= 1;
             } else {
                 current_color = codex.get("S.S"); 
                 if (isAlphanumeric(c) and (i == 0 or !isAlphanumeric(self.buffer[i-1]))) {
                     var w_len: usize = 0;
-             
-        while (i + w_len < self.len and isAlphanumeric(self.buffer[i + w_len])) { w_len += 1; }
+                    while (i + w_len < self.len and isAlphanumeric(self.buffer[i + w_len])) { w_len += 1; }
                     if (w_len > 0 and isKeyword(self.buffer[i .. i+w_len])) {
                         current_color = codex.get("C.S");
-                        keyword_countdown 
-= w_len - 1;
+                        keyword_countdown = w_len - 1;
                     }
                 }
             }
@@ -716,27 +732,41 @@ true;
             is_start_of_line = false;
             if (c == '\n') {
                 cx = start_x;
-            
-    cy += line_h; line_no += 1; is_start_of_line = true;
+                cy += line_h; line_no += 1; is_start_of_line = true;
                 in_single_comment = false;
                 in_string = false;
             } else if (c == '\t') {
+                if (self.is_scan_active and line_no == self.scan_line_y) {
+                    var tab_x = cx;
+                    while (tab_x < cx + (char_w * 4)) : (tab_x += char_w) {
+                        const is_focused = (tab_x >= self.focus_x) and (tab_x < self.focus_x + (self.focus_len * 8));
+                        if (is_focused) {
+                            drawRect(buffer, width, height, tab_x, cy - pixel_scroll_y, char_w, line_h, codex.get("B.S"));
+                        }
+                    }
+                }
                 cx += char_w * 4;
-              
-    if (cx >= effective_width - 20) { cx = start_x; cy += line_h; }
+                if (cx >= effective_width - 20) { cx = start_x; cy += line_h; }
             } else {
+                if (self.is_scan_active and line_no == self.scan_line_y) {
+                    const is_focused = (cx >= self.focus_x) and (cx < self.focus_x + (self.focus_len * 8));
+                    if (is_focused) {
+                        drawRect(buffer, width, height, cx, cy - pixel_scroll_y, char_w, line_h, codex.get("B.S"));
+                        current_color = codex.get("K.S");
+                    } else {
+                        current_color = codex.get("S.H"); // High-contrast beam text
+                    }
+                }
                 drawCharToBuf(buffer, width, height, cx, cy - pixel_scroll_y, c, current_color);
                 cx += char_w;
-                if (cx >= effective_width - 20) { cx = start_x; cy += line_h; 
-                }
+                if (cx >= effective_width - 20) { cx = start_x; cy += line_h; }
             }
         }
         
-        if (cursor_py >= visible_top and cursor_py < visible_bottom - 40) {
+        if (!self.is_scan_active and cursor_py >= visible_top and cursor_py < visible_bottom - 40) {
             const draw_cy = cursor_py - pixel_scroll_y;
-            drawCharToBuf(buffer, width, height, cursor_px, draw_cy, 0xDB, codex.get("B.S")); 
-            if (self.cursor_idx < self.len and self.buffer[self.cursor_idx] 
-!= '\n' and self.buffer[self.cursor_idx] != '\t') {
+            drawCharToBuf(buffer, width, height, cursor_px, draw_cy, 0xDB, codex.get("B.S"));
+            if (self.cursor_idx < self.len and self.buffer[self.cursor_idx] != '\n' and self.buffer[self.cursor_idx] != '\t') {
                  drawCharToBuf(buffer, width, height, cursor_px, draw_cy, self.buffer[self.cursor_idx], codex.get("K.S"));
             }
         }
@@ -749,8 +779,7 @@ true;
                 .SWITCH_FIND => "[ SWITCH: FIND ] > ",
                 .SWITCH_REPL => "[ SWITCH: REPL ] > ",
                 .SAVE_TO => "[ SAVE TO ] > ",
-     
-            .CMD => "[ OS CMD ] > ",
+                .CMD => "[ OS CMD ] > ",
                 else => "> ",
             };
             var mx: usize = 10;
