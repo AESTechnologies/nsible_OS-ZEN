@@ -631,7 +631,7 @@ pub const Composer = struct {
         const start_y: usize = 46; 
         const char_w: usize = 8;
         const line_h: usize = 10;
-        const effective_width = width - 65; // Safe workspace buffer to avoid timeline rail overlap
+        const effective_width = width - 35; // Safe workspace buffer to avoid timeline rail overlap
 
         // Clear text workspace
         drawRect(buffer, width, height, 0, 20, effective_width, height - 20, codex.get("K.S"));
