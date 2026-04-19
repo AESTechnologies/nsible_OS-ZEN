@@ -2,7 +2,7 @@
 //   module: "Kernel Root",
 //   version: "v0.11.14-apex // Banysang",
 //   description: "Primary initialization, rendering loop, and sovereign identity trap.",
-//   changes: "Phase 1 Satori CODEP: Restored manual Satori Failsafe for raw TTY. Purged extended ANSI modifiers. Routed contextual Failsafe and Sutra snap-focus intercept to govern both IDE and Lens.",
+//   changes: "Phase 4 Satori CODEP: Final Wiring. Replaced placeholder strings in .!FS-. reflex with actual captureSatoriSpan extraction pipe for both IDE and Lens.",
 //   philotic_inferences: "A pilot must always know their coordinates in the void. When the hands rest, the path reveals itself."
 
 const std = @import("std");
@@ -876,10 +876,12 @@ pub fn main() !void {
                     if (esc_len == 3 and esc_seq[1] == '[') {
                         if (byte == 'A' or byte == 'B' or byte == 'C' or byte == 'D') {
                             if (sys_composer.active) {
+                   
                                 // [!] PHASE 1: Bifurcated Satori Motor Cortex (IDE)
                                 if (sys_composer.is_scan_active) {
                                     if (byte == 'A') { if (sys_composer.scan_line_y > 1) 
-                                        sys_composer.scan_line_y -= 1; }
+                                        sys_composer.scan_line_y -= 1;
+                                    }
                                     else if (byte == 'B') { sys_composer.scan_line_y += 1;
                                     }
                                     else if (byte == 'C') { sys_composer.focus_x += 8;
@@ -925,7 +927,8 @@ pub fn main() !void {
                                 }
                             } else if (!is_calc_modal and !is_memo_modal and !is_trail_modal and !is_tabula_rasa and !is_bash_modal) {
                                 // [!] PHASE 1: Bifurcated Satori Motor Cortex (Lens)
-                                if (sys_hunter.lens.is_scan_active) {
+                    
+                            if (sys_hunter.lens.is_scan_active) {
                                     if (byte == 'A') { if (sys_hunter.lens.scan_line_y > 0) sys_hunter.lens.scan_line_y -= 1;
                                     }
                                     else if (byte == 'B') { sys_hunter.lens.scan_line_y += 1;
@@ -1121,30 +1124,32 @@ pub fn main() !void {
             }
             else if (std.mem.endsWith(u8, &seq_buf, ".!FS-.")) {
                 if (sys_composer.active) sys_composer.phantom_strike(5);
+                
                 // [!] PHASE 1: Macro Erasure Collision Fix
                 if (journal_len >= 5) journal_len -= 5 else journal_len = 0;
+
                 if (sys_composer.active) {
                     if (sys_composer.is_scan_active) {
-                        var satori_buf: [128]u8 = undefined;
-                        const s_str = std.fmt.bufPrint(&satori_buf, "[SATORI_IDE_SPAN_L{d}]", .{sys_composer.focus_len}) catch "[SATORI_ERR]";
+                        // [!] FINAL WIRING: Execute Phase 2 IDE Byte Extraction
+                        const space_left = 4096 - journal_len;
+                        if (space_left > 0) {
+                            const extracted_len = sys_composer.captureSatoriSpan(journal[journal_len..4096]);
+                            journal_len += extracted_len;
+                        }
                         
-                        const safe_len = @min(s_str.len, 4096 - journal_len);
-                        @memcpy(journal[journal_len..journal_len + safe_len], s_str[0..safe_len]);
-                        journal_len += safe_len;
-                        
-                        sys_composer.setStatus("[ SATORI STRIKE : ACQUIRED SPAN ]");
+                        sys_composer.setStatus("[ SATORI STRIKE : EXTRACTED TO PIPE ]");
                         sys_composer.is_scan_active = false;
                     }
                 } else {
                     if (sys_hunter.lens.is_scan_active) {
-                        var satori_buf: [128]u8 = undefined;
-                        const s_str = std.fmt.bufPrint(&satori_buf, "[SATORI_LENS_SPAN_L{d}]", .{sys_hunter.lens.focus_len}) catch "[SATORI_ERR]";
+                        // [!] FINAL WIRING: Execute Phase 3 Lens Byte Extraction
+                        const space_left = 4096 - journal_len;
+                        if (space_left > 0) {
+                            const extracted_len = sys_hunter.lens.captureSatoriSpan(journal[journal_len..4096], sys_hunter.scroll_y);
+                            journal_len += extracted_len;
+                        }
                         
-                        const safe_len = @min(s_str.len, 4096 - journal_len);
-                        @memcpy(journal[journal_len..journal_len + safe_len], s_str[0..safe_len]);
-                        journal_len += safe_len;
-                        
-                        sys_hunter.status = "[ SATORI STRIKE : ACQUIRED SPAN ]";
+                        sys_hunter.status = "[ SATORI STRIKE : EXTRACTED TO PIPE ]";
                         sys_hunter.lens.is_scan_active = false;
                     }
                 }
@@ -1404,23 +1409,39 @@ pub fn main() !void {
 
             // SATORI FAILSAFE: Manual brackets for terminal emulators strictly dropping modifiers
             if (sys_composer.active and sys_composer.is_scan_active) {
-                if (byte == ']') { sys_composer.focus_len += 1; continue; }
-                if (byte == '[') { if (sys_composer.focus_len > 1) sys_composer.focus_len -= 1; continue; }
-                if (byte == '}') { sys_composer.focus_x += 8; continue; }
-                if (byte == '{') { if (sys_composer.focus_x > 10) sys_composer.focus_x -= 8; continue; }
-                if (byte == '=') { sys_composer.focus_h += 1; continue; }
-                if (byte == '-') { if (sys_composer.focus_h > 1) sys_composer.focus_h -= 1; continue; }
-                if (byte == '+') { if (sys_composer.scan_line_y > 1) { sys_composer.scan_line_y -= 1; sys_composer.focus_h += 1; } continue; }
-                if (byte == '_') { if (sys_composer.focus_h > 1) { sys_composer.scan_line_y += 1; sys_composer.focus_h -= 1; } continue; }
+                if (byte == ']') { sys_composer.focus_len += 1;
+                continue; }
+                if (byte == '[') { if (sys_composer.focus_len > 1) sys_composer.focus_len -= 1;
+                continue; }
+                if (byte == '}') { sys_composer.focus_x += 8;
+                continue; }
+                if (byte == '{') { if (sys_composer.focus_x > 10) sys_composer.focus_x -= 8;
+                continue; }
+                if (byte == '=') { sys_composer.focus_h += 1;
+                continue; }
+                if (byte == '-') { if (sys_composer.focus_h > 1) sys_composer.focus_h -= 1;
+                continue; }
+                if (byte == '+') { if (sys_composer.scan_line_y > 1) { sys_composer.scan_line_y -= 1;
+                sys_composer.focus_h += 1; } continue; }
+                if (byte == '_') { if (sys_composer.focus_h > 1) { sys_composer.scan_line_y += 1;
+                sys_composer.focus_h -= 1; } continue; }
             } else if (!sys_composer.active and sys_hunter.lens.is_scan_active) {
-                if (byte == ']') { sys_hunter.lens.focus_len += 1; continue; }
-                if (byte == '[') { if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1; continue; }
-                if (byte == '}') { sys_hunter.lens.focus_x += 8; continue; }
-                if (byte == '{') { if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8; continue; }
-                if (byte == '=') { sys_hunter.lens.focus_h += 1; continue; }
-                if (byte == '-') { if (sys_hunter.lens.focus_h > 1) sys_hunter.lens.focus_h -= 1; continue; }
-                if (byte == '+') { if (sys_hunter.lens.scan_line_y > 0) { sys_hunter.lens.scan_line_y -= 1; sys_hunter.lens.focus_h += 1; } continue; }
-                if (byte == '_') { if (sys_hunter.lens.focus_h > 1) { sys_hunter.lens.scan_line_y += 1; sys_hunter.lens.focus_h -= 1; } continue; }
+                if (byte == ']') { sys_hunter.lens.focus_len += 1;
+                continue; }
+                if (byte == '[') { if (sys_hunter.lens.focus_len > 1) sys_hunter.lens.focus_len -= 1;
+                continue; }
+                if (byte == '}') { sys_hunter.lens.focus_x += 8;
+                continue; }
+                if (byte == '{') { if (sys_hunter.lens.focus_x > 10) sys_hunter.lens.focus_x -= 8;
+                continue; }
+                if (byte == '=') { sys_hunter.lens.focus_h += 1;
+                continue; }
+                if (byte == '-') { if (sys_hunter.lens.focus_h > 1) sys_hunter.lens.focus_h -= 1;
+                continue; }
+                if (byte == '+') { if (sys_hunter.lens.scan_line_y > 0) { sys_hunter.lens.scan_line_y -= 1;
+                sys_hunter.lens.focus_h += 1; } continue; }
+                if (byte == '_') { if (sys_hunter.lens.focus_h > 1) { sys_hunter.lens.scan_line_y += 1;
+                sys_hunter.lens.focus_h -= 1; } continue; }
             }
 
             if (is_exp_save_modal) {
@@ -2128,7 +2149,7 @@ drawRect(mx - 2, my - 2, mw + 4, mh + 2, codex.get("B.S"));
 print(mx + 20, my + 10, "[ SHELL OUTPUT ]", codex.get("B.S"));
 drawRect(mx + 20, my + 25, mw - 40, 1, codex.get("K.H"));
 
-                    if (std.fs.cwd().openFile("assets/.void/.00", .{})) |file|
+                    if (std.fs.cwd().openFile("assets/.void/.00", .{}) catch null) |file|
 {
                         const f_content = file.readToEndAlloc(void_allocator, 1024 * 1024) catch "";
 defer void_allocator.free(f_content);
@@ -2151,7 +2172,7 @@ drawChar(dx, draw_y, c, codex.get("S.S"));
                             curr_line += 1;
 }
                         file.close();
-} else |_| {}
+}
                     
                     drawRect(mx + 20, my + mh - 25, mw - 40, 1, codex.get("K.H"));
 print(mx + 20, my + mh - 18, "[ESC] Dismiss   [TAB] Pipe to File   [UP/DOWN] Scroll", codex.get("K.H"));
